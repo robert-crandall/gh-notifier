@@ -1,0 +1,217 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import type { GithubNotification, Project } from '$lib/types';
+	import * as api from '$lib/api';
+
+	let notifications: GithubNotification[] = $state([]);
+	let projects: Project[] = $state([]);
+	let loading = $state(true);
+	let showProjectPicker = $state<number | null>(null);
+
+	onMount(async () => {
+		try {
+			const [notifs, projs] = await Promise.all([
+				api.getUnmappedNotifications(),
+				api.getProjects()
+			]);
+			notifications = notifs;
+			projects = projs;
+		} catch {
+			// Fallback stub data
+			notifications = [
+				{
+					id: 1,
+					github_id: 'gh_1',
+					repo_full_name: 'UI-Components',
+					subject_title: 'Refactor global navigation state to use context-aware anchors',
+					subject_type: 'PullRequest',
+					subject_url: 'https://github.com',
+					reason: 'review_requested',
+					is_read: false,
+					updated_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+					project_id: null,
+					author: 'alec_dev',
+					author_avatar: null
+				},
+				{
+					id: 2,
+					github_id: 'gh_2',
+					repo_full_name: 'Core-Engine',
+					subject_title: 'Memory leak detected during long-running Git sync cycles',
+					subject_type: 'Issue',
+					subject_url: 'https://github.com',
+					reason: 'assign',
+					is_read: false,
+					updated_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+					project_id: null,
+					author: 'sarah_ops',
+					author_avatar: null
+				},
+				{
+					id: 3,
+					github_id: 'gh_3',
+					repo_full_name: 'Docs',
+					subject_title: 'Update README with new architectural patterns and CLI flags',
+					subject_type: 'PullRequest',
+					subject_url: 'https://github.com',
+					reason: 'mention',
+					is_read: true,
+					updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+					project_id: null,
+					author: 'mika_writes',
+					author_avatar: null
+				}
+			];
+			projects = [
+				{ id: 1, name: 'UI Design System', context_doc: '', next_action: '', status: 'active', snooze_mode: null, snooze_until: null, unread_count: 0, icon: 'dashboard_customize', repo_label: '' },
+				{ id: 2, name: 'Backend API v2', context_doc: '', next_action: '', status: 'active', snooze_mode: null, snooze_until: null, unread_count: 0, icon: 'storage', repo_label: '' }
+			];
+		}
+		loading = false;
+	});
+
+	function typeLabel(type: string): { label: string; bg: string; text: string } {
+		switch (type) {
+			case 'PullRequest':
+				return { label: 'PULL REQUEST', bg: 'bg-blue-100', text: 'text-blue-700' };
+			case 'Issue':
+				return { label: 'BUG REPORT', bg: 'bg-orange-100', text: 'text-orange-700' };
+			default:
+				return { label: type.toUpperCase(), bg: 'bg-slate-200', text: 'text-slate-700' };
+		}
+	}
+
+	function timeAgo(dateStr: string): string {
+		const diff = Date.now() - new Date(dateStr).getTime();
+		const hours = Math.floor(diff / (1000 * 60 * 60));
+		if (hours < 1) return 'Just now';
+		if (hours < 24) return `${hours} hours ago`;
+		const days = Math.floor(hours / 24);
+		if (days === 1) return 'Yesterday';
+		return `${days} days ago`;
+	}
+
+	async function assignToProject(notificationId: number, projectId: number) {
+		try {
+			await api.assignNotificationToProject(notificationId, projectId);
+			notifications = notifications.filter((n) => n.id !== notificationId);
+		} catch {
+			// In dev, just remove from list
+			notifications = notifications.filter((n) => n.id !== notificationId);
+		}
+		showProjectPicker = null;
+	}
+</script>
+
+<section class="flex-1 px-8 py-10 bg-surface">
+	<div class="max-w-5xl mx-auto">
+		<div class="mb-10 flex justify-between items-end">
+			<div>
+				<h1 class="text-3xl font-bold tracking-tight text-on-surface mb-2">Unmapped Inbox</h1>
+				<p class="text-on-surface-variant text-sm flex items-center gap-2">
+					<span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings: 'wght' 600;">sync</span>
+					Connected to
+					<span class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">github.com</span>
+				</p>
+			</div>
+			<div class="flex gap-3">
+				<button class="px-4 py-2 text-xs font-semibold text-secondary hover:bg-surface-container-low rounded-md transition-all duration-200 flex items-center gap-2">
+					<span class="material-symbols-outlined text-[16px]">done_all</span>
+					Mark all read
+				</button>
+				<button class="px-4 py-2 text-xs font-semibold text-on-surface bg-surface-container-highest rounded-md hover:bg-surface-dim transition-all duration-200 flex items-center gap-2">
+					<span class="material-symbols-outlined text-[16px]">filter_list</span>
+					Filter
+				</button>
+			</div>
+		</div>
+
+		<div class="space-y-4">
+			{#each notifications as notification (notification.id)}
+				{@const badge = typeLabel(notification.subject_type)}
+				<div
+					class="group {notification.is_read
+						? 'bg-surface-dim/40 opacity-60 hover:opacity-80'
+						: 'bg-surface-container-lowest border-l-[3px] border-primary shadow-sm hover:translate-x-1'} p-5 rounded-md transition-all duration-200"
+				>
+					<div class="flex justify-between items-start">
+						<div class="flex-1">
+							<div class="flex items-center gap-3 mb-1">
+								<span class="text-[10px] font-bold tracking-wider text-on-surface-variant uppercase opacity-70">
+									{notification.repo_full_name} / {notification.subject_type === 'PullRequest' ? 'PR' : 'ISSUE'} #{notification.id}
+								</span>
+								<span class="px-2 py-0.5 rounded-full {badge.bg} {badge.text} text-[10px] font-bold">
+									{badge.label}
+								</span>
+							</div>
+							<h3 class="text-base font-semibold text-on-surface mb-2">
+								{notification.subject_title}
+							</h3>
+							<div class="flex items-center gap-4">
+								<div class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+									<div class="w-5 h-5 rounded-full bg-surface-container-highest flex items-center justify-center">
+										<span class="material-symbols-outlined text-[14px]">person</span>
+									</div>
+									<span class="font-medium">{notification.author}</span>
+								</div>
+								<span class="text-xs text-outline opacity-50">{timeAgo(notification.updated_at)}</span>
+							</div>
+						</div>
+						<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+							<button class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200" title="Archive">
+								<span class="material-symbols-outlined text-[20px]">archive</span>
+							</button>
+							<button class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200" title="Skip">
+								<span class="material-symbols-outlined text-[20px]">visibility_off</span>
+							</button>
+							<div class="h-6 w-[1px] bg-outline-variant/30 mx-1"></div>
+							<div class="relative">
+								<button
+									class="px-4 py-2 bg-primary text-on-primary text-xs font-bold rounded-md flex items-center gap-2 shadow-sm hover:brightness-110 active:scale-95 transition-all"
+									onclick={() => (showProjectPicker = showProjectPicker === notification.id ? null : notification.id)}
+								>
+									Assign to Project
+									<span class="material-symbols-outlined text-[16px]">keyboard_arrow_down</span>
+								</button>
+								{#if showProjectPicker === notification.id}
+									<div class="absolute right-0 top-full mt-2 glass-panel border border-outline-variant/20 shadow-2xl rounded-xl w-64 p-4 z-50">
+										<h4 class="text-xs font-black text-on-surface-variant tracking-widest mb-4">SELECT PROJECT</h4>
+										<div class="space-y-2">
+											{#each projects as project}
+												<button
+													class="w-full text-left px-3 py-2 text-sm hover:bg-primary-fixed rounded flex items-center gap-3 transition-colors"
+													onclick={() => assignToProject(notification.id, project.id)}
+												>
+													<span class="material-symbols-outlined text-primary">{project.icon}</span>
+													{project.name}
+												</button>
+											{/each}
+											<button class="w-full text-left px-3 py-2 text-sm hover:bg-primary-fixed rounded flex items-center gap-3 transition-colors border-t border-outline-variant/15 mt-2 pt-2 text-primary font-bold">
+												<span class="material-symbols-outlined">add_circle</span>
+												New Project...
+											</button>
+										</div>
+									</div>
+								{/if}
+							</div>
+						</div>
+					</div>
+				</div>
+			{/each}
+
+			<!-- CTA card -->
+			<div class="relative overflow-hidden bg-gradient-to-br from-primary to-on-primary-fixed-variant p-8 rounded-xl shadow-lg mt-12 flex flex-col md:flex-row items-center justify-between">
+				<div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+				<div class="relative z-10">
+					<h2 class="text-2xl font-bold text-white mb-2">Can't find the right project?</h2>
+					<p class="text-primary-fixed-dim text-sm max-w-md">Initialize a new architectural workspace directly from these notifications.</p>
+				</div>
+				<div class="relative z-10 mt-6 md:mt-0">
+					<button class="bg-white text-primary px-6 py-3 rounded-md font-extrabold text-sm shadow-xl hover:bg-primary-fixed transition-all duration-300 transform hover:-translate-y-1">
+						CREATE NEW PROJECT
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+</section>
