@@ -7,6 +7,8 @@
 	let project: Project | null = $state(null);
 	let notifications: GithubNotification[] = $state([]);
 	let loading = $state(true);
+	let saving = $state(false);
+	let saveMessage = $state('');
 
 	let projectId = $derived(Number($page.params.id));
 
@@ -24,6 +26,22 @@
 			loading = false;
 		}
 	});
+
+	async function saveProject() {
+		if (!project) return;
+		saving = true;
+		saveMessage = '';
+		try {
+			await api.updateProject(project);
+			saveMessage = 'Saved';
+			setTimeout(() => (saveMessage = ''), 2000);
+		} catch (e) {
+			console.error('Failed to save project:', e);
+			saveMessage = 'Error saving';
+		} finally {
+			saving = false;
+		}
+	}
 
 	function timeAgo(dateStr: string): string {
 		const diff = Date.now() - new Date(dateStr).getTime();
@@ -78,6 +96,7 @@
 						class="w-full bg-transparent border-none p-0 text-sm focus:ring-0 resize-none min-h-[60px] text-on-surface font-medium placeholder:text-on-surface-variant/40"
 						placeholder="What's the immediate next step?"
 						bind:value={project.next_action}
+						onblur={saveProject}
 					></textarea>
 				</div>
 
@@ -88,7 +107,14 @@
 							<span class="material-symbols-outlined text-on-surface-variant text-lg">description</span>
 							<span class="text-[11px] font-black uppercase tracking-widest text-on-surface">Context Document</span>
 						</div>
-						<button class="text-[10px] font-bold text-primary hover:underline">SAVE</button>
+						<div class="flex items-center gap-2">
+							{#if saveMessage}
+								<span class="text-[10px] text-on-surface-variant">{saveMessage}</span>
+							{/if}
+							<button class="text-[10px] font-bold text-primary hover:underline disabled:opacity-50" onclick={saveProject} disabled={saving}>
+								{saving ? 'Saving...' : 'SAVE'}
+							</button>
+						</div>
 					</div>
 					<div class="bg-surface-container-lowest min-h-[400px] p-6 rounded-xl border border-outline-variant/15 shadow-sm">
 						<textarea
