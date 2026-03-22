@@ -18,8 +18,8 @@
 			await api.syncNotifications();
 			goto('/');
 		} catch (e) {
-			// In dev without Tauri, just navigate
-			goto('/');
+			error = `Connection failed: ${e}`;
+			connecting = false;
 		}
 	}
 </script>

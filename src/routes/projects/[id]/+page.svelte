@@ -18,68 +18,11 @@
 			]);
 			project = proj;
 			notifications = notifs;
-		} catch {
-			// Stub data
-			project = {
-				id: projectId,
-				name: 'System Architecture Refactor',
-				context_doc:
-					'**Goals:**\n- Decouple the monolithic event stream.\n- Transition to gRPC for internal service comms.\n\n**Constraints:**\n- Zero downtime requirement.\n- Must maintain backwards compatibility with v2 legacy clients.\n\n**Stakeholders:**\n@backend-architects, @platform-stability-team.\n\n**Notes:**\nRemember to check the memory leak issue in the logging middleware before proceeding with the refactor.',
-				next_action:
-					'Review current API endpoint latency metrics and propose schema changes for the worker nodes.',
-				status: 'active',
-				snooze_mode: null,
-				snooze_until: null,
-				unread_count: 4,
-				icon: 'terminal',
-				repo_label: 'precision-architect/core-engine'
-			};
-			notifications = [
-				{
-					id: 101,
-					github_id: 'gh_101',
-					repo_full_name: 'precision-architect/core-engine',
-					subject_title: 'PR #42: Update login logic and implement OAuth2 flow',
-					subject_type: 'PullRequest',
-					subject_url: 'https://github.com',
-					reason: 'review_requested',
-					is_read: false,
-					updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-					project_id: projectId,
-					author: 'dev_user',
-					author_avatar: null
-				},
-				{
-					id: 102,
-					github_id: 'gh_102',
-					repo_full_name: 'precision-architect/infra-ops',
-					subject_title: 'Issue #891: Redis cluster cache eviction policy mismatch',
-					subject_type: 'Issue',
-					subject_url: 'https://github.com',
-					reason: 'assign',
-					is_read: true,
-					updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-					project_id: projectId,
-					author: 'ops_lead',
-					author_avatar: null
-				},
-				{
-					id: 103,
-					github_id: 'gh_103',
-					repo_full_name: 'precision-architect/core-engine',
-					subject_title: 'Code Review: New worker pool implementation',
-					subject_type: 'PullRequest',
-					subject_url: 'https://github.com',
-					reason: 'review_requested',
-					is_read: false,
-					updated_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-					project_id: projectId,
-					author: 'lead_dev',
-					author_avatar: null
-				}
-			];
+		} catch (e) {
+			console.error('Failed to load project:', e);
+		} finally {
+			loading = false;
 		}
-		loading = false;
 	});
 
 	function timeAgo(dateStr: string): string {

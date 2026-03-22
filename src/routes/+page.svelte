@@ -8,93 +8,16 @@
 	let snoozedProjects: Project[] = $state([]);
 	let loading = $state(true);
 
-	const projectIcons = ['terminal', 'data_object', 'dashboard_customize', 'code', 'storage', 'cloud'];
-
 	onMount(async () => {
 		try {
 			const projects = await api.getProjects();
 			activeProjects = projects.filter((p) => p.status === 'active');
 			snoozedProjects = projects.filter((p) => p.status === 'snoozed');
-		} catch {
-			// Stubbed data fallback for development without Tauri
-			activeProjects = [
-				{
-					id: 1,
-					name: 'core-engine-v2',
-					context_doc: '',
-					next_action: 'Review critical PR #442: Refactor memory allocator for low-latency nodes.',
-					status: 'active',
-					snooze_mode: null,
-					snooze_until: null,
-					unread_count: 3,
-					icon: 'terminal',
-					repo_label: 'Precision-Architect/Core'
-				},
-				{
-					id: 2,
-					name: 'api-gateway-mesh',
-					context_doc: '',
-					next_action: 'Validate security manifest for the new ingress controller.',
-					status: 'active',
-					snooze_mode: null,
-					snooze_until: null,
-					unread_count: 1,
-					icon: 'data_object',
-					repo_label: 'Precision-Architect/Infra'
-				},
-				{
-					id: 3,
-					name: 'ui-component-library',
-					context_doc: '',
-					next_action: 'Export tokens for the new "Digital Lithograph" theme.',
-					status: 'active',
-					snooze_mode: null,
-					snooze_until: null,
-					unread_count: 0,
-					icon: 'dashboard_customize',
-					repo_label: 'Precision-Architect/Design'
-				}
-			];
-			snoozedProjects = [
-				{
-					id: 4,
-					name: 'legacy-auth-service',
-					context_doc: '',
-					next_action: 'Pending dependency update.',
-					status: 'snoozed',
-					snooze_mode: 'date',
-					snooze_until: '2026-10-24T09:00:00',
-					unread_count: 0,
-					icon: 'push_pin',
-					repo_label: ''
-				},
-				{
-					id: 5,
-					name: 'marketing-analytics-tracker',
-					context_doc: '',
-					next_action: 'Awaiting Q4 growth metrics.',
-					status: 'snoozed',
-					snooze_mode: 'notification',
-					snooze_until: null,
-					unread_count: 0,
-					icon: 'analytics',
-					repo_label: ''
-				},
-				{
-					id: 6,
-					name: 'experimental-webgpu-renderer',
-					context_doc: '',
-					next_action: 'On ice: GPU driver bug in Chrome 128.',
-					status: 'snoozed',
-					snooze_mode: 'manual',
-					snooze_until: null,
-					unread_count: 0,
-					icon: 'experiment',
-					repo_label: ''
-				}
-			];
+		} catch (e) {
+			console.error('Failed to load projects:', e);
+		} finally {
+			loading = false;
 		}
-		loading = false;
 	});
 
 	function snoozeLabel(project: Project): string {

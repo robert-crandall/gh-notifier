@@ -16,58 +16,11 @@
 			]);
 			notifications = notifs;
 			projects = projs;
-		} catch {
-			// Fallback stub data
-			notifications = [
-				{
-					id: 1,
-					github_id: 'gh_1',
-					repo_full_name: 'UI-Components',
-					subject_title: 'Refactor global navigation state to use context-aware anchors',
-					subject_type: 'PullRequest',
-					subject_url: 'https://github.com',
-					reason: 'review_requested',
-					is_read: false,
-					updated_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-					project_id: null,
-					author: 'alec_dev',
-					author_avatar: null
-				},
-				{
-					id: 2,
-					github_id: 'gh_2',
-					repo_full_name: 'Core-Engine',
-					subject_title: 'Memory leak detected during long-running Git sync cycles',
-					subject_type: 'Issue',
-					subject_url: 'https://github.com',
-					reason: 'assign',
-					is_read: false,
-					updated_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-					project_id: null,
-					author: 'sarah_ops',
-					author_avatar: null
-				},
-				{
-					id: 3,
-					github_id: 'gh_3',
-					repo_full_name: 'Docs',
-					subject_title: 'Update README with new architectural patterns and CLI flags',
-					subject_type: 'PullRequest',
-					subject_url: 'https://github.com',
-					reason: 'mention',
-					is_read: true,
-					updated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-					project_id: null,
-					author: 'mika_writes',
-					author_avatar: null
-				}
-			];
-			projects = [
-				{ id: 1, name: 'UI Design System', context_doc: '', next_action: '', status: 'active', snooze_mode: null, snooze_until: null, unread_count: 0, icon: 'dashboard_customize', repo_label: '' },
-				{ id: 2, name: 'Backend API v2', context_doc: '', next_action: '', status: 'active', snooze_mode: null, snooze_until: null, unread_count: 0, icon: 'storage', repo_label: '' }
-			];
+		} catch (e) {
+			console.error('Failed to load inbox:', e);
+		} finally {
+			loading = false;
 		}
-		loading = false;
 	});
 
 	function typeLabel(type: string): { label: string; bg: string; text: string } {
@@ -95,9 +48,8 @@
 		try {
 			await api.assignNotificationToProject(notificationId, projectId);
 			notifications = notifications.filter((n) => n.id !== notificationId);
-		} catch {
-			// In dev, just remove from list
-			notifications = notifications.filter((n) => n.id !== notificationId);
+		} catch (e) {
+			console.error('Failed to assign notification:', e);
 		}
 		showProjectPicker = null;
 	}

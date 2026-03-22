@@ -17,8 +17,8 @@
 		try {
 			settings = await api.getSettings();
 			tokenInput = settings.github_token ? '••••••••' : '';
-		} catch {
-			// Dev mode
+		} catch (e) {
+			console.error('Failed to load settings:', e);
 		}
 	});
 
@@ -30,8 +30,8 @@
 			await api.saveGithubToken(tokenInput);
 			message = 'Token saved successfully.';
 			tokenInput = '••••••••';
-		} catch {
-			message = 'Saved (dev mode).';
+		} catch (e) {
+			message = `Error saving token: ${e}`;
 		}
 		saving = false;
 	}
@@ -42,8 +42,8 @@
 		try {
 			await api.syncNotifications();
 			message = 'Sync complete!';
-		} catch {
-			message = 'Sync triggered (dev mode).';
+		} catch (e) {
+			message = `Sync failed: ${e}`;
 		}
 		syncing = false;
 	}
