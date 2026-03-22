@@ -146,6 +146,32 @@ These are explicitly **not** in the MVP. Revisit after validating the core workf
 
 ---
 
+## Code Quality & Testing Strategy
+
+### Active Now
+- **`cargo clippy`** (pedantic) — catches bugs, enforces idioms. Config in `src-tauri/.cargo/config.toml`. Run before commits.
+- **`cargo fmt`** — consistent formatting. Config in `src-tauri/rustfmt.toml`.
+- **`bun run check`** (`svelte-check`) — Svelte + TypeScript type checking. Run before commits.
+
+**Pre-commit workflow:** `cd src-tauri && cargo clippy && cargo fmt --check && cd .. && bun run check`
+
+### After M1 (Persistence)
+- **Rust unit tests for `db.rs`** — test migrations, CRUD operations, edge cases (e.g., delete project with notifications, snooze null handling). This is the first code where bugs are subtle and painful.
+- Use `#[cfg(test)]` module in each Rust source file.
+
+### After M2 (GitHub Sync)
+- **Rust unit tests for `github.rs`** — mock HTTP responses, test JSON parsing, test `team_mention` filtering logic. GitHub API responses are the most likely thing to break from upstream changes.
+
+### After M3 (Auto-Routing)
+- **Rust unit tests for thread mapping logic** — this is the "smartest" business logic. Test auto-assignment, re-routing, conflict handling.
+
+### Not Planned for MVP
+- **E2E tests** — UI is still evolving; too brittle to test through automation right now.
+- **CI/CD** — solo dev, no PRs, no team. Manual checks before commits suffice.
+- **ESLint/Prettier for Svelte** — nice-to-have; `svelte-check` already covers the critical path.
+
+---
+
 ## Execution Notes
 
 **Work in milestone order.** Each milestone builds on the previous one:
