@@ -5,7 +5,15 @@ use crate::{
   db::DbState,
   models::{AppSettings, GithubNotification, ManualTask, Project},
 };
+use keyring::Entry;
 use rusqlite::{params, OptionalExtension};
+
+const KEYRING_SERVICE: &str = "gh-notifier";
+const KEYRING_USER: &str = "github_token";
+
+fn keychain_entry() -> Result<Entry, String> {
+  Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())
+}
 
 // ---------------------------------------------------------------------------
 // Row mapper helpers
@@ -260,14 +268,8 @@ pub fn unsubscribe_thread(id: i64, state: tauri::State<'_, DbState>) -> Result<(
 pub fn get_settings(state: tauri::State<'_, DbState>) -> Result<AppSettings, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
 
-  let github_token = db
-    .query_row(
-      "SELECT value FROM settings WHERE key = 'github_token'",
-      [],
-      |row| row.get::<_, String>(0),
-    )
-    .optional()
-    .map_err(|e| e.to_string())?;
+  // PAT lives in the macOS Keychain — never in SQLite
+  let github_token = keychain_entry()?.get_password().ok();
 
   let poll_interval_minutes = db
     .query_row(
@@ -299,12 +301,12 @@ pub fn get_settings(state: tauri::State<'_, DbState>) -> Result<AppSettings, Str
 
 #[tauri::command]
 pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  // Store the PAT in the macOS Keychain (encrypted at rest)
+  keychain_entry()?
+    .set_password(&token)
+    .map_err(|e| e.to_string())?;
+
   let db = state.0.lock().map_err(|e| e.to_string())?;
-  db.execute(
-    "INSERT OR REPLACE INTO settings (key, value) VALUES ('github_token', ?1)",
-    params![token],
-  )
-  .map_err(|e| e.to_string())?;
   db.execute(
     "INSERT OR REPLACE INTO settings (key, value) VALUES ('is_setup_complete', 'true')",
     [],
