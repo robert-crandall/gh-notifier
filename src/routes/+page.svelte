@@ -1,23 +1,50 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import type { Project } from '$lib/types';
 	import * as api from '$lib/api';
 
-	let activeProjects: Project[] = $state([]);
-	let snoozedProjects: Project[] = $state([]);
-	let loading = $state(true);
+	console.log('[dashboard] script block executing');
 
-	onMount(async () => {
-		try {
-			const projects = await api.getProjects();
+	let activeProjects: Project[] = $state([
+		{
+			id: 1,
+			name: 'Test Project Alpha',
+			context_doc: 'Some context here',
+			next_action: 'Review the PR and leave feedback',
+			status: 'active',
+			snooze_mode: null,
+			snooze_until: null,
+			icon: 'rocket_launch',
+			repo_label: 'org/repo-alpha',
+			unread_count: 3
+		},
+		{
+			id: 2,
+			name: 'Backend Infra',
+			context_doc: '',
+			next_action: 'Deploy the updated config',
+			status: 'active',
+			snooze_mode: null,
+			snooze_until: null,
+			icon: 'dns',
+			repo_label: 'org/infra',
+			unread_count: 0
+		}
+	]);
+	let snoozedProjects: Project[] = $state([]);
+	let loading = $state(false);
+
+	$effect(() => {
+		console.log('[dashboard] $effect running — calling get_projects');
+		api.getProjects().then((projects) => {
+			console.log('[dashboard] get_projects returned:', projects);
 			activeProjects = projects.filter((p) => p.status === 'active');
 			snoozedProjects = projects.filter((p) => p.status === 'snoozed');
-		} catch (e) {
-			console.error('Failed to load projects:', e);
-		} finally {
+		}).catch((e) => {
+			console.error('[dashboard] get_projects failed:', e);
+		}).finally(() => {
 			loading = false;
-		}
+		});
 	});
 
 	function snoozeLabel(project: Project): string {
