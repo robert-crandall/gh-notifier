@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Precision Architect - Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "surface-container-highest": "#e2e2e4",
+                "on-secondary-fixed-variant": "#46464b",
+                "on-secondary": "#ffffff",
+                "surface": "#f9f9fb",
+                "on-tertiary": "#ffffff",
+                "secondary-container": "#e0dfe4",
+                "error-container": "#ffdad6",
+                "primary-fixed-dim": "#b3c5ff",
+                "tertiary-container": "#c64f00",
+                "outline": "#717786",
+                "tertiary-fixed": "#ffdbcc",
+                "on-error": "#ffffff",
+                "inverse-primary": "#b3c5ff",
+                "inverse-surface": "#2f3132",
+                "secondary-fixed": "#e3e2e7",
+                "on-primary-container": "#fefcff",
+                "surface-variant": "#e2e2e4",
+                "outline-variant": "#c1c6d7",
+                "secondary-fixed-dim": "#c6c6cb",
+                "on-surface-variant": "#414755",
+                "surface-container-low": "#f3f3f5",
+                "on-primary-fixed": "#001849",
+                "on-tertiary-container": "#fffbff",
+                "surface-tint": "#0054d6",
+                "primary": "#0052d1",
+                "inverse-on-surface": "#f0f0f2",
+                "on-surface": "#1a1c1d",
+                "on-primary-fixed-variant": "#003fa4",
+                "on-primary": "#ffffff",
+                "secondary": "#5d5e63",
+                "surface-bright": "#f9f9fb",
+                "surface-container-lowest": "#ffffff",
+                "primary-fixed": "#dae1ff",
+                "surface-dim": "#d9dadc",
+                "on-tertiary-fixed-variant": "#7c2e00",
+                "error": "#ba1a1a",
+                "on-secondary-container": "#626267",
+                "on-tertiary-fixed": "#351000",
+                "tertiary": "#9e3d00",
+                "surface-container": "#eeeef0",
+                "on-error-container": "#93000a",
+                "primary-container": "#156aff",
+                "on-secondary-fixed": "#1a1b1f",
+                "background": "#f9f9fb",
+                "surface-container-high": "#e8e8ea",
+                "on-background": "#1a1c1d",
+                "tertiary-fixed-dim": "#ffb595"
+              },
+              fontFamily: {
+                "headline": ["Inter"],
+                "body": ["Inter"],
+                "label": ["Inter"]
+              },
+              borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+            },
+          },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased flex">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full flex flex-col h-screen w-64 border-r-0 bg-[#f3f3f5] dark:bg-slate-900 z-40">
+<!-- Header Section -->
+<div class="p-6">
+<div class="flex items-center gap-3 mb-8">
+<div class="w-10 h-10 rounded-xl overflow-hidden shadow-sm">
+<img alt="User Profile" data-alt="Close up professional male headshot avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuANavEwQRTPEFggmXYtsC7sqdSTsRM8FWYq0G-kKsB3GmMoxb3HPJy3pUkXZOSzilsxOfHBGLrfAHwCANV0hq9018u80-O7QIb9Jy6bee9RDQdNmeTWPd0yEjUH5tecuAQIRDdGeeXA80vIQ9qLjxOtgk-AWpzx9ohY7gJCn4iUo2B-J9rr54DMMwScwbPZS17pEW-bYt3l9Sn3VvVVlVvhVBXpaDBYqqpz81tUe43veaB2npUrORjvj6VzMho5W35CtbYlQeifDen-"/>
+</div>
+<div>
+<h2 class="text-sm font-black tracking-tighter text-slate-800 dark:text-slate-200 uppercase">Precision Architect</h2>
+<p class="text-[10px] text-on-surface-variant/70 tracking-wide uppercase font-medium">GitHub Sync Active</p>
+</div>
+</div>
+<!-- CTA -->
+<button class="w-full flex items-center justify-center gap-2 bg-primary text-on-primary py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:opacity-90 transition-all duration-200 active:scale-95 mb-8">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Project
+            </button>
+<!-- Navigation Links -->
+<nav class="space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 text-[#007AFF] bg-[#ffffff] dark:bg-slate-800 rounded-md shadow-sm border-l-4 border-[#007AFF] font-['Inter'] title-sm tracking-wide transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+                    Dashboard
+                </a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#e2e2e4] dark:hover:bg-slate-800 transition-colors duration-150 font-['Inter'] title-sm tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="inbox">inbox</span>
+                    Inbox
+                    <span class="ml-auto text-[10px] font-bold bg-tertiary-container text-white px-1.5 py-0.5 rounded-full">12</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#e2e2e4] dark:hover:bg-slate-800 transition-colors duration-150 font-['Inter'] title-sm tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+                    Settings
+                </a>
+</nav>
+</div>
+<!-- Spacer for Bottom Section -->
+<div class="mt-auto p-6 space-y-1">
+<div class="px-4 py-3 mb-4 rounded-xl bg-surface-container-high/50">
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold mb-2">Metrics</p>
+<div class="flex justify-between items-center text-xs">
+<span class="text-on-surface-variant">Active</span>
+<span class="font-mono font-bold text-primary">08</span>
+</div>
+<div class="flex justify-between items-center text-xs mt-1">
+<span class="text-on-surface-variant">Snoozed</span>
+<span class="font-mono font-bold text-secondary">03</span>
+</div>
+</div>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#e2e2e4] dark:hover:bg-slate-800 transition-colors duration-150 font-['Inter'] title-sm tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+                Help
+            </a>
+<a class="flex items-center gap-3 px-4 py-2 text-slate-600 dark:text-slate-400 hover:bg-[#e2e2e4] dark:hover:bg-slate-800 transition-colors duration-150 font-['Inter'] title-sm tracking-wide" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 ml-64 min-h-screen">
+<!-- TopNavBar Shell -->
+<header class="sticky top-0 z-50 flex justify-between items-center px-10 w-full h-16 bg-[#f9f9fb]/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-200/15 dark:border-slate-800/15 transition-all duration-200 ease-in-out">
+<h1 class="font-['Inter'] headline-sm font-semibold text-on-surface">Overview</h1>
+<div class="flex items-center gap-6">
+<!-- macOS Search Bar Style -->
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input class="w-full bg-surface-container-high border-none rounded-full py-1.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/40 placeholder:text-on-surface-variant/60" placeholder="Search projects..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-1.5 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-1.5 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Dashboard Canvas -->
+<div class="p-10 max-w-7xl mx-auto space-y-12">
+<!-- Section: Active Projects -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<h2 class="text-xl font-bold tracking-tight text-on-surface">Active Projects</h2>
+<span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold rounded uppercase tracking-wider">Priority Focus</span>
+</div>
+<button class="text-sm font-medium text-primary hover:underline">View All</button>
+</div>
+<!-- Bento Grid Layout for Active Projects -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1 -->
+<div class="group bg-surface-container-lowest border border-outline-variant/15 p-6 rounded-2xl shadow-[0_12px_40px_rgba(26,28,29,0.04)] hover:shadow-[0_20px_60px_rgba(26,28,29,0.08)] transition-all duration-300 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="w-10 h-10 rounded-lg bg-[#f0f4ff] flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">terminal</span>
+</div>
+<span class="bg-tertiary-container text-white text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-tighter">3 Unread</span>
+</div>
+<h3 class="font-bold text-on-surface mb-1">core-engine-v2</h3>
+<p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-widest mb-4">Precision-Architect/Core</p>
+<div class="mt-6 p-3 rounded-lg bg-surface-container-low border border-outline-variant/10">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Next Action</p>
+<p class="text-xs text-on-surface leading-relaxed">Review critical PR #442: Refactor memory allocator for low-latency nodes.</p>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="group bg-surface-container-lowest border border-outline-variant/15 p-6 rounded-2xl shadow-[0_12px_40px_rgba(26,28,29,0.04)] hover:shadow-[0_20px_60px_rgba(26,28,29,0.08)] transition-all duration-300 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="w-10 h-10 rounded-lg bg-[#f0f4ff] flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">data_object</span>
+</div>
+<span class="bg-tertiary-container text-white text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-tighter">1 Unread</span>
+</div>
+<h3 class="font-bold text-on-surface mb-1">api-gateway-mesh</h3>
+<p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-widest mb-4">Precision-Architect/Infra</p>
+<div class="mt-6 p-3 rounded-lg bg-surface-container-low border border-outline-variant/10">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Next Action</p>
+<p class="text-xs text-on-surface leading-relaxed">Validate security manifest for the new ingress controller.</p>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="group bg-surface-container-lowest border border-outline-variant/15 p-6 rounded-2xl shadow-[0_12px_40px_rgba(26,28,29,0.04)] hover:shadow-[0_20px_60px_rgba(26,28,29,0.08)] transition-all duration-300 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-primary opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="w-10 h-10 rounded-lg bg-[#f0f4ff] flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">dashboard_customize</span>
+</div>
+<span class="bg-surface-container-high text-on-surface-variant text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-tighter">All Caught Up</span>
+</div>
+<h3 class="font-bold text-on-surface mb-1">ui-component-library</h3>
+<p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-widest mb-4">Precision-Architect/Design</p>
+<div class="mt-6 p-3 rounded-lg bg-surface-container-low border border-outline-variant/10">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Next Action</p>
+<p class="text-xs text-on-surface leading-relaxed">Export tokens for the new "Digital Lithograph" theme.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Snoozed Projects -->
+<section class="opacity-80">
+<div class="flex items-center gap-3 mb-6">
+<h2 class="text-lg font-bold tracking-tight text-on-surface-variant">Snoozed Projects</h2>
+<span class="material-symbols-outlined text-on-surface-variant text-sm">bedtime</span>
+</div>
+<div class="space-y-3">
+<!-- Snoozed Item 1 -->
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-outline-variant/20 hover:bg-surface-container-high transition-all group">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-secondary-fixed-dim">push_pin</span>
+<div>
+<h4 class="text-sm font-semibold text-on-surface-variant">legacy-auth-service</h4>
+<p class="text-[11px] text-on-surface-variant/60">Maintenance queue: Pending dependency update.</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-0.5">Resume Criteria</p>
+<span class="text-xs font-mono font-medium text-secondary">Oct 24, 09:00</span>
+</div>
+</div>
+<!-- Snoozed Item 2 -->
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-outline-variant/20 hover:bg-surface-container-high transition-all group">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-secondary-fixed-dim">analytics</span>
+<div>
+<h4 class="text-sm font-semibold text-on-surface-variant">marketing-analytics-tracker</h4>
+<p class="text-[11px] text-on-surface-variant/60">Low priority: Awaiting Q4 growth metrics.</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-0.5">Resume Criteria</p>
+<span class="text-xs font-mono font-medium text-secondary">Next Notification</span>
+</div>
+</div>
+<!-- Snoozed Item 3 -->
+<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-outline-variant/20 hover:bg-surface-container-high transition-all group">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-secondary-fixed-dim">experiment</span>
+<div>
+<h4 class="text-sm font-semibold text-on-surface-variant">experimental-webgpu-renderer</h4>
+<p class="text-[11px] text-on-surface-variant/60">On ice: GPU driver bug in Chrome 128.</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-0.5">Resume Criteria</p>
+<span class="text-xs font-mono font-medium text-secondary">Manual Wake Only</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Bottom Action Bar / Activity Feed -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6">
+<div class="bg-[#eef2ff] dark:bg-slate-900/50 p-6 rounded-3xl border border-primary/10">
+<h3 class="text-sm font-black uppercase tracking-tighter text-primary mb-4">Architect Insight</h3>
+<p class="text-sm text-on-surface leading-relaxed mb-4">
+                        You have <span class="font-bold">4 stale pull requests</span> across active projects. 
+                        Resolving these now will reduce your context-switching debt by 15% before the weekend.
+                    </p>
+<button class="text-xs font-bold text-primary flex items-center gap-1 group">
+                        Auto-Schedule Reviews
+                        <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<div class="p-6">
+<h3 class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">Recent Commits (Global)</h3>
+<div class="space-y-4">
+<div class="flex items-start gap-3">
+<div class="w-2 h-2 rounded-full bg-primary mt-1.5"></div>
+<div>
+<p class="text-xs font-semibold text-on-surface">feat(mesh): improve load balancer weights</p>
+<p class="text-[10px] text-on-surface-variant">Precision-Architect/Infra • 12m ago</p>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<div class="w-2 h-2 rounded-full bg-secondary-fixed mt-1.5"></div>
+<div>
+<p class="text-xs font-semibold text-on-surface">docs: update readme with setup instructions</p>
+<p class="text-[10px] text-on-surface-variant">Precision-Architect/Core • 1h ago</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+</body></html>
