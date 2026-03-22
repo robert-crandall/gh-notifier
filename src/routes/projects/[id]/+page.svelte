@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import type { Project, GithubNotification } from '$lib/types';
 	import * as api from '$lib/api';
@@ -12,19 +11,18 @@
 
 	let projectId = $derived(Number($page.params.id));
 
-	onMount(async () => {
-		try {
-			const [proj, notifs] = await Promise.all([
-				api.getProject(projectId),
-				api.getNotifications(projectId)
-			]);
-			project = proj;
-			notifications = notifs;
-		} catch (e) {
-			console.error('Failed to load project:', e);
-		} finally {
-			loading = false;
-		}
+	$effect(() => {
+		Promise.all([api.getProject(projectId), api.getNotifications(projectId)])
+			.then(([proj, notifs]) => {
+				project = proj;
+				notifications = notifs;
+			})
+			.catch((e) => {
+				console.error('Failed to load project:', e);
+			})
+			.finally(() => {
+				loading = false;
+			});
 	});
 
 	async function saveProject() {

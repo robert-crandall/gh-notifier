@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { GithubNotification, Project } from '$lib/types';
 	import * as api from '$lib/api';
 
@@ -8,19 +7,18 @@
 	let loading = $state(true);
 	let showProjectPicker = $state<number | null>(null);
 
-	onMount(async () => {
-		try {
-			const [notifs, projs] = await Promise.all([
-				api.getUnmappedNotifications(),
-				api.getProjects()
-			]);
-			notifications = notifs;
-			projects = projs;
-		} catch (e) {
-			console.error('Failed to load inbox:', e);
-		} finally {
-			loading = false;
-		}
+	$effect(() => {
+		Promise.all([api.getUnmappedNotifications(), api.getProjects()])
+			.then(([notifs, projs]) => {
+				notifications = notifs;
+				projects = projs;
+			})
+			.catch((e) => {
+				console.error('Failed to load inbox:', e);
+			})
+			.finally(() => {
+				loading = false;
+			});
 	});
 
 	function typeLabel(type: string): { label: string; bg: string; text: string } {

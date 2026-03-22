@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import type { AppSettings } from '$lib/types';
 	import * as api from '$lib/api';
 
@@ -13,13 +12,13 @@
 	let syncing = $state(false);
 	let message = $state('');
 
-	onMount(async () => {
-		try {
-			settings = await api.getSettings();
-			tokenInput = settings.github_token ? '••••••••' : '';
-		} catch (e) {
+	$effect(() => {
+		api.getSettings().then((s) => {
+			settings = s;
+			tokenInput = s.github_token ? '••••••••' : '';
+		}).catch((e) => {
 			console.error('Failed to load settings:', e);
-		}
+		});
 	});
 
 	async function saveToken() {
