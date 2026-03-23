@@ -523,7 +523,7 @@
 										<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
 									</div>
 								</div>
-								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
 									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
 										<span class="material-symbols-outlined text-sm">check_circle</span>
 										MARK READ
@@ -576,7 +576,7 @@
 														<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
 													</div>
 												</div>
-												<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+												<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
 													<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markUnread(notification)}>
 														<span class="material-symbols-outlined text-sm">mark_as_unread</span>
 														MARK UNREAD
