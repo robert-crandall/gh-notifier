@@ -47,6 +47,16 @@ pub struct AppSettings {
   pub last_synced_at: Option<String>,
 }
 
+/// A repo-level routing rule stored in `repo_rules`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepoRule {
+  pub id: i64,
+  pub repo_full_name: String,
+  pub project_id: i64,
+  pub project_name: String,
+  pub created_at: String,
+}
+
 /// Returned by `assign_notification_to_project` to let the UI decide whether to
 /// offer a repo-level routing rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]

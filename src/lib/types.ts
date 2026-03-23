@@ -41,6 +41,14 @@ export interface AppSettings {
 	last_synced_at: string | null;
 }
 
+export interface RepoRule {
+	id: number;
+	repo_full_name: string;
+	project_id: number;
+	project_name: string;
+	created_at: string;
+}
+
 export interface RepoRoutingHint {
 	/** 'none' | 'opt_in' | 'opt_out' */
 	kind: 'none' | 'opt_in' | 'opt_out';

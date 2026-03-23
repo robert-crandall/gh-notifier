@@ -4,7 +4,7 @@
 use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
-  models::{AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint},
+  models::{AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint, RepoRule},
 };
 use aes_gcm::{
   aead::{Aead, KeyInit},
@@ -824,6 +824,60 @@ pub fn toggle_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(
 pub fn delete_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
   db.execute("DELETE FROM manual_tasks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Repo rule commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_repo_rules(state: tauri::State<'_, DbState>) -> Result<Vec<RepoRule>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare(
+      "SELECT r.id, r.repo_full_name, r.project_id, p.name, r.created_at \
+       FROM repo_rules r \
+       JOIN projects p ON p.id = r.project_id \
+       ORDER BY r.repo_full_name",
+    )
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map([], |row| {
+      Ok(RepoRule {
+        id: row.get(0)?,
+        repo_full_name: row.get(1)?,
+        project_id: row.get(2)?,
+        project_name: row.get(3)?,
+        created_at: row.get(4)?,
+      })
+    })
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn update_repo_rule(
+  id: i64,
+  project_id: i64,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "UPDATE repo_rules SET project_id = ?1 WHERE id = ?2",
+    params![project_id, id],
+  )
+  .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+#[tauri::command]
+pub fn delete_repo_rule(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM repo_rules WHERE id = ?1", params![id])
     .map_err(|e| e.to_string())?;
   Ok(())
 }
