@@ -62,7 +62,10 @@
 
 	function formatSyncTime(iso: string | null): string {
 		if (!iso) return 'Never';
-		const d = new Date(iso + 'Z'); // SQLite datetime() is UTC without 'Z'
+		// SQLite datetime() returns "YYYY-MM-DD HH:MM:SS" in UTC.
+		// Convert to a proper ISO 8601 string so Date parsing is reliable.
+		const normalized = iso.includes('T') ? iso : `${iso.replace(' ', 'T')}Z`;
+		const d = new Date(normalized);
 		return d.toLocaleString('en-US', {
 			month: 'short',
 			day: 'numeric',
