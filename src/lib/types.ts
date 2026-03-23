@@ -43,6 +43,13 @@ export interface AppSettings {
 	last_synced_at: string | null;
 }
 
+export interface Bookmark {
+	id: number;
+	project_id: number;
+	name: string;
+	url: string;
+}
+
 export interface RepoRule {
 	id: number;
 	repo_full_name: string;

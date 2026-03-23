@@ -162,5 +162,19 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
   }
 
+  if version < 5 {
+    // Add bookmarks table for per-project named links.
+    conn.execute_batch(
+      "CREATE TABLE IF NOT EXISTS bookmarks (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        name       TEXT    NOT NULL,
+        url        TEXT    NOT NULL,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      PRAGMA user_version = 5;",
+    )?;
+  }
+
   Ok(())
 }

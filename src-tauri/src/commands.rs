@@ -5,8 +5,8 @@ use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
   models::{
-    AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint, RepoRoutingKind,
-    RepoRule,
+    AppSettings, Bookmark, GithubNotification, ManualTask, Project, RepoRoutingHint,
+    RepoRoutingKind, RepoRule,
   },
 };
 use aes_gcm::{
@@ -238,7 +238,7 @@ pub fn delete_project(
   })();
 
   match result {
-    Ok(_) => {
+    Ok(()) => {
       db.execute("COMMIT", params![]).map_err(|e| e.to_string())?;
       Ok(())
     }
@@ -957,6 +957,69 @@ pub fn toggle_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(
 pub fn delete_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
   db.execute("DELETE FROM manual_tasks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Bookmark commands
+// ---------------------------------------------------------------------------
+
+fn bookmark_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Bookmark> {
+  Ok(Bookmark {
+    id: row.get(0)?,
+    project_id: row.get(1)?,
+    name: row.get(2)?,
+    url: row.get(3)?,
+  })
+}
+
+#[tauri::command]
+pub fn get_bookmarks(
+  project_id: i64,
+  state: tauri::State<'_, DbState>,
+) -> Result<Vec<Bookmark>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare(
+      "SELECT id, project_id, name, url FROM bookmarks \
+       WHERE project_id = ?1 ORDER BY created_at ASC",
+    )
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map(params![project_id], bookmark_from_row)
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn create_bookmark(
+  project_id: i64,
+  name: String,
+  url: String,
+  state: tauri::State<'_, DbState>,
+) -> Result<Bookmark, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT INTO bookmarks (project_id, name, url) VALUES (?1, ?2, ?3)",
+    params![project_id, name, url],
+  )
+  .map_err(|e| e.to_string())?;
+  let id = db.last_insert_rowid();
+  db.query_row(
+    "SELECT id, project_id, name, url FROM bookmarks WHERE id = ?1",
+    params![id],
+    bookmark_from_row,
+  )
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_bookmark(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM bookmarks WHERE id = ?1", params![id])
     .map_err(|e| e.to_string())?;
   Ok(())
 }

@@ -71,6 +71,15 @@ pub enum RepoRoutingKind {
   OptOut,
 }
 
+/// A project bookmark — a named link associated with a project.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Bookmark {
+  pub id: i64,
+  pub project_id: i64,
+  pub name: String,
+  pub url: String,
+}
+
 /// Returned by `assign_notification_to_project` to let the UI decide whether to
 /// offer a repo-level routing rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -4,11 +4,12 @@ mod github;
 mod models;
 
 use commands::{
-  assign_notification_to_project, create_manual_task, create_project, create_repo_rule,
-  delete_manual_task, delete_project, delete_repo_rule, get_manual_tasks, get_notifications,
-  get_project, get_projects, get_repo_rules, get_settings, get_unmapped_notifications,
-  mark_notification_read, save_github_token, save_settings, snooze_project, sync_notifications,
-  toggle_manual_task, unsubscribe_thread, update_project, update_repo_rule, wake_project,
+  assign_notification_to_project, create_bookmark, create_manual_task, create_project,
+  create_repo_rule, delete_bookmark, delete_manual_task, delete_project, delete_repo_rule,
+  get_bookmarks, get_manual_tasks, get_notifications, get_project, get_projects, get_repo_rules,
+  get_settings, get_unmapped_notifications, mark_notification_read, save_github_token,
+  save_settings, snooze_project, sync_notifications, toggle_manual_task, unsubscribe_thread,
+  update_project, update_repo_rule, wake_project,
 };
 use std::time::Duration;
 use tauri::Manager;
@@ -73,6 +74,9 @@ pub fn run() {
       get_repo_rules,
       update_repo_rule,
       delete_repo_rule,
+      get_bookmarks,
+      create_bookmark,
+      delete_bookmark,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
