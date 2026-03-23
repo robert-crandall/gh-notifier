@@ -2,6 +2,7 @@
 	import { open } from '@tauri-apps/plugin-shell';
 	import type { GithubNotification, Project, RepoRoutingHint } from '$lib/types';
 	import * as api from '$lib/api';
+	import { setInboxCount, decrementInboxCount } from '$lib/inbox-state.svelte';
 
 	let notifications: GithubNotification[] = $state([]);
 	let projects: Project[] = $state([]);
@@ -16,6 +17,7 @@
 			.then(([notifs, projs]) => {
 				notifications = notifs;
 				projects = projs;
+				setInboxCount(notifs.filter((n) => !n.is_read).length);
 			})
 			.catch((e) => {
 				console.error('Failed to load inbox:', e);
@@ -54,6 +56,7 @@
 			migrateThreads = false;
 			
 			const hint = await api.assignNotificationToProject(notificationId, projectId);
+			decrementInboxCount();
 			notifications = notifications.filter((n) => n.id !== notificationId);
 			if (hint.kind !== 'none') {
 				routingHint = hint;
@@ -76,7 +79,9 @@
 				// Remove all remaining inbox notifications for this repo from the local list —
 				// the rule just routed them all.
 				const repo = routingHint.repo_full_name;
+				const removed = notifications.filter((n) => n.repo_full_name === repo && !n.is_read).length;
 				notifications = notifications.filter((n) => n.repo_full_name !== repo);
+				decrementInboxCount(removed);
 			}
 		} catch (e) {
 			console.error('Failed to create repo rule:', e);
@@ -102,6 +107,7 @@
 	async function archive(id: number) {
 		try {
 			await api.markNotificationRead(id);
+			decrementInboxCount();
 			notifications = notifications.filter((n) => n.id !== id);
 		} catch (e) {
 			console.error('Failed to archive notification:', e);
@@ -111,6 +117,7 @@
 	async function unsubscribe(id: number) {
 		try {
 			await api.unsubscribeThread(id);
+			decrementInboxCount();
 			notifications = notifications.filter((n) => n.id !== id);
 		} catch (e) {
 			console.error('Failed to unsubscribe:', e);
