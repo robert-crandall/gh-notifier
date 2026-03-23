@@ -25,6 +25,8 @@ export interface GithubNotification {
 	author: string;
 	author_avatar: string | null;
 	html_url: string | null;
+	/** true when the underlying thread is closed/merged — auto-marked read and shown in a collapsed "Closed" section */
+	is_terminal: boolean;
 }
 
 export interface ManualTask {

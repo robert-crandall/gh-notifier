@@ -29,6 +29,9 @@ pub struct GithubNotification {
   pub author: String,
   pub author_avatar: Option<String>,
   pub html_url: Option<String>,
+  /// `true` when the underlying thread is closed/merged — auto-marked read
+  /// and shown in a collapsed "Closed" section rather than active threads.
+  pub is_terminal: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

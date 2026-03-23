@@ -33,7 +33,11 @@ pub struct ApiSubject {
 // HTTP client factory
 // ---------------------------------------------------------------------------
 
-fn make_client(token: &str) -> Result<Client, String> {
+/// Build a `reqwest::blocking::Client` with GitHub API headers.
+/// Exported for use by callers that need to make multiple GitHub API requests
+/// in a batch (e.g., `process_notifications` reuses one client for all
+/// terminal-state checks to avoid per-notification construction overhead).
+pub fn make_client_public(token: &str) -> Result<Client, String> {
   let mut headers = HeaderMap::new();
   let auth = HeaderValue::from_str(&format!("Bearer {token}"))
     .map_err(|e| format!("Invalid token characters: {e}"))?;
@@ -61,7 +65,7 @@ fn make_client(token: &str) -> Result<Client, String> {
 /// Validate that `token` is a working GitHub PAT.
 /// Calls `GET /user` — returns Err with a human-readable message on failure.
 pub fn validate_token(token: &str) -> Result<(), String> {
-  let client = make_client(token)?;
+  let client = make_client_public(token)?;
   let resp = client
     .get("https://api.github.com/user")
     .send()
@@ -98,7 +102,7 @@ pub fn fetch_notifications(token: &str) -> Result<Vec<ApiNotification>, String> 
     None
   }
 
-  let client = make_client(token)?;
+  let client = make_client_public(token)?;
   // `all=false` (default) returns only unread; we use that to stay lean.
   let mut all_notifications = Vec::new();
   let mut url = "https://api.github.com/notifications?per_page=100".to_string();
@@ -136,10 +140,46 @@ pub fn fetch_notifications(token: &str) -> Result<Vec<ApiNotification>, String> 
   Ok(all_notifications)
 }
 
+/// Fetch the subject URL for an Issue or Pull Request and return `true` if it
+/// is in a terminal state (closed issue, or closed/merged PR).
+///
+/// Accepts a reference to an existing `Client` to avoid reconstruction overhead
+/// during batch processing (e.g., syncing hundreds of notifications).
+///
+/// Returns `false` for non-PR/Issue subject types, or on any network/parse
+/// error — callers should treat failures as "not terminal" and move on.
+pub fn fetch_is_terminal(client: &Client, subject_url: &str, subject_type: &str) -> bool {
+  #[derive(Deserialize)]
+  struct SubjectState {
+    state: Option<String>,
+    merged: Option<bool>,
+  }
+
+  if subject_type != "PullRequest" && subject_type != "Issue" {
+    return false;
+  }
+
+  let Ok(resp) = client.get(subject_url).send() else {
+    return false;
+  };
+  if !resp.status().is_success() {
+    return false;
+  }
+  let detail: SubjectState = match resp.json() {
+    Ok(d) => d,
+    Err(_) => return false,
+  };
+  match subject_type {
+    "PullRequest" => detail.merged.unwrap_or(false) || detail.state.as_deref() == Some("closed"),
+    "Issue" => detail.state.as_deref() == Some("closed"),
+    _ => false,
+  }
+}
+
 /// Unsubscribe from a GitHub notification thread.
 /// Calls `DELETE /notifications/threads/{thread_id}/subscription`.
 pub fn unsubscribe_thread(token: &str, thread_id: &str) -> Result<(), String> {
-  let client = make_client(token)?;
+  let client = make_client_public(token)?;
   let url = format!("https://api.github.com/notifications/threads/{thread_id}/subscription");
   let resp = client
     .delete(&url)

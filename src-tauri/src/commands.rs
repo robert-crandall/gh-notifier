@@ -114,7 +114,8 @@ fn project_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
 }
 
 // Columns: id, github_id, repo_full_name, subject_title, subject_type,
-//          subject_url, reason, is_read, updated_at, project_id, author, author_avatar, html_url
+//          subject_url, reason, is_read, updated_at, project_id, author, author_avatar, html_url,
+//          is_terminal
 fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNotification> {
   Ok(GithubNotification {
     id: row.get(0)?,
@@ -130,6 +131,7 @@ fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNoti
     author: row.get(10)?,
     author_avatar: row.get(11)?,
     html_url: row.get(12)?,
+    is_terminal: row.get(13)?,
   })
 }
 
@@ -144,11 +146,12 @@ fn task_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ManualTask> {
 }
 
 // SQL fragment shared by project queries — includes unread_count via LEFT JOIN.
+// Terminal notifications are excluded from the unread count.
 // Must be followed by GROUP BY p.id and an optional WHERE / ORDER BY.
 const PROJECT_COLS: &str = "SELECT \
   p.id, p.name, p.context_doc, p.next_action, p.status, \
   p.snooze_mode, p.snooze_until, p.icon, p.repo_label, \
-  COALESCE(SUM(CASE WHEN n.is_read = 0 THEN 1 ELSE 0 END), 0) AS unread_count \
+  COALESCE(SUM(CASE WHEN n.is_read = 0 AND n.is_terminal = 0 THEN 1 ELSE 0 END), 0) AS unread_count \
   FROM projects p \
   LEFT JOIN notifications n ON n.project_id = p.id";
 
@@ -256,7 +259,7 @@ pub fn wake_project(id: i64, state: tauri::State<'_, DbState>) -> Result<(), Str
 
 const NOTIFICATION_COLS: &str = "SELECT id, github_id, repo_full_name, subject_title, \
   subject_type, subject_url, reason, is_read, updated_at, project_id, author, author_avatar, \
-  html_url FROM notifications";
+  html_url, is_terminal FROM notifications";
 
 #[tauri::command]
 pub fn get_notifications(
@@ -622,10 +625,19 @@ fn get_cached_token(cache: &TokenCache) -> Result<String, String> {
 /// Core sync logic — upsert API notifications into the DB, wake notification-mode
 /// snoozed projects, wake expired date-based snoozes, and record `last_synced_at`.
 /// Called by both the Tauri command and the background polling loop.
+///
+/// Enriches `api_notifications` with terminal state checks **before** acquiring the DB
+/// lock to avoid blocking other commands during network I/O. Reuses a single HTTP
+/// client for all terminal-state fetches to reduce overhead.
+#[allow(clippy::too_many_lines)]
 fn process_notifications(
   db: &rusqlite::Connection,
   api_notifications: &[github::ApiNotification],
+  token: &str,
 ) -> Result<(), String> {
+  // Build HTTP client once for all terminal-state checks.
+  let client = github::make_client_public(token)?;
+
   for n in api_notifications {
     // Filter out team_mention noise per the PRD.
     if n.reason == "team_mention" {
@@ -662,21 +674,46 @@ fn process_notifications(
       .map_err(|e| e.to_string())?
     };
 
+    // Determine terminal state.  Skip the API fetch if the notification is
+    // already persisted as terminal — once terminal, always terminal.
+    let already_terminal: bool = db
+      .query_row(
+        "SELECT is_terminal FROM notifications WHERE github_id = ?1",
+        params![n.id],
+        |row| row.get(0),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?
+      .unwrap_or(false);
+
+    let is_terminal = already_terminal
+      || n
+        .subject
+        .url
+        .as_deref()
+        .is_some_and(|url| github::fetch_is_terminal(&client, url, &n.subject.subject_type));
+
+    // Terminal notifications are auto-marked read so they don't create noise.
+    let is_read = is_terminal || !n.unread;
+
     db.execute(
       "INSERT INTO notifications \
          (github_id, repo_full_name, subject_title, subject_type, subject_url, \
-          reason, is_read, updated_at, html_url, project_id) \
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) \
+          reason, is_read, updated_at, html_url, project_id, is_terminal) \
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11) \
        ON CONFLICT(github_id) DO UPDATE SET \
          repo_full_name = excluded.repo_full_name, \
          subject_title  = excluded.subject_title, \
          subject_type   = excluded.subject_type, \
          subject_url    = excluded.subject_url, \
          reason         = excluded.reason, \
-         is_read        = CASE WHEN excluded.is_read = 0 THEN 0 ELSE notifications.is_read END, \
+         is_read        = CASE WHEN excluded.is_terminal = 1 THEN 1 \
+                               WHEN excluded.is_read = 0 THEN 0 \
+                               ELSE notifications.is_read END, \
          updated_at     = excluded.updated_at, \
          html_url       = excluded.html_url, \
-         project_id     = COALESCE(notifications.project_id, excluded.project_id)",
+         project_id     = COALESCE(notifications.project_id, excluded.project_id), \
+         is_terminal    = MAX(notifications.is_terminal, excluded.is_terminal)",
       params![
         n.id,
         n.repository.full_name,
@@ -684,10 +721,11 @@ fn process_notifications(
         n.subject.subject_type,
         n.subject.url,
         n.reason,
-        !n.unread, // GitHub "unread" = true  →  our is_read = false
+        is_read,
         n.updated_at,
         html_url,
         mapped_project_id,
+        is_terminal,
       ],
     )
     .map_err(|e| e.to_string())?;
@@ -750,7 +788,7 @@ pub(crate) fn background_sync(
   let token = get_cached_token(token_cache)?;
   let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
   let db = db_state.0.lock().map_err(|e| e.to_string())?;
-  process_notifications(&db, &api_notifications)
+  process_notifications(&db, &api_notifications, &token)
 }
 
 #[tauri::command]
@@ -761,7 +799,7 @@ pub fn sync_notifications(
   let token = get_cached_token(&token_cache)?;
   let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
   let db = state.0.lock().map_err(|e| e.to_string())?;
-  process_notifications(&db, &api_notifications)
+  process_notifications(&db, &api_notifications, &token)
 }
 
 // ---------------------------------------------------------------------------

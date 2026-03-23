@@ -153,5 +153,14 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
   }
 
+  if version < 4 {
+    // Add is_terminal to track closed/merged threads — they are auto-read and
+    // shown in a collapsed "Closed" section rather than the active thread list.
+    conn.execute_batch(
+      "ALTER TABLE notifications ADD COLUMN is_terminal INTEGER NOT NULL DEFAULT 0;
+       PRAGMA user_version = 4;",
+    )?;
+  }
+
   Ok(())
 }

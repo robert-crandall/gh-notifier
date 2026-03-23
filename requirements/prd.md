@@ -1,7 +1,5 @@
 # Product Requirements Document: GitHub Task Manager
 
-**Version:** 1.0 MVP  
-**Owner:** PM (this chat)  
 **Target User:** Solo INTJ developer with ADHD, managing work across multiple GitHub repos  
 **Platform:** macOS desktop app (Tauri + Svelte)
 
@@ -95,6 +93,7 @@ The user receives ~80% of their actionable work through GitHub notifications but
 - **Authentication:** OAuth connection to GitHub
 - **Notification Sync:** Poll GitHub API for notifications (configurable interval)
 - **Filtering:** Automatically hide `team_mention` type notifications
+- **Terminal State Detection:** When a notification is synced, check the subject URL to determine if the underlying issue or PR is closed/merged. Terminal notifications are automatically marked read, excluded from unread counts, and shown in a collapsed "Closed" section in the project detail view rather than the active thread list.
 - **Thread Mapping:** Remember which repo/issue/PR belongs to which project
 - **Repo-Level Routing Rules:** Declare that all notifications from a given repo go to a specific project. Thread-level mappings take precedence when both exist. Rules can be created from the Inbox after assigning a notification, and managed (edited or deleted) from Settings.
 - **Unsubscribe:** Call GitHub API to unsubscribe from specific threads
@@ -122,6 +121,7 @@ The user receives ~80% of their actionable work through GitHub notifications but
   - Mark read/unread
   - Unsubscribe from thread
   - Open in GitHub (external link)
+- **Closed section** (collapsed by default): terminal threads (merged PRs, closed issues) shown with MERGED/CLOSED badge; excluded from unread count; accessible as a record without cluttering the active thread list
 
 ### 5. Manual Tasks
 - User can add tasks unrelated to GitHub
@@ -163,19 +163,3 @@ Three snooze modes:
 - **Backend:** Tauri (Rust, minimal custom code)
 - **Data:** SQLite (local storage)
 - **API:** GitHub REST API v3
-
----
-
-## Open Questions
-
-1. **Notification polling frequency:** Default to 5 minutes? User-configurable?
-2. **GitHub scope:** Should we filter by specific repos or pull everything user has access to?
-3. **Context document format:** Plain text? Markdown rendering?
-
----
-
-## Phased Rollout
-
-See separate build sequence document for engineering phases.
-
-**Phase 6 = MVP complete.** Reassess post-MVP features after user validates core workflow.
