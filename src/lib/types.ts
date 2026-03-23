@@ -38,4 +38,5 @@ export interface AppSettings {
 	github_token: string | null;
 	poll_interval_minutes: number;
 	is_setup_complete: boolean;
+	last_synced_at: string | null;
 }

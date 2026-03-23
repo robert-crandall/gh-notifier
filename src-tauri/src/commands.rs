@@ -338,11 +338,35 @@ pub fn get_settings(state: tauri::State<'_, DbState>) -> Result<AppSettings, Str
     .map_err(|e| e.to_string())?
     .is_some_and(|v| v == "true");
 
+  let last_synced_at = db
+    .query_row(
+      "SELECT value FROM settings WHERE key = 'last_synced_at'",
+      [],
+      |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?;
+
   Ok(AppSettings {
     github_token,
     poll_interval_minutes,
     is_setup_complete,
+    last_synced_at,
   })
+}
+
+#[tauri::command]
+pub fn save_settings(
+  poll_interval_minutes: i64,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_interval_minutes', ?1)",
+    params![poll_interval_minutes.to_string()],
+  )
+  .map_err(|e| e.to_string())?;
+  Ok(())
 }
 
 #[tauri::command]
@@ -364,22 +388,27 @@ pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Res
   Ok(())
 }
 
-#[tauri::command]
-// NOTE: Uses blocking reqwest. Consider converting to async if UI responsiveness
-// degrades during sync. For now, blocking is acceptable for MVP.
-pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String> {
-  let token = match keychain_entry()?.get_password() {
-    Ok(t) => t,
+// ---------------------------------------------------------------------------
+// Sync helpers
+// ---------------------------------------------------------------------------
+
+fn token_from_keyring() -> Result<String, String> {
+  match keychain_entry()?.get_password() {
+    Ok(t) => Ok(t),
     Err(keyring::Error::NoEntry) => {
-      return Err("No GitHub token configured. Please complete setup first.".into())
+      Err("No GitHub token configured. Please complete setup first.".into())
     }
-    Err(e) => return Err(format!("Keychain error: {e}")),
-  };
+    Err(e) => Err(format!("Keychain error: {e}")),
+  }
+}
 
-  let api_notifications = github::fetch_notifications(&token)?;
-
-  let db = state.0.lock().map_err(|e| e.to_string())?;
-
+/// Core sync logic — upsert API notifications into the DB, wake notification-mode
+/// snoozed projects, wake expired date-based snoozes, and record `last_synced_at`.
+/// Called by both the Tauri command and the background polling loop.
+fn process_notifications(
+  db: &rusqlite::Connection,
+  api_notifications: &[github::ApiNotification],
+) -> Result<(), String> {
   for n in api_notifications {
     // Filter out team_mention noise per the PRD.
     if n.reason == "team_mention" {
@@ -461,7 +490,42 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
     }
   }
 
+  // Wake any date-based snoozed projects whose deadline has passed.
+  db.execute(
+    "UPDATE projects \
+     SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
+         updated_at = datetime('now') \
+     WHERE status = 'snoozed' AND snooze_mode = 'date' \
+       AND snooze_until IS NOT NULL AND datetime(snooze_until) <= datetime('now')",
+    [],
+  )
+  .map_err(|e| e.to_string())?;
+
+  // Record when the last successful sync completed.
+  db.execute(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('last_synced_at', datetime('now'))",
+    [],
+  )
+  .map_err(|e| e.to_string())?;
+
   Ok(())
+}
+
+/// Entry point for the background polling task. Gets the token from keyring,
+/// fetches notifications (blocking HTTP), then locks the DB to write results.
+pub(crate) fn background_sync(db_state: &crate::db::DbState) -> Result<(), String> {
+  let token = token_from_keyring()?;
+  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  let db = db_state.0.lock().map_err(|e| e.to_string())?;
+  process_notifications(&db, &api_notifications)
+}
+
+#[tauri::command]
+pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let token = token_from_keyring()?;
+  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  process_notifications(&db, &api_notifications)
 }
 
 // ---------------------------------------------------------------------------

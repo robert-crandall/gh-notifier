@@ -5,7 +5,8 @@
 	let settings: AppSettings = $state({
 		github_token: null,
 		poll_interval_minutes: 5,
-		is_setup_complete: false
+		is_setup_complete: false,
+		last_synced_at: null
 	});
 	let tokenInput = $state('');
 	let saving = $state(false);
@@ -40,11 +41,35 @@
 		message = '';
 		try {
 			await api.syncNotifications();
+			const s = await api.getSettings();
+			settings = s;
 			message = 'Sync complete!';
 		} catch (e) {
 			message = `Sync failed: ${e}`;
 		}
 		syncing = false;
+	}
+
+	async function onPollIntervalChange(e: Event) {
+		const value = Number((e.target as HTMLSelectElement).value);
+		settings.poll_interval_minutes = value;
+		try {
+			await api.saveSettings(value);
+		} catch (err) {
+			console.error('Failed to save poll interval:', err);
+		}
+	}
+
+	function formatSyncTime(iso: string | null): string {
+		if (!iso) return 'Never';
+		const d = new Date(iso + 'Z'); // SQLite datetime() is UTC without 'Z'
+		return d.toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit'
+		});
 	}
 </script>
 
@@ -91,21 +116,31 @@
 				<p class="text-sm text-on-surface">Poll Interval</p>
 				<p class="text-xs text-on-surface-variant">How often to check for new GitHub notifications.</p>
 			</div>
-			<select class="bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40">
-				<option value="1">1 minute</option>
-				<option value="5" selected>5 minutes</option>
-				<option value="15">15 minutes</option>
-				<option value="30">30 minutes</option>
+			<select
+				class="bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40"
+				value={settings.poll_interval_minutes}
+				onchange={onPollIntervalChange}
+			>
+				<option value={1}>1 minute</option>
+				<option value={5}>5 minutes</option>
+				<option value={15}>15 minutes</option>
+				<option value={30}>30 minutes</option>
 			</select>
 		</div>
-		<button
-			class="px-4 py-2 bg-surface-container-highest text-on-surface text-sm font-semibold rounded-lg hover:bg-surface-dim active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50"
-			onclick={triggerSync}
-			disabled={syncing}
-		>
-			<span class="material-symbols-outlined text-[18px]">refresh</span>
-			{syncing ? 'Syncing...' : 'Sync Now'}
-		</button>
+		<div class="flex items-center justify-between">
+			<div>
+				<p class="text-sm text-on-surface">Last Synced</p>
+				<p class="text-xs text-on-surface-variant font-mono">{formatSyncTime(settings.last_synced_at)}</p>
+			</div>
+			<button
+				class="px-4 py-2 bg-surface-container-highest text-on-surface text-sm font-semibold rounded-lg hover:bg-surface-dim active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50"
+				onclick={triggerSync}
+				disabled={syncing}
+			>
+				<span class="material-symbols-outlined text-[18px]">refresh</span>
+				{syncing ? 'Syncing...' : 'Sync Now'}
+			</button>
+		</div>
 	</section>
 
 	{#if message}
