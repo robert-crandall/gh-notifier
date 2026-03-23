@@ -466,13 +466,44 @@ pub fn create_repo_rule(
 }
 
 #[tauri::command]
-pub fn mark_notification_read(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
-  let db = state.0.lock().map_err(|e| e.to_string())?;
-  db.execute(
-    "UPDATE notifications SET is_read = 1 WHERE id = ?1",
-    params![id],
-  )
-  .map_err(|e| e.to_string())?;
+pub fn mark_notification_read(
+  id: i64,
+  token_cache: tauri::State<'_, TokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  // Fetch the github_id so we can tell GitHub this thread is read.
+  let github_id: Option<String> = {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    db.query_row(
+      "SELECT github_id FROM notifications WHERE id = ?1",
+      params![id],
+      |row| row.get(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?
+  };
+
+  // Take a copy of the token so we don't hold the token cache lock during the network call.
+  let token: Option<String> = if let Ok(token_guard) = token_cache.0.lock() {
+    token_guard.as_deref().map(str::to_owned)
+  } else {
+    None
+  };
+
+  // Tell GitHub the thread is read so it won't resurface on the next sync.
+  // Best-effort: if there's no token or the API call fails, still mark read locally.
+  if let (Some(gid), Some(token)) = (github_id.as_ref(), token.as_ref()) {
+    let _ = github::mark_thread_read(token, gid);
+  }
+
+  {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    db.execute(
+      "UPDATE notifications SET is_read = 1 WHERE id = ?1",
+      params![id],
+    )
+    .map_err(|e| e.to_string())?;
+  }
   Ok(())
 }
 
@@ -769,9 +800,10 @@ fn process_notifications(
   )
   .map_err(|e| e.to_string())?;
 
-  // Record when the last successful sync completed.
+  // Record when the last successful sync completed (ISO 8601, UTC).
   db.execute(
-    "INSERT OR REPLACE INTO settings (key, value) VALUES ('last_synced_at', datetime('now'))",
+    "INSERT OR REPLACE INTO settings (key, value) \
+     VALUES ('last_synced_at', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
     [],
   )
   .map_err(|e| e.to_string())?;
@@ -786,7 +818,18 @@ pub(crate) fn background_sync(
   token_cache: &crate::db::TokenCache,
 ) -> Result<(), String> {
   let token = get_cached_token(token_cache)?;
-  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  // Read last_synced_at before releasing the lock so the fetch has no DB contention.
+  let since = {
+    let db = db_state.0.lock().map_err(|e| e.to_string())?;
+    db.query_row(
+      "SELECT value FROM settings WHERE key = 'last_synced_at'",
+      [],
+      |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?
+  };
+  let api_notifications = github::fetch_notifications(&token, since.as_deref())?; // no DB lock held
   let db = db_state.0.lock().map_err(|e| e.to_string())?;
   process_notifications(&db, &api_notifications, &token)
 }
@@ -797,7 +840,18 @@ pub fn sync_notifications(
   state: tauri::State<'_, DbState>,
 ) -> Result<(), String> {
   let token = get_cached_token(&token_cache)?;
-  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  // Read last_synced_at before releasing the lock so the fetch has no DB contention.
+  let since = {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    db.query_row(
+      "SELECT value FROM settings WHERE key = 'last_synced_at'",
+      [],
+      |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?
+  };
+  let api_notifications = github::fetch_notifications(&token, since.as_deref())?; // no DB lock held
   let db = state.0.lock().map_err(|e| e.to_string())?;
   process_notifications(&db, &api_notifications, &token)
 }

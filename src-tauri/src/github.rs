@@ -81,8 +81,14 @@ pub fn validate_token(token: &str) -> Result<(), String> {
 }
 
 /// Fetch all unread notifications from `GET /notifications`, following pagination.
+/// When `since` is `Some(ts)`, only notifications updated after that timestamp are
+/// returned — GitHub will serve a 304 (empty body) when nothing changed, which we
+/// transparently normalise to an empty `Vec`.
 /// Returns `team_mention` notifications as well — callers are responsible for filtering.
-pub fn fetch_notifications(token: &str) -> Result<Vec<ApiNotification>, String> {
+pub fn fetch_notifications(
+  token: &str,
+  since: Option<&str>,
+) -> Result<Vec<ApiNotification>, String> {
   fn parse_next_link(link_header: &str) -> Option<String> {
     // Link: <url1>; rel="next", <url2>; rel="prev", ...
     for part in link_header.split(',') {
@@ -105,7 +111,14 @@ pub fn fetch_notifications(token: &str) -> Result<Vec<ApiNotification>, String> 
   let client = make_client_public(token)?;
   // `all=false` (default) returns only unread; we use that to stay lean.
   let mut all_notifications = Vec::new();
-  let mut url = "https://api.github.com/notifications?per_page=100".to_string();
+  let base = "https://api.github.com/notifications?per_page=100";
+  let mut url = match since {
+    Some(ts) => {
+      let encoded = urlencoding::encode(ts);
+      format!("{base}&since={encoded}")
+    }
+    None => base.to_string(),
+  };
 
   loop {
     let resp = client
@@ -114,6 +127,10 @@ pub fn fetch_notifications(token: &str) -> Result<Vec<ApiNotification>, String> 
       .map_err(|e| format!("Network error: {e}"))?;
 
     if !resp.status().is_success() {
+      // 304 Not Modified: nothing changed since `since` timestamp — return empty.
+      if resp.status().as_u16() == 304 {
+        break;
+      }
       return Err(format!("GitHub returned status {}", resp.status()));
     }
 
@@ -173,6 +190,28 @@ pub fn fetch_is_terminal(client: &Client, subject_url: &str, subject_type: &str)
     "PullRequest" => detail.merged.unwrap_or(false) || detail.state.as_deref() == Some("closed"),
     "Issue" => detail.state.as_deref() == Some("closed"),
     _ => false,
+  }
+}
+
+/// Mark a GitHub notification thread as read.
+/// Calls `PATCH /notifications/threads/{thread_id}`.
+/// This prevents the thread from reappearing on the next `GET /notifications` sync.
+pub fn mark_thread_read(token: &str, thread_id: &str) -> Result<(), String> {
+  let client = make_client_public(token)?;
+  let url = format!("https://api.github.com/notifications/threads/{thread_id}");
+  let resp = client
+    .patch(&url)
+    .send()
+    .map_err(|e| format!("Network error: {e}"))?;
+
+  // 205 Reset Content = success.  404 means thread not found — treat as OK.
+  if resp.status().is_success() || resp.status().as_u16() == 404 {
+    Ok(())
+  } else {
+    Err(format!(
+      "GitHub mark-as-read returned status {}",
+      resp.status()
+    ))
   }
 }
 
