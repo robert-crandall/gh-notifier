@@ -18,6 +18,7 @@
 	let newTaskTitle = $state('');
 	let addingTask = $state(false);
 	let showClosedSection = $state(false);
+	let showReadSection = $state(false);
 
 	// Snooze modal state
 	let showSnoozeModal = $state(false);
@@ -39,6 +40,8 @@
 
 	let projectId = $derived(Number($page.params.id));
 	let activeNotifications = $derived(notifications.filter((n) => !n.is_terminal));
+	let unreadActiveNotifications = $derived(activeNotifications.filter((n) => !n.is_read));
+	let readActiveNotifications = $derived(activeNotifications.filter((n) => n.is_read));
 	let closedNotifications = $derived(notifications.filter((n) => n.is_terminal));
 
 	$effect(() => {
@@ -123,6 +126,16 @@
 			notifications = notifications;
 		} catch (e) {
 			console.error('Failed to unsubscribe:', e);
+		}
+	}
+
+	async function markUnread(notification: GithubNotification) {
+		try {
+			await api.markNotificationUnread(notification.id);
+			notification.is_read = false;
+			notifications = notifications;
+		} catch (e) {
+			console.error('Failed to mark unread:', e);
 		}
 	}
 
@@ -483,6 +496,52 @@
 			</div>
 
 			<div class="flex-1 overflow-y-auto p-10 space-y-6 no-scrollbar">
+				<!-- Manual Tasks -->
+				<div class="pt-6 bg-surface-container-low rounded-xl px-4">
+					<h3 class="font-semibold text-on-surface flex items-center gap-2 mb-4">
+						<span class="material-symbols-outlined text-on-surface-variant text-lg">checklist</span>
+						Manual Tasks
+					</h3>
+					<div class="space-y-1">
+						{#each tasks as task (task.id)}
+							<div class="flex items-center gap-3 py-2.5 px-3 rounded-lg group hover:bg-surface-container-low transition-colors">
+								<button
+									onclick={() => toggleTask(task)}
+									class="text-on-surface-variant hover:text-primary transition-colors flex-shrink-0"
+									aria-label={task.is_done
+										? `Mark "${task.title}" as incomplete`
+										: `Mark "${task.title}" as complete`}
+								>
+									<span class="material-symbols-outlined text-xl">{task.is_done ? 'check_circle' : 'radio_button_unchecked'}</span>
+								</button>
+								<span class="flex-1 text-sm {task.is_done ? 'line-through text-on-surface-variant/50' : 'text-on-surface'}">{task.title}</span>
+								<button
+									onclick={() => deleteTask(task.id)}
+									class="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all p-1 rounded"
+									title="Delete task"
+								>
+									<span class="material-symbols-outlined text-base">delete</span>
+								</button>
+							</div>
+						{/each}
+					</div>
+					<div class="flex gap-2 mt-4 pb-6">
+						<input
+							class="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
+							placeholder="Add a task..."
+							bind:value={newTaskTitle}
+							onkeydown={(e) => { if (e.key === 'Enter') addTask(); }}
+						/>
+						<button
+							onclick={addTask}
+							disabled={addingTask || !newTaskTitle.trim()}
+							class="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-40"
+						>
+							Add
+						</button>
+					</div>
+				</div>
+
 				{#if activeNotifications.length === 0 && !loading}
 					<div class="flex flex-col items-center justify-center h-48 text-center">
 						<span class="material-symbols-outlined text-5xl text-on-surface-variant/20 mb-3">mark_email_read</span>
@@ -490,13 +549,13 @@
 						<p class="text-xs text-on-surface-variant/50 mt-1">You're all caught up on this project.</p>
 					</div>
 				{/if}
-				{#each activeNotifications as notification (notification.id)}
-					<div class="relative group {notification.is_read ? 'opacity-60 hover:opacity-100' : ''}">
-						<div class="absolute -left-6 top-0 bottom-0 w-[3px] {notification.is_read ? 'bg-secondary-fixed-dim' : 'bg-primary'} rounded-full transition-all group-hover:w-[5px]"></div>
-						<div class="{notification.is_read ? 'bg-surface-dim/20 border border-outline-variant/10' : 'bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5'} p-6 rounded-xl transition-shadow">
+				{#each unreadActiveNotifications as notification (notification.id)}
+					<div class="relative group">
+						<div class="absolute -left-6 top-0 bottom-0 w-[3px] bg-primary rounded-full transition-all group-hover:w-[5px]"></div>
+						<div class="bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5 p-6 rounded-xl transition-shadow">
 							<div class="flex justify-between items-start mb-4">
 								<div class="flex items-start gap-4">
-									<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center {notification.is_read ? 'text-on-surface-variant' : 'text-primary'}">
+									<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
 										<span class="material-symbols-outlined">
 											{notification.subject_type === 'PullRequest' ? 'rebase' : 'error'}
 										</span>
@@ -510,13 +569,11 @@
 										<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
 									</div>
 								</div>
-								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-									{#if !notification.is_read}
-										<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
-											<span class="material-symbols-outlined text-sm">check_circle</span>
-											MARK READ
-										</button>
-									{/if}
+								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
+										<span class="material-symbols-outlined text-sm">check_circle</span>
+										MARK READ
+									</button>
 									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
 										<span class="material-symbols-outlined text-sm">notifications_off</span>
 										UNSUBSCRIBE
@@ -530,6 +587,63 @@
 						</div>
 					</div>
 				{/each}
+
+				<!-- Read threads — collapsed by default -->
+				{#if readActiveNotifications.length > 0}
+					<div class="mt-2">
+						<button
+							class="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors mb-3 w-full text-left"
+							onclick={() => (showReadSection = !showReadSection)}
+							aria-expanded={showReadSection}
+							aria-controls="read-notifications-section"
+						>
+							<span class="material-symbols-outlined text-base transition-transform {showReadSection ? 'rotate-90' : ''}">chevron_right</span>
+							{readActiveNotifications.length} read {readActiveNotifications.length === 1 ? 'thread' : 'threads'}
+						</button>
+						{#if showReadSection}
+							<div id="read-notifications-section" class="space-y-3">
+								{#each readActiveNotifications as notification (notification.id)}
+									<div class="relative group opacity-60 hover:opacity-100 transition-opacity">
+										<div class="absolute -left-6 top-0 bottom-0 w-[3px] bg-secondary-fixed-dim rounded-full transition-all group-hover:w-[5px]"></div>
+										<div class="bg-surface-dim/20 border border-outline-variant/10 p-6 rounded-xl">
+											<div class="flex justify-between items-start mb-4">
+												<div class="flex items-start gap-4">
+													<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+														<span class="material-symbols-outlined">
+															{notification.subject_type === 'PullRequest' ? 'rebase' : 'error'}
+														</span>
+													</div>
+													<div>
+														<div class="flex items-center gap-2 text-[10px] text-on-surface-variant tracking-wider uppercase mb-1">
+															<span>{notification.repo_full_name}</span>
+															<span>&bull;</span>
+															<span>{timeAgo(notification.updated_at)}</span>
+														</div>
+														<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
+													</div>
+												</div>
+												<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+													<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markUnread(notification)}>
+														<span class="material-symbols-outlined text-sm">mark_as_unread</span>
+														MARK UNREAD
+													</button>
+													<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
+														<span class="material-symbols-outlined text-sm">notifications_off</span>
+														UNSUBSCRIBE
+													</button>
+													<button class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary flex items-center gap-2" onclick={() => openInGithub(notification)}>
+														<span class="material-symbols-outlined text-sm">open_in_new</span>
+														GITHUB
+													</button>
+												</div>
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 				<!-- Closed threads (terminal) -->
 				{#if closedNotifications.length > 0}
@@ -591,51 +705,6 @@
 					</div>
 				{/if}
 
-				<!-- Manual Tasks -->
-				<div class="mt-8 pt-6 bg-surface-container-low rounded-xl px-4">
-					<h3 class="font-semibold text-on-surface flex items-center gap-2 mb-4">
-						<span class="material-symbols-outlined text-on-surface-variant text-lg">checklist</span>
-						Manual Tasks
-					</h3>
-					<div class="space-y-1">
-						{#each tasks as task (task.id)}
-							<div class="flex items-center gap-3 py-2.5 px-3 rounded-lg group hover:bg-surface-container-low transition-colors">
-								<button
-									onclick={() => toggleTask(task)}
-									class="text-on-surface-variant hover:text-primary transition-colors flex-shrink-0"
-									aria-label={task.is_done
-										? `Mark "${task.title}" as incomplete`
-										: `Mark "${task.title}" as complete`}
-								>
-									<span class="material-symbols-outlined text-xl">{task.is_done ? 'check_circle' : 'radio_button_unchecked'}</span>
-								</button>
-								<span class="flex-1 text-sm {task.is_done ? 'line-through text-on-surface-variant/50' : 'text-on-surface'}">{task.title}</span>
-								<button
-									onclick={() => deleteTask(task.id)}
-									class="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all p-1 rounded"
-									title="Delete task"
-								>
-									<span class="material-symbols-outlined text-base">delete</span>
-								</button>
-							</div>
-						{/each}
-					</div>
-					<div class="flex gap-2 mt-4">
-						<input
-							class="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
-							placeholder="Add a task..."
-							bind:value={newTaskTitle}
-							onkeydown={(e) => { if (e.key === 'Enter') addTask(); }}
-						/>
-						<button
-							onclick={addTask}
-							disabled={addingTask || !newTaskTitle.trim()}
-							class="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-40"
-						>
-							Add
-						</button>
-					</div>
-				</div>
 			</div>
 		</section>
 	</div>
