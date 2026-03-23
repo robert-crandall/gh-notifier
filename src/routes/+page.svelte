@@ -69,7 +69,7 @@
 				<p class="text-sm text-on-surface-variant/60 mt-1 mb-6">Create your first project to start organizing notifications.</p>
 				<button
 					class="flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-semibold hover:opacity-90 active:scale-95 transition-all"
-					onclick={() => import('$app/navigation').then(({ goto }) => goto('/projects/new'))}
+					onclick={() => goto('/projects/new')}
 				>
 					<span class="material-symbols-outlined text-[18px]">add</span>
 					New Project

@@ -133,7 +133,7 @@
 
 	async function addTask() {
 		const title = newTaskTitle.trim();
-		if (!title) return;
+		if (!title || addingTask) return;
 		addingTask = true;
 		try {
 			const task = await api.createManualTask(title, projectId);
@@ -141,8 +141,9 @@
 			newTaskTitle = '';
 		} catch (e) {
 			console.error('Failed to add task:', e);
+		} finally {
+			addingTask = false;
 		}
-		addingTask = false;
 	}
 
 	async function toggleTask(task: ManualTask) {
@@ -327,7 +328,7 @@
 				{/each}
 
 				<!-- Manual Tasks -->
-				<div class="pt-6 border-t border-outline-variant/10">
+				<div class="mt-8 pt-6 bg-surface-container-low rounded-xl px-4">
 					<h3 class="font-semibold text-on-surface flex items-center gap-2 mb-4">
 						<span class="material-symbols-outlined text-on-surface-variant text-lg">checklist</span>
 						Manual Tasks
@@ -338,6 +339,9 @@
 								<button
 									onclick={() => toggleTask(task)}
 									class="text-on-surface-variant hover:text-primary transition-colors flex-shrink-0"
+									aria-label={task.is_done
+										? `Mark "${task.title}" as incomplete`
+										: `Mark "${task.title}" as complete`}
 								>
 									<span class="material-symbols-outlined text-xl">{task.is_done ? 'check_circle' : 'radio_button_unchecked'}</span>
 								</button>

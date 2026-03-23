@@ -121,8 +121,8 @@
 - [x] Show manual tasks in project detail view alongside notifications
 - [x] Keyboard shortcuts: Cmd+N (new project), Cmd+K (search), Cmd+1/2/3 (nav)
 - [x] Empty states: no projects, no notifications, inbox zero
-- [x] Error handling: show user-friendly messages for API failures
-- [x] Loading states: skeleton screens during sync
+- [ ] Error handling: show user-friendly messages for API failures
+- [ ] Loading states: skeleton screens during sync
 - [x] Window state persistence (size, position)
 
 ### Done when
