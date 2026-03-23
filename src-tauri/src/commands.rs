@@ -19,7 +19,23 @@ fn keychain_entry() -> Result<Entry, String> {
 /// Load the PAT directly from the macOS Keychain — used only once at startup.
 /// All runtime code reads from `TokenCache` instead.
 pub(crate) fn load_token_for_cache() -> Option<String> {
-  keychain_entry().ok().and_then(|e| e.get_password().ok())
+  match keychain_entry() {
+    Ok(entry) => match entry.get_password() {
+      Ok(password) => Some(password),
+      Err(err) => {
+        eprintln!(
+          "Failed to read GitHub token from keychain (service: {KEYRING_SERVICE}, user: {KEYRING_USER}): {err}",
+        );
+        None
+      }
+    },
+    Err(err) => {
+      eprintln!(
+        "Failed to access keychain entry for GitHub token (service: {KEYRING_SERVICE}, user: {KEYRING_USER}): {err}",
+      );
+      None
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
