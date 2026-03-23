@@ -269,7 +269,11 @@ pub fn get_settings(state: tauri::State<'_, DbState>) -> Result<AppSettings, Str
   let db = state.0.lock().map_err(|e| e.to_string())?;
 
   // PAT lives in the macOS Keychain — never in SQLite
-  let github_token = keychain_entry()?.get_password().ok();
+  let github_token = match keychain_entry()?.get_password() {
+    Ok(token) => Some(token),
+    Err(keyring::Error::NoEntry) => None,
+    Err(e) => return Err(format!("Keychain error: {e}")),
+  };
 
   let poll_interval_minutes = db
     .query_row(
