@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { open } from '@tauri-apps/plugin-shell';
 	import type { Project, GithubNotification, ManualTask } from '$lib/types';
 	import * as api from '$lib/api';
@@ -19,9 +20,29 @@
 	let snoozeMode: 'manual' | 'date' | 'notification' = $state('manual');
 	let snoozeUntil = $state('');
 
+	// Rename state
+	let editingName = $state(false);
+	let editedName = $state('');
+	let renameInput = $state<HTMLInputElement | null>(null);
+	let cancellingRename = $state(false);
+
+	// Delete modal state
+	let showDeleteModal = $state(false);
+	let deleteAction: 'inbox' | 'move' | null = $state(null);
+	let deleteMoveTargetId = $state<number | null>(null);
+	let allProjects = $state<Project[]>([]);
+	let deleting = $state(false);
+
 	let projectId = $derived(Number($page.params.id));
 	let activeNotifications = $derived(notifications.filter((n) => !n.is_terminal));
 	let closedNotifications = $derived(notifications.filter((n) => n.is_terminal));
+
+	$effect(() => {
+		if (editingName && renameInput) {
+			renameInput.focus();
+			renameInput.select();
+		}
+	});
 
 	$effect(() => {
 		Promise.all([
@@ -167,7 +188,59 @@
 			console.error('Failed to delete task:', e);
 		}
 	}
-</script>
+
+	function startRename() {
+		if (!project) return;
+		editedName = project.name;
+		editingName = true;
+	}
+
+	async function commitRename() {
+		if (!project || cancellingRename) {
+			cancellingRename = false;
+			return;
+		}
+		const trimmed = editedName.trim();
+		editingName = false;
+		if (!trimmed || trimmed === project.name) return;
+		project.name = trimmed;
+		await saveProject();
+	}
+
+	function cancelRename() {
+		if (!project) return;
+		cancellingRename = true;
+		editedName = project.name;
+		editingName = false;
+	}
+
+	async function openDeleteModal() {
+		deleteAction = null;
+		deleteMoveTargetId = null;
+		try {
+			const all = await api.getProjects();
+			allProjects = all.filter((p) => p.id !== projectId);
+		} catch (e) {
+			allProjects = [];
+		}
+		showDeleteModal = true;
+	}
+
+	async function doDelete() {
+		if (!project) return;
+		const hasNotifs = notifications.length > 0;
+		if (hasNotifs && deleteAction === null) return;
+		if (hasNotifs && deleteAction === 'move' && deleteMoveTargetId === null) return;
+		deleting = true;
+		try {
+			const reassignTo = deleteAction === 'move' ? deleteMoveTargetId : null;
+			await api.deleteProject(project.id, reassignTo);
+			goto('/');
+		} catch (e) {
+			console.error('Failed to delete project:', e);
+			deleting = false;
+		}
+	}</script>
 
 {#if loading}
 	<div class="flex items-center justify-center h-full">
@@ -202,14 +275,43 @@
 									<span class="material-symbols-outlined text-sm text-on-surface-variant">snooze</span>
 								</button>
 							{/if}
-							<button class="p-1 hover:bg-surface-container-highest rounded transition-colors" title="Settings">
-								<span class="material-symbols-outlined text-sm text-on-surface-variant">more_horiz</span>
+							<button
+								class="p-1 hover:bg-surface-container-highest rounded transition-colors"
+								title="Rename Project"
+								onclick={startRename}
+							>
+								<span class="material-symbols-outlined text-sm text-on-surface-variant">edit</span>
+							</button>
+							<button
+								class="p-1 hover:bg-surface-container-highest rounded transition-colors"
+								title="Delete Project"
+								onclick={openDeleteModal}
+							>
+								<span class="material-symbols-outlined text-sm text-on-surface-variant">delete</span>
 							</button>
 						</div>
 					</div>
-					<h1 class="text-2xl font-black text-on-surface leading-tight tracking-tight">
-						{project.name}
-					</h1>
+					{#if editingName}
+						<div class="flex items-center gap-2">
+							<input
+								bind:this={renameInput}
+								class="flex-1 text-2xl font-black text-on-surface leading-tight tracking-tight bg-transparent border-b-2 border-primary focus:outline-none w-full"
+								bind:value={editedName}
+								onkeydown={(e) => {
+									if (e.key === 'Enter') commitRename();
+									if (e.key === 'Escape') {
+										e.preventDefault();
+										cancelRename();
+									}
+								}}
+								onblur={commitRename}
+							/>
+						</div>
+					{:else}
+						<h1 class="text-2xl font-black text-on-surface leading-tight tracking-tight">
+							{project.name}
+						</h1>
+					{/if}
 					<p class="text-xs text-on-surface-variant mt-2 leading-relaxed">
 						Syncing with <span class="text-primary font-medium">{project.repo_label}</span>
 					</p>
@@ -539,6 +641,139 @@
 						Snooze
 					</button>
 				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Delete Modal -->
+	{#if showDeleteModal}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+		>
+			<div
+				class="bg-surface-container-lowest rounded-2xl p-8 w-[480px] space-y-6 shadow-2xl border border-outline-variant/20"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="delete-dialog-title"
+			>
+				<div class="flex items-center justify-between">
+					<h3 id="delete-dialog-title" class="font-black text-on-surface text-lg">
+						Delete Project
+					</h3>
+					<button
+						class="p-1 hover:bg-surface-container-high rounded transition-colors"
+						onclick={() => (showDeleteModal = false)}
+						aria-label="Close delete dialog"
+					>
+						<span class="material-symbols-outlined text-on-surface-variant">close</span>
+					</button>
+				</div>
+
+				{#if notifications.length === 0}
+					<p class="text-sm text-on-surface-variant leading-relaxed">
+						Are you sure you want to delete
+						<span class="font-semibold text-on-surface">{project.name}</span>? This action cannot
+						be undone.
+					</p>
+					<div class="flex gap-3">
+						<button
+							class="flex-1 py-2.5 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low transition-colors"
+							onclick={() => (showDeleteModal = false)}
+						>
+							Cancel
+						</button>
+						<button
+							class="flex-1 py-2.5 rounded-xl bg-error text-on-error text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+							onclick={doDelete}
+							disabled={deleting}
+						>
+							{deleting ? 'Deleting…' : 'Delete'}
+						</button>
+					</div>
+				{:else}
+					<p class="text-sm text-on-surface-variant leading-relaxed">
+						<span class="font-semibold text-on-surface">{project.name}</span> has
+						{notifications.length}
+						notification{notifications.length === 1 ? '' : 's'}. Choose what happens to them before
+						deleting:
+					</p>
+
+					<div class="space-y-2">
+						<button
+							class="w-full p-4 rounded-xl border text-left transition-all {deleteAction === 'inbox'
+								? 'border-primary bg-primary/5'
+								: 'border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container-low'}"
+							onclick={() => {
+								deleteAction = 'inbox';
+								deleteMoveTargetId = null;
+							}}
+						>
+							<div class="flex items-center gap-3">
+								<span class="material-symbols-outlined text-on-surface-variant">inbox</span>
+								<div>
+									<p class="font-semibold text-on-surface text-sm">Send to inbox</p>
+									<p class="text-xs text-on-surface-variant">
+										Notifications return to unmapped inbox
+									</p>
+								</div>
+							</div>
+						</button>
+
+						<button
+							class="w-full p-4 rounded-xl border text-left transition-all {deleteAction === 'move'
+								? 'border-primary bg-primary/5'
+								: 'border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container-low'}"
+							onclick={() => (deleteAction = 'move')}
+						>
+							<div class="flex items-center gap-3">
+								<span class="material-symbols-outlined text-on-surface-variant"
+									>drive_file_move</span
+								>
+								<div>
+									<p class="font-semibold text-on-surface text-sm">Move to project</p>
+									<p class="text-xs text-on-surface-variant">
+										Reassign all notifications to another project
+									</p>
+								</div>
+							</div>
+						</button>
+
+						{#if deleteAction === 'move'}
+							<div class="pl-4">
+								<select
+									class="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/30"
+									onchange={(e) => {
+										const val = (e.currentTarget as HTMLSelectElement).value;
+										deleteMoveTargetId = val ? Number(val) : null;
+									}}
+								>
+									<option value="">Select a project…</option>
+									{#each allProjects as p (p.id)}
+										<option value={p.id}>{p.name}</option>
+									{/each}
+								</select>
+							</div>
+						{/if}
+					</div>
+
+					<div class="flex gap-3">
+						<button
+							class="flex-1 py-2.5 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low transition-colors"
+							onclick={() => (showDeleteModal = false)}
+						>
+							Cancel
+						</button>
+						<button
+							class="flex-1 py-2.5 rounded-xl bg-error text-on-error text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+							onclick={doDelete}
+							disabled={deleting ||
+								deleteAction === null ||
+								(deleteAction === 'move' && deleteMoveTargetId === null)}
+						>
+							{deleting ? 'Deleting…' : 'Delete Project'}
+						</button>
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
