@@ -45,7 +45,7 @@
 			</button>
 
 			<nav class="space-y-1">
-				{#each navItems as item}
+				{#each navItems as item (item.href)}
 					<a
 						href={item.href}
 						class="flex items-center gap-3 px-4 py-2 transition-all duration-200 rounded-md {isActive(

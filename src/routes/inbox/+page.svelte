@@ -24,11 +24,11 @@
 	function typeLabel(type: string): { label: string; bg: string; text: string } {
 		switch (type) {
 			case 'PullRequest':
-				return { label: 'PULL REQUEST', bg: 'bg-blue-100', text: 'text-blue-700' };
+				return { label: 'PULL REQUEST', bg: 'bg-primary-fixed', text: 'text-on-primary-fixed-variant' };
 			case 'Issue':
-				return { label: 'BUG REPORT', bg: 'bg-orange-100', text: 'text-orange-700' };
+				return { label: 'BUG REPORT', bg: 'bg-tertiary-fixed', text: 'text-on-tertiary-fixed-variant' };
 			default:
-				return { label: type.toUpperCase(), bg: 'bg-slate-200', text: 'text-slate-700' };
+				return { label: type.toUpperCase(), bg: 'bg-secondary-container', text: 'text-on-secondary-container' };
 		}
 	}
 
@@ -127,7 +127,7 @@
 									<div class="absolute right-0 top-full mt-2 glass-panel border border-outline-variant/20 shadow-2xl rounded-xl w-64 p-4 z-50">
 										<h4 class="text-xs font-black text-on-surface-variant tracking-widest mb-4">SELECT PROJECT</h4>
 										<div class="space-y-2">
-											{#each projects as project}
+											{#each projects as project (project.id)}
 												<button
 													class="w-full text-left px-3 py-2 text-sm hover:bg-primary-fixed rounded flex items-center gap-3 transition-colors"
 													onclick={() => assignToProject(notification.id, project.id)}
