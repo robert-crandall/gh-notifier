@@ -496,6 +496,52 @@
 			</div>
 
 			<div class="flex-1 overflow-y-auto p-10 space-y-6 no-scrollbar">
+				<!-- Manual Tasks -->
+				<div class="pt-6 bg-surface-container-low rounded-xl px-4">
+					<h3 class="font-semibold text-on-surface flex items-center gap-2 mb-4">
+						<span class="material-symbols-outlined text-on-surface-variant text-lg">checklist</span>
+						Manual Tasks
+					</h3>
+					<div class="space-y-1">
+						{#each tasks as task (task.id)}
+							<div class="flex items-center gap-3 py-2.5 px-3 rounded-lg group hover:bg-surface-container-low transition-colors">
+								<button
+									onclick={() => toggleTask(task)}
+									class="text-on-surface-variant hover:text-primary transition-colors flex-shrink-0"
+									aria-label={task.is_done
+										? `Mark "${task.title}" as incomplete`
+										: `Mark "${task.title}" as complete`}
+								>
+									<span class="material-symbols-outlined text-xl">{task.is_done ? 'check_circle' : 'radio_button_unchecked'}</span>
+								</button>
+								<span class="flex-1 text-sm {task.is_done ? 'line-through text-on-surface-variant/50' : 'text-on-surface'}">{task.title}</span>
+								<button
+									onclick={() => deleteTask(task.id)}
+									class="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all p-1 rounded"
+									title="Delete task"
+								>
+									<span class="material-symbols-outlined text-base">delete</span>
+								</button>
+							</div>
+						{/each}
+					</div>
+					<div class="flex gap-2 mt-4 pb-6">
+						<input
+							class="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
+							placeholder="Add a task..."
+							bind:value={newTaskTitle}
+							onkeydown={(e) => { if (e.key === 'Enter') addTask(); }}
+						/>
+						<button
+							onclick={addTask}
+							disabled={addingTask || !newTaskTitle.trim()}
+							class="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-40"
+						>
+							Add
+						</button>
+					</div>
+				</div>
+
 				{#if activeNotifications.length === 0 && !loading}
 					<div class="flex flex-col items-center justify-center h-48 text-center">
 						<span class="material-symbols-outlined text-5xl text-on-surface-variant/20 mb-3">mark_email_read</span>
@@ -659,51 +705,6 @@
 					</div>
 				{/if}
 
-				<!-- Manual Tasks -->
-				<div class="mt-8 pt-6 bg-surface-container-low rounded-xl px-4">
-					<h3 class="font-semibold text-on-surface flex items-center gap-2 mb-4">
-						<span class="material-symbols-outlined text-on-surface-variant text-lg">checklist</span>
-						Manual Tasks
-					</h3>
-					<div class="space-y-1">
-						{#each tasks as task (task.id)}
-							<div class="flex items-center gap-3 py-2.5 px-3 rounded-lg group hover:bg-surface-container-low transition-colors">
-								<button
-									onclick={() => toggleTask(task)}
-									class="text-on-surface-variant hover:text-primary transition-colors flex-shrink-0"
-									aria-label={task.is_done
-										? `Mark "${task.title}" as incomplete`
-										: `Mark "${task.title}" as complete`}
-								>
-									<span class="material-symbols-outlined text-xl">{task.is_done ? 'check_circle' : 'radio_button_unchecked'}</span>
-								</button>
-								<span class="flex-1 text-sm {task.is_done ? 'line-through text-on-surface-variant/50' : 'text-on-surface'}">{task.title}</span>
-								<button
-									onclick={() => deleteTask(task.id)}
-									class="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-error transition-all p-1 rounded"
-									title="Delete task"
-								>
-									<span class="material-symbols-outlined text-base">delete</span>
-								</button>
-							</div>
-						{/each}
-					</div>
-					<div class="flex gap-2 mt-4">
-						<input
-							class="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:ring-2 focus:ring-primary/30"
-							placeholder="Add a task..."
-							bind:value={newTaskTitle}
-							onkeydown={(e) => { if (e.key === 'Enter') addTask(); }}
-						/>
-						<button
-							onclick={addTask}
-							disabled={addingTask || !newTaskTitle.trim()}
-							class="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-40"
-						>
-							Add
-						</button>
-					</div>
-				</div>
 			</div>
 		</section>
 	</div>
