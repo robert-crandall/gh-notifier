@@ -56,7 +56,10 @@
 			migrateThreads = false;
 			
 			const hint = await api.assignNotificationToProject(notificationId, projectId);
-			decrementInboxCount();
+			const notification = notifications.find((n) => n.id === notificationId);
+			if (notification && !notification.is_read) {
+				decrementInboxCount();
+			}
 			notifications = notifications.filter((n) => n.id !== notificationId);
 			if (hint.kind !== 'none') {
 				routingHint = hint;
@@ -107,7 +110,10 @@
 	async function archive(id: number) {
 		try {
 			await api.markNotificationRead(id);
-			decrementInboxCount();
+			const notification = notifications.find((n) => n.id === id);
+			if (notification && !notification.is_read) {
+				decrementInboxCount();
+			}
 			notifications = notifications.filter((n) => n.id !== id);
 		} catch (e) {
 			console.error('Failed to archive notification:', e);
@@ -117,7 +123,10 @@
 	async function unsubscribe(id: number) {
 		try {
 			await api.unsubscribeThread(id);
-			decrementInboxCount();
+			const notification = notifications.find((n) => n.id === id);
+			if (notification && !notification.is_read) {
+				decrementInboxCount();
+			}
 			notifications = notifications.filter((n) => n.id !== id);
 		} catch (e) {
 			console.error('Failed to unsubscribe:', e);
