@@ -221,6 +221,20 @@
 		}
 	}
 
+	async function openBookmark(url: string, event: MouseEvent) {
+		event.preventDefault();
+		const normalized = url.trim();
+		if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+			console.error('Invalid bookmark URL scheme:', url);
+			return;
+		}
+		try {
+			await open(normalized);
+		} catch (e) {
+			console.error('Failed to open bookmark:', e);
+		}
+	}
+
 	function startRename() {
 		if (!project) return;
 		editedName = project.name;
@@ -375,14 +389,15 @@
 								<li class="flex items-center gap-2 group">
 									<a
 										href={bookmark.url}
-										target="_blank"
-										rel="noopener noreferrer"
+										onclick={(e) => openBookmark(bookmark.url, e)}
 										class="flex-1 text-sm text-primary hover:underline truncate"
 										title={bookmark.url}
 									>{bookmark.name}</a>
 									<button
-										class="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-surface-container-high rounded"
+										class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity p-0.5 hover:bg-surface-container-high focus-visible:bg-surface-container-high rounded focus-visible:outline-none"
+										type="button"
 										title="Remove bookmark"
+										aria-label="Remove bookmark"
 										onclick={() => removeBookmark(bookmark.id)}
 									>
 										<span class="material-symbols-outlined text-sm text-on-surface-variant">close</span>
