@@ -47,13 +47,13 @@
 
 		{#if loading}
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-				{#each [1, 2, 3] as _}
+				{#each [1, 2, 3] as _, i (i)}
 					<div class="bg-surface-container-lowest p-6 rounded-2xl animate-pulse h-48"></div>
 				{/each}
 			</div>
 		{:else}
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-				{#each activeProjects as project}
+				{#each activeProjects as project (project.id)}
 					<button
 						class="group bg-surface-container-lowest border border-outline-variant/15 p-6 rounded-2xl shadow-[0_12px_40px_rgba(26,28,29,0.04)] hover:shadow-[0_20px_60px_rgba(26,28,29,0.08)] transition-all duration-300 relative overflow-hidden text-left"
 						onclick={() => goto(`/projects/${project.id}`)}
@@ -104,7 +104,7 @@
 			<span class="material-symbols-outlined text-on-surface-variant text-sm">bedtime</span>
 		</div>
 		<div class="space-y-3">
-			{#each snoozedProjects as project}
+			{#each snoozedProjects as project (project.id)}
 				<div
 					class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-outline-variant/20 hover:bg-surface-container-high transition-all group"
 				>
