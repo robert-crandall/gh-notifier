@@ -4,10 +4,10 @@
 	import { goto } from '$app/navigation';
 	import * as api from '$lib/api';
 	import { restoreStateCurrent, StateFlags } from '@tauri-apps/plugin-window-state';
+	import { getInboxCount, setInboxCount } from '$lib/inbox-state.svelte';
 
 	let { children } = $props();
 
-	let inboxCount = $state(0);
 	let lastSynced = $state<string | null>(null);
 	let activeCount = $state(0);
 	let snoozedCount = $state(0);
@@ -15,7 +15,7 @@
 	$effect(() => {
 		restoreStateCurrent(StateFlags.ALL).catch(() => {});
 		api.getUnmappedNotifications().then((notifs) => {
-			inboxCount = notifs.filter((n) => !n.is_read).length;
+			setInboxCount(notifs.filter((n) => !n.is_read).length);
 		}).catch(() => {});
 
 		api.getSettings().then((s) => {
@@ -69,7 +69,7 @@
 
 	const navItems = $derived([
 		{ href: '/', icon: 'dashboard', label: 'Dashboard', badge: 0 },
-		{ href: '/inbox', icon: 'inbox', label: 'Inbox', badge: inboxCount },
+		{ href: '/inbox', icon: 'inbox', label: 'Inbox', badge: getInboxCount() },
 		{ href: '/settings', icon: 'settings', label: 'Settings', badge: 0 }
 	]);
 
