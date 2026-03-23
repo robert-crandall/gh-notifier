@@ -76,23 +76,64 @@ pub fn validate_token(token: &str) -> Result<(), String> {
   }
 }
 
-/// Fetch all unread notifications from `GET /notifications`.
+/// Fetch all unread notifications from `GET /notifications`, following pagination.
 /// Returns `team_mention` notifications as well — callers are responsible for filtering.
 pub fn fetch_notifications(token: &str) -> Result<Vec<ApiNotification>, String> {
-  let client = make_client(token)?;
-  // `all=false` (default) returns only unread; we use that to stay lean.
-  let resp = client
-    .get("https://api.github.com/notifications")
-    .send()
-    .map_err(|e| format!("Network error: {e}"))?;
-
-  if !resp.status().is_success() {
-    return Err(format!("GitHub returned status {}", resp.status()));
+  fn parse_next_link(link_header: &str) -> Option<String> {
+    // Link: <url1>; rel="next", <url2>; rel="prev", ...
+    for part in link_header.split(',') {
+      let mut sections = part.trim().split(';');
+      let url_part = sections.next()?.trim();
+      let rel_part = sections.find(|s| s.trim().starts_with("rel="))?;
+      if rel_part.contains("next") {
+        if let Some(start) = url_part.find('<') {
+          if let Some(end) = url_part.find('>') {
+            if end > start + 1 {
+              return Some(url_part[start + 1..end].to_string());
+            }
+          }
+        }
+      }
+    }
+    None
   }
 
-  resp
-    .json::<Vec<ApiNotification>>()
-    .map_err(|e| format!("Failed to parse GitHub notifications response: {e}"))
+  let client = make_client(token)?;
+  // `all=false` (default) returns only unread; we use that to stay lean.
+  let mut all_notifications = Vec::new();
+  let mut url = "https://api.github.com/notifications?per_page=100".to_string();
+
+  loop {
+    let resp = client
+      .get(&url)
+      .send()
+      .map_err(|e| format!("Network error: {e}"))?;
+
+    if !resp.status().is_success() {
+      return Err(format!("GitHub returned status {}", resp.status()));
+    }
+
+    let next_url = resp
+      .headers()
+      .get("Link")
+      .and_then(|v| v.to_str().ok())
+      .and_then(parse_next_link);
+
+    let mut page = resp
+      .json::<Vec<ApiNotification>>()
+      .map_err(|e| format!("Failed to parse GitHub notifications response: {e}"))?;
+
+    all_notifications.append(&mut page);
+
+    match next_url {
+      Some(u) => {
+        url = u;
+      }
+      None => break,
+    }
+  }
+
+  Ok(all_notifications)
 }
 
 /// Unsubscribe from a GitHub notification thread.

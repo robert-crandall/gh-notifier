@@ -55,7 +55,11 @@
 	async function openInGithub(notification: GithubNotification) {
 		const url = notification.html_url ?? notification.subject_url;
 		if (url) {
-			await open(url);
+			try {
+				await open(url);
+			} catch (e) {
+				console.error('Failed to open URL in GitHub:', e);
+			}
 		}
 	}
 
@@ -72,7 +76,8 @@
 	async function unsubscribe(notification: GithubNotification) {
 		try {
 			await api.unsubscribeThread(notification.id);
-			notifications = notifications.filter((n) => n.id !== notification.id);
+			notification.is_read = true;
+			notifications = notifications;
 		} catch (e) {
 			console.error('Failed to unsubscribe:', e);
 		}

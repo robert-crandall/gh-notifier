@@ -214,7 +214,9 @@ pub fn get_unmapped_notifications(
   state: tauri::State<'_, DbState>,
 ) -> Result<Vec<GithubNotification>, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
-  let sql = format!("{NOTIFICATION_COLS} WHERE project_id IS NULL ORDER BY updated_at DESC");
+  let sql = format!(
+    "{NOTIFICATION_COLS} WHERE project_id IS NULL AND is_read = 0 ORDER BY updated_at DESC"
+  );
   let mut stmt = db.prepare(&sql).map_err(|e| e.to_string())?;
   let result = stmt
     .query_map([], notification_from_row)
@@ -342,6 +344,8 @@ pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Res
 }
 
 #[tauri::command]
+// NOTE: Uses blocking reqwest. Consider converting to async if UI responsiveness
+// degrades during sync. For now, blocking is acceptable for MVP.
 pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String> {
   let token = match keychain_entry()?.get_password() {
     Ok(t) => t,
@@ -373,11 +377,14 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
           reason, is_read, updated_at, html_url) \
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
        ON CONFLICT(github_id) DO UPDATE SET \
-         subject_title = excluded.subject_title, \
-         reason        = excluded.reason, \
-         is_read       = CASE WHEN excluded.is_read = 0 THEN 0 ELSE notifications.is_read END, \
-         updated_at    = excluded.updated_at, \
-         html_url      = excluded.html_url",
+         repo_full_name = excluded.repo_full_name, \
+         subject_title  = excluded.subject_title, \
+         subject_type   = excluded.subject_type, \
+         subject_url    = excluded.subject_url, \
+         reason         = excluded.reason, \
+         is_read        = CASE WHEN excluded.is_read = 0 THEN 0 ELSE notifications.is_read END, \
+         updated_at     = excluded.updated_at, \
+         html_url       = excluded.html_url",
       params![
         n.id,
         n.repository.full_name,
