@@ -113,7 +113,10 @@ pub fn fetch_notifications(
   let mut all_notifications = Vec::new();
   let base = "https://api.github.com/notifications?per_page=100";
   let mut url = match since {
-    Some(ts) => format!("{base}&since={ts}"),
+    Some(ts) => {
+      let encoded = urlencoding::encode(ts);
+      format!("{base}&since={encoded}")
+    }
     None => base.to_string(),
   };
 
