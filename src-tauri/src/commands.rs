@@ -233,11 +233,32 @@ pub fn assign_notification_to_project(
   state: tauri::State<'_, DbState>,
 ) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
+
+  // Look up the notification's repo and thread id so we can persist the mapping.
+  let (repo_full_name, github_id): (String, String) = db
+    .query_row(
+      "SELECT repo_full_name, github_id FROM notifications WHERE id = ?1",
+      params![notification_id],
+      |row| Ok((row.get(0)?, row.get(1)?)),
+    )
+    .map_err(|_| format!("Notification {notification_id} not found"))?;
+
+  // Assign the notification to the project.
   db.execute(
     "UPDATE notifications SET project_id = ?1 WHERE id = ?2",
     params![project_id, notification_id],
   )
   .map_err(|e| e.to_string())?;
+
+  // Persist the thread→project mapping so future notifications from the same
+  // thread are auto-routed without any user action.
+  db.execute(
+    "INSERT OR REPLACE INTO thread_mappings (repo_full_name, thread_id, project_id) \
+     VALUES (?1, ?2, ?3)",
+    params![repo_full_name, github_id, project_id],
+  )
+  .map_err(|e| e.to_string())?;
+
   Ok(())
 }
 
@@ -371,11 +392,22 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
       .as_deref()
       .and_then(github::api_url_to_html_url);
 
+    // Check thread_mappings to auto-assign project_id for this notification.
+    let mapped_project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM thread_mappings \
+         WHERE repo_full_name = ?1 AND thread_id = ?2",
+        params![n.repository.full_name, n.id],
+        |row| row.get(0),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?;
+
     db.execute(
       "INSERT INTO notifications \
          (github_id, repo_full_name, subject_title, subject_type, subject_url, \
-          reason, is_read, updated_at, html_url) \
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+          reason, is_read, updated_at, html_url, project_id) \
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) \
        ON CONFLICT(github_id) DO UPDATE SET \
          repo_full_name = excluded.repo_full_name, \
          subject_title  = excluded.subject_title, \
@@ -384,7 +416,8 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
          reason         = excluded.reason, \
          is_read        = CASE WHEN excluded.is_read = 0 THEN 0 ELSE notifications.is_read END, \
          updated_at     = excluded.updated_at, \
-         html_url       = excluded.html_url",
+         html_url       = excluded.html_url, \
+         project_id     = COALESCE(notifications.project_id, excluded.project_id)",
       params![
         n.id,
         n.repository.full_name,
@@ -395,9 +428,23 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
         !n.unread, // GitHub "unread" = true  →  our is_read = false
         n.updated_at,
         html_url,
+        mapped_project_id,
       ],
     )
     .map_err(|e| e.to_string())?;
+
+    // If the notification was auto-routed to a snoozed project with
+    // snooze_mode = 'notification', wake that project now.
+    if let Some(pid) = mapped_project_id {
+      db.execute(
+        "UPDATE projects \
+         SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
+             updated_at = datetime('now') \
+         WHERE id = ?1 AND status = 'snoozed' AND snooze_mode = 'notification'",
+        params![pid],
+      )
+      .map_err(|e| e.to_string())?;
+    }
   }
 
   Ok(())
