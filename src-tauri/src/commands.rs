@@ -433,9 +433,23 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
     )
     .map_err(|e| e.to_string())?;
 
-    // If the notification was auto-routed to a snoozed project with
+    // Wake the project this notification is actually assigned to (if any).
+    // We look up the effective project_id after the upsert, to account for
+    // cases where an existing notifications.project_id was preserved by
+    // COALESCE(notifications.project_id, excluded.project_id).
+    let effective_project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM notifications \
+         WHERE github_id = ?1 AND project_id IS NOT NULL",
+        params![n.id],
+        |row| row.get(0),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?;
+
+    // If the notification is assigned to a snoozed project with
     // snooze_mode = 'notification', wake that project now.
-    if let Some(pid) = mapped_project_id {
+    if let Some(pid) = effective_project_id {
       db.execute(
         "UPDATE projects \
          SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
@@ -635,7 +649,17 @@ mod tests {
     )
     .unwrap();
 
-    if let Some(pid) = mapped_project_id {
+    let effective_project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM notifications \
+         WHERE github_id = ?1 AND project_id IS NOT NULL",
+        params![github_id],
+        |row| row.get(0),
+      )
+      .optional()
+      .unwrap();
+
+    if let Some(pid) = effective_project_id {
       db.execute(
         "UPDATE projects \
          SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
