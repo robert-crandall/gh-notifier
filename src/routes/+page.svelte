@@ -6,6 +6,7 @@
 	let activeProjects: Project[] = $state([]);
 	let snoozedProjects: Project[] = $state([]);
 	let loading = $state(true);
+	let snoozedExpanded = $state(false);
 
 	$effect(() => {
 		api.getProjects().then((projects) => {
@@ -29,6 +30,16 @@
 		}
 		if (project.snooze_mode === 'notification') return 'Next Notification';
 		return 'Manual Wake Only';
+	}
+
+	async function wakeProject(project: Project) {
+		try {
+			await api.wakeProject(project.id);
+			snoozedProjects = snoozedProjects.filter((p) => p.id !== project.id);
+			activeProjects = [...activeProjects, { ...project, status: 'active', snooze_mode: null, snooze_until: null }];
+		} catch (e) {
+			console.error('Failed to wake project:', e);
+		}
 	}
 </script>
 
@@ -99,33 +110,59 @@
 
 	<!-- Snoozed Projects -->
 	<section class="opacity-80">
-		<div class="flex items-center gap-3 mb-6">
+		<button
+			class="flex items-center gap-3 mb-3 w-full text-left group"
+			onclick={() => (snoozedExpanded = !snoozedExpanded)}
+		>
 			<h2 class="text-lg font-bold tracking-tight text-on-surface-variant">Snoozed Projects</h2>
 			<span class="material-symbols-outlined text-on-surface-variant text-sm">bedtime</span>
-		</div>
-		<div class="space-y-3">
-			{#each snoozedProjects as project (project.id)}
-				<div
-					class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-outline-variant/20 hover:bg-surface-container-high transition-all group"
-				>
-					<div class="flex items-center gap-4">
-						<span class="material-symbols-outlined text-secondary-fixed-dim">{project.icon}</span>
-						<div>
-							<h4 class="text-sm font-semibold text-on-surface-variant">{project.name}</h4>
-							<p class="text-[11px] text-on-surface-variant/60">{project.next_action}</p>
+			{#if snoozedProjects.length > 0}
+				<span class="ml-1 px-2 py-0.5 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded-full">
+					{snoozedProjects.length}
+				</span>
+			{/if}
+			<span class="material-symbols-outlined text-on-surface-variant text-sm ml-auto transition-transform {snoozedExpanded ? 'rotate-180' : ''}">
+				expand_more
+			</span>
+		</button>
+		{#if snoozedExpanded}
+			<div class="space-y-3">
+				{#each snoozedProjects as project (project.id)}
+					<div
+						class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-transparent hover:border-outline-variant/20 hover:bg-surface-container-high transition-all group"
+					>
+						<button
+							class="flex items-center gap-4 flex-1 text-left"
+							onclick={() => goto(`/projects/${project.id}`)}
+						>
+							<span class="material-symbols-outlined text-secondary-fixed-dim">{project.icon}</span>
+							<div>
+								<h4 class="text-sm font-semibold text-on-surface-variant">{project.name}</h4>
+								<p class="text-[11px] text-on-surface-variant/60">{project.next_action}</p>
+							</div>
+						</button>
+						<div class="flex items-center gap-4">
+							<div class="text-right">
+								<p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-0.5">
+									Resume Criteria
+								</p>
+								<span class="text-xs font-mono font-medium text-secondary">
+									{snoozeLabel(project)}
+								</span>
+							</div>
+							<button
+								class="px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-primary/10 hover:text-primary text-on-surface-variant text-[10px] font-bold tracking-widest transition-colors flex items-center gap-1 opacity-0 group-hover:opacity-100"
+								onclick={() => wakeProject(project)}
+								title="Wake project"
+							>
+								<span class="material-symbols-outlined text-sm">alarm_on</span>
+								WAKE
+							</button>
 						</div>
 					</div>
-					<div class="text-right">
-						<p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-0.5">
-							Resume Criteria
-						</p>
-						<span class="text-xs font-mono font-medium text-secondary">
-							{snoozeLabel(project)}
-						</span>
-					</div>
-				</div>
-			{/each}
-		</div>
+				{/each}
+			</div>
+		{/if}
 	</section>
 
 	<!-- Bottom Insight -->

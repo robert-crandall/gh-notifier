@@ -10,6 +10,11 @@
 	let saving = $state(false);
 	let saveMessage = $state('');
 
+	// Snooze modal state
+	let showSnoozeModal = $state(false);
+	let snoozeMode: 'manual' | 'date' | 'notification' = $state('manual');
+	let snoozeUntil = $state('');
+
 	let projectId = $derived(Number($page.params.id));
 
 	$effect(() => {
@@ -82,6 +87,33 @@
 			console.error('Failed to unsubscribe:', e);
 		}
 	}
+
+	async function doSnooze() {
+		if (!project) return;
+		const until = snoozeMode === 'date' ? snoozeUntil || null : null;
+		if (snoozeMode === 'date' && !until) return;
+		try {
+			await api.snoozeProject(project.id, snoozeMode, until);
+			project.status = 'snoozed';
+			project.snooze_mode = snoozeMode;
+			project.snooze_until = until;
+			showSnoozeModal = false;
+		} catch (e) {
+			console.error('Failed to snooze project:', e);
+		}
+	}
+
+	async function doWake() {
+		if (!project) return;
+		try {
+			await api.wakeProject(project.id);
+			project.status = 'active';
+			project.snooze_mode = null;
+			project.snooze_until = null;
+		} catch (e) {
+			console.error('Failed to wake project:', e);
+		}
+	}
 </script>
 
 {#if loading}
@@ -100,9 +132,23 @@
 							{project.status === 'active' ? 'Active Project' : 'Snoozed'}
 						</span>
 						<div class="flex gap-1">
-							<button class="p-1 hover:bg-surface-container-highest rounded transition-colors" title="Snooze Project">
-								<span class="material-symbols-outlined text-sm text-on-surface-variant">snooze</span>
-							</button>
+							{#if project.status === 'snoozed'}
+								<button
+									class="p-1 hover:bg-surface-container-highest rounded transition-colors"
+									title="Wake Project"
+									onclick={doWake}
+								>
+									<span class="material-symbols-outlined text-sm text-on-surface-variant">alarm_on</span>
+								</button>
+							{:else}
+								<button
+									class="p-1 hover:bg-surface-container-highest rounded transition-colors"
+									title="Snooze Project"
+									onclick={() => { snoozeMode = 'manual'; snoozeUntil = ''; showSnoozeModal = true; }}
+								>
+									<span class="material-symbols-outlined text-sm text-on-surface-variant">snooze</span>
+								</button>
+							{/if}
 							<button class="p-1 hover:bg-surface-container-highest rounded transition-colors" title="Settings">
 								<span class="material-symbols-outlined text-sm text-on-surface-variant">more_horiz</span>
 							</button>
@@ -226,4 +272,101 @@
 			</div>
 		</section>
 	</div>
+
+	<!-- Snooze Modal -->
+	{#if showSnoozeModal}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Snooze project"
+		>
+			<div class="bg-surface-container-lowest rounded-2xl p-8 w-[420px] space-y-6 shadow-2xl border border-outline-variant/20">
+				<div class="flex items-center justify-between">
+					<h3 class="font-black text-on-surface text-lg">Snooze Project</h3>
+					<button
+						class="p-1 hover:bg-surface-container-high rounded transition-colors"
+						onclick={() => (showSnoozeModal = false)}
+					>
+						<span class="material-symbols-outlined text-on-surface-variant">close</span>
+					</button>
+				</div>
+
+				<div class="space-y-2">
+					<!-- Manual mode -->
+					<button
+						class="w-full p-4 rounded-xl border text-left transition-all {snoozeMode === 'manual'
+							? 'border-primary bg-primary/5'
+							: 'border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container-low'}"
+						onclick={() => (snoozeMode = 'manual')}
+					>
+						<div class="flex items-center gap-3">
+							<span class="material-symbols-outlined text-on-surface-variant">visibility_off</span>
+							<div>
+								<p class="font-semibold text-on-surface text-sm">Manual</p>
+								<p class="text-xs text-on-surface-variant">Hide until you manually wake it</p>
+							</div>
+						</div>
+					</button>
+
+					<!-- Date mode -->
+					<button
+						class="w-full p-4 rounded-xl border text-left transition-all {snoozeMode === 'date'
+							? 'border-primary bg-primary/5'
+							: 'border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container-low'}"
+						onclick={() => (snoozeMode = 'date')}
+					>
+						<div class="flex items-center gap-3">
+							<span class="material-symbols-outlined text-on-surface-variant">calendar_month</span>
+							<div>
+								<p class="font-semibold text-on-surface text-sm">Until Date</p>
+								<p class="text-xs text-on-surface-variant">Resume automatically on a specific date</p>
+							</div>
+						</div>
+					</button>
+					{#if snoozeMode === 'date'}
+						<div class="px-1">
+							<input
+								type="datetime-local"
+								bind:value={snoozeUntil}
+								class="w-full bg-surface-container-low border border-outline-variant/30 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary"
+							/>
+						</div>
+					{/if}
+
+					<!-- Notification mode -->
+					<button
+						class="w-full p-4 rounded-xl border text-left transition-all {snoozeMode === 'notification'
+							? 'border-primary bg-primary/5'
+							: 'border-outline-variant/20 hover:border-outline-variant/40 hover:bg-surface-container-low'}"
+						onclick={() => (snoozeMode = 'notification')}
+					>
+						<div class="flex items-center gap-3">
+							<span class="material-symbols-outlined text-on-surface-variant">notifications_active</span>
+							<div>
+								<p class="font-semibold text-on-surface text-sm">Until Next Notification</p>
+								<p class="text-xs text-on-surface-variant">Wake when a new notification arrives</p>
+							</div>
+						</div>
+					</button>
+				</div>
+
+				<div class="flex gap-3">
+					<button
+						class="flex-1 py-2.5 rounded-xl border border-outline-variant/30 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low transition-colors"
+						onclick={() => (showSnoozeModal = false)}
+					>
+						Cancel
+					</button>
+					<button
+						class="flex-1 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40"
+						onclick={doSnooze}
+						disabled={snoozeMode === 'date' && !snoozeUntil}
+					>
+						Snooze
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 {/if}

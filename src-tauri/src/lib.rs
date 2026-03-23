@@ -18,6 +18,17 @@ pub fn run() {
     .setup(|app| {
       let app_data_dir = app.path().app_data_dir()?;
       let conn = db::init_db(&app_data_dir).map_err(std::io::Error::other)?;
+      // Wake any date-based snoozed projects whose snooze_until has passed.
+      conn
+        .execute(
+          "UPDATE projects \
+           SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
+               updated_at = datetime('now') \
+           WHERE status = 'snoozed' AND snooze_mode = 'date' \
+             AND snooze_until IS NOT NULL AND snooze_until <= datetime('now')",
+          [],
+        )
+        .map_err(std::io::Error::other)?;
       app.manage(db::DbState(std::sync::Mutex::new(conn)));
       Ok(())
     })
