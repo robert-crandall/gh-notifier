@@ -97,12 +97,12 @@
 **Goal:** App stays current without manual sync button.
 
 ### Tasks
-- [ ] Add Tauri async runtime setup for background tasks
-- [ ] Create a polling loop that runs `sync_notifications` on a configurable interval (default: 5 min)
-- [ ] Store poll interval in settings, respect changes without restart
-- [ ] Show "last synced" timestamp in the UI (settings page or top bar)
-- [ ] Handle errors gracefully (network down, token expired) — don't crash the loop
-- [ ] Check date-based snoozes on each poll cycle (not just app startup)
+- [x] Add Tauri async runtime setup for background tasks
+- [x] Create a polling loop that runs `sync_notifications` on a configurable interval (default: 5 min)
+- [x] Store poll interval in settings, respect changes without restart
+- [x] Show "last synced" timestamp in the UI (settings page or top bar)
+- [x] Handle errors gracefully (network down, token expired) — don't crash the loop
+- [x] Check date-based snoozes on each poll cycle (not just app startup)
 
 ### Done when
 - Leave the app open → new notifications appear automatically

@@ -68,6 +68,10 @@ export async function syncNotifications(): Promise<void> {
 	return invoke('sync_notifications');
 }
 
+export async function saveSettings(pollIntervalMinutes: number): Promise<void> {
+	return invoke('save_settings', { pollIntervalMinutes });
+}
+
 export async function getManualTasks(projectId?: number | null): Promise<ManualTask[]> {
 	return invoke('get_manual_tasks', { projectId: projectId ?? null });
 }

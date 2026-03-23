@@ -7,11 +7,25 @@
 	let { children } = $props();
 
 	let inboxCount = $state(0);
+	let lastSynced = $state<string | null>(null);
 
 	$effect(() => {
 		api.getUnmappedNotifications().then((notifs) => {
 			inboxCount = notifs.filter((n) => !n.is_read).length;
 		}).catch(() => {});
+
+		api.getSettings().then((s) => {
+			lastSynced = s.last_synced_at;
+		}).catch(() => {});
+
+		// Refresh last-synced timestamp every 30 s so the top bar stays current.
+		const interval = setInterval(async () => {
+			try {
+				const s = await api.getSettings();
+				lastSynced = s.last_synced_at;
+			} catch { /* ignore */ }
+		}, 30_000);
+		return () => clearInterval(interval);
 	});
 
 	const navItems = $derived([
@@ -122,6 +136,11 @@
 				{$page.url.pathname === '/' ? 'Overview' : $page.url.pathname.split('/')[1]}
 			</h1>
 			<div class="flex items-center gap-6">
+				{#if lastSynced}
+					<span class="text-[10px] text-on-surface-variant/60 font-mono hidden lg:block">
+						synced {new Date(lastSynced.includes('T') ? lastSynced : `${lastSynced.replace(' ', 'T')}Z`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+					</span>
+				{/if}
 				<div class="relative w-64">
 					<span
 						class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm"

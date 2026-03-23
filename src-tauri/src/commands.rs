@@ -2,18 +2,40 @@
 #![allow(clippy::missing_errors_doc)]
 
 use crate::{
-  db::DbState,
+  db::{DbState, TokenCache},
   github,
   models::{AppSettings, GithubNotification, ManualTask, Project},
 };
 use keyring::Entry;
 use rusqlite::{params, OptionalExtension};
 
-const KEYRING_SERVICE: &str = "gh-notifier";
-const KEYRING_USER: &str = "github_token";
+pub(crate) const KEYRING_SERVICE: &str = "gh-notifier";
+pub(crate) const KEYRING_USER: &str = "github_token";
 
 fn keychain_entry() -> Result<Entry, String> {
   Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())
+}
+
+/// Load the PAT directly from the macOS Keychain — used only once at startup.
+/// All runtime code reads from `TokenCache` instead.
+pub(crate) fn load_token_for_cache() -> Option<String> {
+  match keychain_entry() {
+    Ok(entry) => match entry.get_password() {
+      Ok(password) => Some(password),
+      Err(err) => {
+        eprintln!(
+          "Failed to read GitHub token from keychain (service: {KEYRING_SERVICE}, user: {KEYRING_USER}): {err}",
+        );
+        None
+      }
+    },
+    Err(err) => {
+      eprintln!(
+        "Failed to access keychain entry for GitHub token (service: {KEYRING_SERVICE}, user: {KEYRING_USER}): {err}",
+      );
+      None
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -274,7 +296,11 @@ pub fn mark_notification_read(id: i64, state: tauri::State<'_, DbState>) -> Resu
 }
 
 #[tauri::command]
-pub fn unsubscribe_thread(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+pub fn unsubscribe_thread(
+  id: i64,
+  token_cache: tauri::State<'_, TokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
 
   // Fetch the github_id needed to call the GitHub API.
@@ -288,10 +314,10 @@ pub fn unsubscribe_thread(id: i64, state: tauri::State<'_, DbState>) -> Result<(
 
   // Call the GitHub API if a token is configured.  If there is no token the
   // notification was created manually / before setup — just mark it read.
-  match keychain_entry()?.get_password() {
-    Ok(token) => github::unsubscribe_thread(&token, &github_id)?,
-    Err(keyring::Error::NoEntry) => {} // no token yet — skip API call
-    Err(e) => return Err(format!("Keychain error: {e}")),
+  if let Ok(token_guard) = token_cache.0.lock() {
+    if let Some(token) = token_guard.as_deref() {
+      github::unsubscribe_thread(token, &github_id)?;
+    }
   }
 
   db.execute(
@@ -307,15 +333,14 @@ pub fn unsubscribe_thread(id: i64, state: tauri::State<'_, DbState>) -> Result<(
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn get_settings(state: tauri::State<'_, DbState>) -> Result<AppSettings, String> {
+pub fn get_settings(
+  token_cache: tauri::State<'_, TokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<AppSettings, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
 
-  // PAT lives in the macOS Keychain — never in SQLite
-  let github_token = match keychain_entry()?.get_password() {
-    Ok(token) => Some(token),
-    Err(keyring::Error::NoEntry) => None,
-    Err(e) => return Err(format!("Keychain error: {e}")),
-  };
+  // Read the PAT from the in-memory cache — never from Keychain at runtime.
+  let github_token = token_cache.0.lock().map_err(|e| e.to_string())?.clone();
 
   let poll_interval_minutes = db
     .query_row(
@@ -338,15 +363,43 @@ pub fn get_settings(state: tauri::State<'_, DbState>) -> Result<AppSettings, Str
     .map_err(|e| e.to_string())?
     .is_some_and(|v| v == "true");
 
+  let last_synced_at = db
+    .query_row(
+      "SELECT value FROM settings WHERE key = 'last_synced_at'",
+      [],
+      |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?;
+
   Ok(AppSettings {
     github_token,
     poll_interval_minutes,
     is_setup_complete,
+    last_synced_at,
   })
 }
 
 #[tauri::command]
-pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Result<(), String> {
+pub fn save_settings(
+  poll_interval_minutes: i64,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_interval_minutes', ?1)",
+    params![poll_interval_minutes.to_string()],
+  )
+  .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+#[tauri::command]
+pub fn save_github_token(
+  token: String,
+  token_cache: tauri::State<'_, TokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
   // Validate before storing — fail fast with a useful error message.
   github::validate_token(&token)?;
 
@@ -354,6 +407,9 @@ pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Res
   keychain_entry()?
     .set_password(&token)
     .map_err(|e| e.to_string())?;
+
+  // Update the in-memory cache so subsequent calls don't touch the Keychain.
+  *token_cache.0.lock().map_err(|e| e.to_string())? = Some(token);
 
   let db = state.0.lock().map_err(|e| e.to_string())?;
   db.execute(
@@ -364,22 +420,26 @@ pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Res
   Ok(())
 }
 
-#[tauri::command]
-// NOTE: Uses blocking reqwest. Consider converting to async if UI responsiveness
-// degrades during sync. For now, blocking is acceptable for MVP.
-pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String> {
-  let token = match keychain_entry()?.get_password() {
-    Ok(t) => t,
-    Err(keyring::Error::NoEntry) => {
-      return Err("No GitHub token configured. Please complete setup first.".into())
-    }
-    Err(e) => return Err(format!("Keychain error: {e}")),
-  };
+// ---------------------------------------------------------------------------
+// Sync helpers
+// ---------------------------------------------------------------------------
 
-  let api_notifications = github::fetch_notifications(&token)?;
+fn get_cached_token(cache: &TokenCache) -> Result<String, String> {
+  cache
+    .0
+    .lock()
+    .map_err(|e| e.to_string())?
+    .clone()
+    .ok_or_else(|| "No GitHub token configured. Please complete setup first.".to_string())
+}
 
-  let db = state.0.lock().map_err(|e| e.to_string())?;
-
+/// Core sync logic — upsert API notifications into the DB, wake notification-mode
+/// snoozed projects, wake expired date-based snoozes, and record `last_synced_at`.
+/// Called by both the Tauri command and the background polling loop.
+fn process_notifications(
+  db: &rusqlite::Connection,
+  api_notifications: &[github::ApiNotification],
+) -> Result<(), String> {
   for n in api_notifications {
     // Filter out team_mention noise per the PRD.
     if n.reason == "team_mention" {
@@ -461,7 +521,48 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
     }
   }
 
+  // Wake any date-based snoozed projects whose deadline has passed.
+  db.execute(
+    "UPDATE projects \
+     SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
+         updated_at = datetime('now') \
+     WHERE status = 'snoozed' AND snooze_mode = 'date' \
+       AND snooze_until IS NOT NULL AND datetime(snooze_until) <= datetime('now')",
+    [],
+  )
+  .map_err(|e| e.to_string())?;
+
+  // Record when the last successful sync completed.
+  db.execute(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('last_synced_at', datetime('now'))",
+    [],
+  )
+  .map_err(|e| e.to_string())?;
+
   Ok(())
+}
+
+/// Entry point for the background polling task. Gets the token from the in-memory
+/// cache — never touches the Keychain.
+pub(crate) fn background_sync(
+  db_state: &crate::db::DbState,
+  token_cache: &crate::db::TokenCache,
+) -> Result<(), String> {
+  let token = get_cached_token(token_cache)?;
+  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  let db = db_state.0.lock().map_err(|e| e.to_string())?;
+  process_notifications(&db, &api_notifications)
+}
+
+#[tauri::command]
+pub fn sync_notifications(
+  token_cache: tauri::State<'_, TokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let token = get_cached_token(&token_cache)?;
+  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  process_notifications(&db, &api_notifications)
 }
 
 // ---------------------------------------------------------------------------

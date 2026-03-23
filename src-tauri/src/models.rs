@@ -44,4 +44,5 @@ pub struct AppSettings {
   pub github_token: Option<String>,
   pub poll_interval_minutes: i64,
   pub is_setup_complete: bool,
+  pub last_synced_at: Option<String>,
 }
