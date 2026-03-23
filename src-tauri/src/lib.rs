@@ -33,6 +33,11 @@ pub fn run() {
         .map_err(std::io::Error::other)?;
       app.manage(db::DbState(std::sync::Mutex::new(conn)));
 
+      // Load the PAT from the Keychain exactly once so runtime code never needs
+      // to access it again (repeated Keychain access triggers macOS auth prompts).
+      let cached_token = commands::load_token_for_cache();
+      app.manage(db::TokenCache(std::sync::Mutex::new(cached_token)));
+
       // Spawn the background notification polling loop.
       let handle = app.handle().clone();
       tauri::async_runtime::spawn(poll_loop(handle));
@@ -93,8 +98,9 @@ async fn poll_loop(handle: tauri::AppHandle) {
     // the async executor.
     let handle2 = handle.clone();
     let result = tokio::task::spawn_blocking(move || {
-      let state = handle2.state::<db::DbState>();
-      commands::background_sync(&state)
+      let db_state = handle2.state::<db::DbState>();
+      let token_cache = handle2.state::<db::TokenCache>();
+      commands::background_sync(&db_state, &token_cache)
     })
     .await;
 

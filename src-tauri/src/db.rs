@@ -5,6 +5,10 @@ use std::sync::Mutex;
 #[allow(clippy::module_name_repetitions)]
 pub struct DbState(pub Mutex<Connection>);
 
+/// In-memory PAT cache so commands never hit the macOS Keychain more than once
+/// per app launch (repeated Keychain access triggers OS auth prompts).
+pub struct TokenCache(pub Mutex<Option<String>>);
+
 pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
   std::fs::create_dir_all(app_data_dir).map_err(|e| e.to_string())?;
   let db_path = app_data_dir.join("gh-notifier.db");
