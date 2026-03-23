@@ -8,9 +8,8 @@ INSTALL_PATH="/Applications/${APP_NAME}.app"
 
 cd "$REPO_ROOT"
 
-echo "==> Running quality gates..."
-cd src-tauri && cargo fmt --check && cargo clippy && cd ..
-bun run check
+echo "==> Running quality gates (bun run ci)..."
+bun run ci
 
 echo "==> Building release bundle..."
 bun run tauri build
