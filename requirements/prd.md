@@ -93,6 +93,7 @@ The user receives ~80% of their actionable work through GitHub notifications but
 - **Authentication:** OAuth connection to GitHub
 - **Notification Sync:** Poll GitHub API for notifications (configurable interval)
 - **Filtering:** Automatically hide `team_mention` type notifications
+- **Terminal State Detection:** When a notification is synced, check the subject URL to determine if the underlying issue or PR is closed/merged. Terminal notifications are automatically marked read, excluded from unread counts, and shown in a collapsed "Closed" section in the project detail view rather than the active thread list.
 - **Thread Mapping:** Remember which repo/issue/PR belongs to which project
 - **Repo-Level Routing Rules:** Declare that all notifications from a given repo go to a specific project. Thread-level mappings take precedence when both exist. Rules can be created from the Inbox after assigning a notification, and managed (edited or deleted) from Settings.
 - **Unsubscribe:** Call GitHub API to unsubscribe from specific threads
@@ -120,6 +121,7 @@ The user receives ~80% of their actionable work through GitHub notifications but
   - Mark read/unread
   - Unsubscribe from thread
   - Open in GitHub (external link)
+- **Closed section** (collapsed by default): terminal threads (merged PRs, closed issues) shown with MERGED/CLOSED badge; excluded from unread count; accessible as a record without cluttering the active thread list
 
 ### 5. Manual Tasks
 - User can add tasks unrelated to GitHub
