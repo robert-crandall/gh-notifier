@@ -46,3 +46,17 @@ pub struct AppSettings {
   pub is_setup_complete: bool,
   pub last_synced_at: Option<String>,
 }
+
+/// Returned by `assign_notification_to_project` to let the UI decide whether to
+/// offer a repo-level routing rule.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepoRoutingHint {
+  /// `"none"` | `"opt_in"` | `"opt_out"`
+  pub kind: String,
+  pub repo_full_name: String,
+  pub project_id: i64,
+  pub project_name: String,
+  /// Number of pre-existing thread mappings for this repo (used for the
+  /// optional migration prompt when the user accepts the repo rule).
+  pub existing_thread_count: i64,
+}

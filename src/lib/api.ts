@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Project, GithubNotification, ManualTask, AppSettings } from './types';
+import type { Project, GithubNotification, ManualTask, AppSettings, RepoRoutingHint } from './types';
 
 export async function getProjects(): Promise<Project[]> {
 	return invoke('get_projects');
@@ -44,8 +44,16 @@ export async function getUnmappedNotifications(): Promise<GithubNotification[]> 
 export async function assignNotificationToProject(
 	notificationId: number,
 	projectId: number
-): Promise<void> {
+): Promise<RepoRoutingHint> {
 	return invoke('assign_notification_to_project', { notificationId, projectId });
+}
+
+export async function createRepoRule(
+	repoFullName: string,
+	projectId: number,
+	migrateExistingThreads: boolean
+): Promise<void> {
+	return invoke('create_repo_rule', { repoFullName, projectId, migrateExistingThreads });
 }
 
 export async function markNotificationRead(id: number): Promise<void> {

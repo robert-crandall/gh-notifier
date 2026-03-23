@@ -4,7 +4,7 @@
 use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
-  models::{AppSettings, GithubNotification, ManualTask, Project},
+  models::{AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint},
 };
 use aes_gcm::{
   aead::{Aead, KeyInit},
@@ -304,7 +304,7 @@ pub fn assign_notification_to_project(
   notification_id: i64,
   project_id: i64,
   state: tauri::State<'_, DbState>,
-) -> Result<(), String> {
+) -> Result<RepoRoutingHint, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
 
   // Look up the notification's repo and thread id so we can persist the mapping.
@@ -332,6 +332,100 @@ pub fn assign_notification_to_project(
   )
   .map_err(|e| e.to_string())?;
 
+  // If a repo rule already exists for this repo, no offer is needed.
+  let rule_exists: bool = db
+    .query_row(
+      "SELECT 1 FROM repo_rules WHERE repo_full_name = ?1",
+      params![repo_full_name],
+      |_| Ok(true),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?
+    .is_some();
+
+  if rule_exists {
+    return Ok(RepoRoutingHint {
+      kind: "none".into(),
+      repo_full_name,
+      project_id,
+      project_name: String::new(),
+      existing_thread_count: 0,
+    });
+  }
+
+  let project_name: String = db
+    .query_row(
+      "SELECT name FROM projects WHERE id = ?1",
+      params![project_id],
+      |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())?;
+
+  // Query other thread_mappings for this repo, excluding the one just inserted.
+  let other_project_ids: Vec<i64> = {
+    let mut stmt = db
+      .prepare(
+        "SELECT project_id FROM thread_mappings \
+         WHERE repo_full_name = ?1 AND thread_id != ?2",
+      )
+      .map_err(|e| e.to_string())?;
+    let rows = stmt
+      .query_map(params![repo_full_name, github_id], |row| row.get(0))
+      .map_err(|e| e.to_string())?
+      .collect::<rusqlite::Result<Vec<_>>>()
+      .map_err(|e| e.to_string())?;
+    rows
+  };
+
+  let kind = if other_project_ids.is_empty() {
+    // No prior threads from this repo — offer an opt-in repo rule.
+    "opt_in"
+  } else if other_project_ids.iter().all(|&pid| pid == project_id) {
+    // All prior threads already route to the same project — offer opt-out.
+    "opt_out"
+  } else {
+    // Threads split across multiple projects — no offer.
+    "none"
+  };
+
+  let existing_thread_count = i64::try_from(other_project_ids.len()).unwrap_or(0);
+
+  Ok(RepoRoutingHint {
+    kind: kind.into(),
+    repo_full_name,
+    project_id,
+    project_name,
+    existing_thread_count,
+  })
+}
+
+#[tauri::command]
+pub fn create_repo_rule(
+  repo_full_name: String,
+  project_id: i64,
+  migrate_existing_threads: bool,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT OR REPLACE INTO repo_rules (repo_full_name, project_id) VALUES (?1, ?2)",
+    params![repo_full_name, project_id],
+  )
+  .map_err(|e| e.to_string())?;
+  if migrate_existing_threads {
+    // Reassign all notifications for this repo to the target project.
+    db.execute(
+      "UPDATE notifications SET project_id = ?1 WHERE repo_full_name = ?2",
+      params![project_id, repo_full_name],
+    )
+    .map_err(|e| e.to_string())?;
+    // Remove thread-level mappings — the repo rule now covers them.
+    db.execute(
+      "DELETE FROM thread_mappings WHERE repo_full_name = ?1",
+      params![repo_full_name],
+    )
+    .map_err(|e| e.to_string())?;
+  }
   Ok(())
 }
 
@@ -512,7 +606,7 @@ fn process_notifications(
       .and_then(github::api_url_to_html_url);
 
     // Check thread_mappings to auto-assign project_id for this notification.
-    let mapped_project_id: Option<i64> = db
+    let thread_project_id: Option<i64> = db
       .query_row(
         "SELECT project_id FROM thread_mappings \
          WHERE repo_full_name = ?1 AND thread_id = ?2",
@@ -521,6 +615,19 @@ fn process_notifications(
       )
       .optional()
       .map_err(|e| e.to_string())?;
+
+    // Fall back to a repo-level rule when there is no thread-level mapping.
+    let mapped_project_id: Option<i64> = if thread_project_id.is_some() {
+      thread_project_id
+    } else {
+      db.query_row(
+        "SELECT project_id FROM repo_rules WHERE repo_full_name = ?1",
+        params![n.repository.full_name],
+        |row| row.get(0),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?
+    };
 
     db.execute(
       "INSERT INTO notifications \

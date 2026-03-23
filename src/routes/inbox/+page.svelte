@@ -1,11 +1,14 @@
 <script lang="ts">
-	import type { GithubNotification, Project } from '$lib/types';
+	import type { GithubNotification, Project, RepoRoutingHint } from '$lib/types';
 	import * as api from '$lib/api';
 
 	let notifications: GithubNotification[] = $state([]);
 	let projects: Project[] = $state([]);
 	let loading = $state(true);
 	let showProjectPicker = $state<number | null>(null);
+	let routingHint = $state<RepoRoutingHint | null>(null);
+	let acceptRepoRule = $state(false);
+	let migrateThreads = $state(false);
 
 	$effect(() => {
 		Promise.all([api.getUnmappedNotifications(), api.getProjects()])
@@ -44,12 +47,35 @@
 
 	async function assignToProject(notificationId: number, projectId: number) {
 		try {
-			await api.assignNotificationToProject(notificationId, projectId);
+			const hint = await api.assignNotificationToProject(notificationId, projectId);
 			notifications = notifications.filter((n) => n.id !== notificationId);
+			if (hint.kind !== 'none') {
+				routingHint = hint;
+				// opt_out: pre-accept since the pattern is already established.
+				// opt_in: leave unchecked — user must explicitly opt in.
+				acceptRepoRule = hint.kind === 'opt_out';
+				migrateThreads = hint.kind === 'opt_out';
+			}
 		} catch (e) {
 			console.error('Failed to assign notification:', e);
 		}
 		showProjectPicker = null;
+	}
+
+	async function confirmRepoRule() {
+		if (!routingHint) return;
+		try {
+			if (acceptRepoRule) {
+				await api.createRepoRule(routingHint.repo_full_name, routingHint.project_id, migrateThreads);
+			}
+		} catch (e) {
+			console.error('Failed to create repo rule:', e);
+		}
+		routingHint = null;
+	}
+
+	function dismissRepoRule() {
+		routingHint = null;
 	}
 
 	async function archive(id: number) {
@@ -95,6 +121,74 @@
 		</div>
 
 		<div class="space-y-4">
+			{#if routingHint}
+				{@const isOptIn = routingHint.kind === 'opt_in'}
+				<div class="bg-surface-container-low border border-primary/30 rounded-md p-5 flex flex-col gap-3">
+					<div class="flex items-start justify-between gap-4">
+						<div class="flex items-center gap-3">
+							<span class="material-symbols-outlined text-primary text-[22px]">route</span>
+							<div>
+								<p class="text-sm font-semibold text-on-surface">
+									{isOptIn ? 'New repo detected' : 'Routing pattern confirmed'}
+								</p>
+								<p class="text-xs text-on-surface-variant mt-0.5">
+									<span class="font-mono bg-surface-container-highest px-1 py-0.5 rounded text-[11px]">{routingHint.repo_full_name}</span>
+									{isOptIn
+										? ' — first notification from this repo.'
+										: ` — all threads route to ${routingHint.project_name}.`}
+								</p>
+							</div>
+						</div>
+						<button
+							class="text-on-surface-variant hover:text-on-surface transition-colors"
+							onclick={dismissRepoRule}
+							aria-label="Dismiss"
+						>
+							<span class="material-symbols-outlined text-[20px]">close</span>
+						</button>
+					</div>
+					<label class="flex items-center gap-3 cursor-pointer select-none">
+						<input
+							type="checkbox"
+							class="w-4 h-4 accent-primary rounded"
+							bind:checked={acceptRepoRule}
+							id="repo-rule-checkbox"
+						/>
+						<span class="text-sm text-on-surface">
+							Always route <span class="font-mono text-xs bg-surface-container-highest px-1 py-0.5 rounded">{routingHint.repo_full_name}</span>
+							to <span class="font-semibold">{routingHint.project_name}</span>
+						</span>
+					</label>
+					{#if routingHint.existing_thread_count > 0}
+						<label class="flex items-center gap-3 cursor-pointer select-none pl-7">
+							<input
+								type="checkbox"
+								class="w-4 h-4 accent-primary rounded"
+								bind:checked={migrateThreads}
+							/>
+							<span class="text-xs text-on-surface-variant">
+								Also reassign {routingHint.existing_thread_count} existing thread
+								{routingHint.existing_thread_count === 1 ? 'mapping' : 'mappings'} to this rule
+							</span>
+						</label>
+					{/if}
+					<div class="flex gap-2 pt-1">
+						<button
+							class="px-4 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-md hover:brightness-110 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+							onclick={confirmRepoRule}
+							disabled={!acceptRepoRule}
+						>
+							Create rule
+						</button>
+						<button
+							class="px-4 py-1.5 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-md transition-all"
+							onclick={dismissRepoRule}
+						>
+							Skip
+						</button>
+					</div>
+				</div>
+			{/if}
 			{#if loading}
 				{#each [1, 2, 3] as _, i (i)}
 					<div class="h-24 bg-surface-container-lowest rounded-md animate-pulse"></div>

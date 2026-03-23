@@ -134,5 +134,18 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
   }
 
+  if version < 3 {
+    // Add repo_rules table for repo-level routing rules.
+    conn.execute_batch(
+      "CREATE TABLE IF NOT EXISTS repo_rules (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_full_name TEXT    NOT NULL UNIQUE,
+        project_id     INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      PRAGMA user_version = 3;",
+    )?;
+  }
+
   Ok(())
 }
