@@ -569,6 +569,17 @@ pub fn unsubscribe_thread(
   Ok(())
 }
 
+#[tauri::command]
+pub fn mark_notification_unread(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "UPDATE notifications SET is_read = 0 WHERE id = ?1",
+    params![id],
+  )
+  .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Settings commands
 // ---------------------------------------------------------------------------

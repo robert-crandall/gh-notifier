@@ -18,6 +18,7 @@
 	let newTaskTitle = $state('');
 	let addingTask = $state(false);
 	let showClosedSection = $state(false);
+	let showReadSection = $state(false);
 
 	// Snooze modal state
 	let showSnoozeModal = $state(false);
@@ -39,6 +40,8 @@
 
 	let projectId = $derived(Number($page.params.id));
 	let activeNotifications = $derived(notifications.filter((n) => !n.is_terminal));
+	let unreadActiveNotifications = $derived(activeNotifications.filter((n) => !n.is_read));
+	let readActiveNotifications = $derived(activeNotifications.filter((n) => n.is_read));
 	let closedNotifications = $derived(notifications.filter((n) => n.is_terminal));
 
 	$effect(() => {
@@ -123,6 +126,16 @@
 			notifications = notifications;
 		} catch (e) {
 			console.error('Failed to unsubscribe:', e);
+		}
+	}
+
+	async function markUnread(notification: GithubNotification) {
+		try {
+			await api.markNotificationUnread(notification.id);
+			notification.is_read = false;
+			notifications = notifications;
+		} catch (e) {
+			console.error('Failed to mark unread:', e);
 		}
 	}
 
@@ -490,13 +503,13 @@
 						<p class="text-xs text-on-surface-variant/50 mt-1">You're all caught up on this project.</p>
 					</div>
 				{/if}
-				{#each activeNotifications as notification (notification.id)}
-					<div class="relative group {notification.is_read ? 'opacity-60 hover:opacity-100' : ''}">
-						<div class="absolute -left-6 top-0 bottom-0 w-[3px] {notification.is_read ? 'bg-secondary-fixed-dim' : 'bg-primary'} rounded-full transition-all group-hover:w-[5px]"></div>
-						<div class="{notification.is_read ? 'bg-surface-dim/20 border border-outline-variant/10' : 'bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5'} p-6 rounded-xl transition-shadow">
+				{#each unreadActiveNotifications as notification (notification.id)}
+					<div class="relative group">
+						<div class="absolute -left-6 top-0 bottom-0 w-[3px] bg-primary rounded-full transition-all group-hover:w-[5px]"></div>
+						<div class="bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5 p-6 rounded-xl transition-shadow">
 							<div class="flex justify-between items-start mb-4">
 								<div class="flex items-start gap-4">
-									<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center {notification.is_read ? 'text-on-surface-variant' : 'text-primary'}">
+									<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
 										<span class="material-symbols-outlined">
 											{notification.subject_type === 'PullRequest' ? 'rebase' : 'error'}
 										</span>
@@ -511,12 +524,10 @@
 									</div>
 								</div>
 								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-									{#if !notification.is_read}
-										<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
-											<span class="material-symbols-outlined text-sm">check_circle</span>
-											MARK READ
-										</button>
-									{/if}
+									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
+										<span class="material-symbols-outlined text-sm">check_circle</span>
+										MARK READ
+									</button>
 									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
 										<span class="material-symbols-outlined text-sm">notifications_off</span>
 										UNSUBSCRIBE
@@ -530,6 +541,63 @@
 						</div>
 					</div>
 				{/each}
+
+				<!-- Read threads — collapsed by default -->
+				{#if readActiveNotifications.length > 0}
+					<div class="mt-2">
+						<button
+							class="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors mb-3 w-full text-left"
+							onclick={() => (showReadSection = !showReadSection)}
+							aria-expanded={showReadSection}
+							aria-controls="read-notifications-section"
+						>
+							<span class="material-symbols-outlined text-base transition-transform {showReadSection ? 'rotate-90' : ''}">chevron_right</span>
+							{readActiveNotifications.length} read {readActiveNotifications.length === 1 ? 'thread' : 'threads'}
+						</button>
+						{#if showReadSection}
+							<div id="read-notifications-section" class="space-y-3">
+								{#each readActiveNotifications as notification (notification.id)}
+									<div class="relative group opacity-60 hover:opacity-100 transition-opacity">
+										<div class="absolute -left-6 top-0 bottom-0 w-[3px] bg-secondary-fixed-dim rounded-full transition-all group-hover:w-[5px]"></div>
+										<div class="bg-surface-dim/20 border border-outline-variant/10 p-6 rounded-xl">
+											<div class="flex justify-between items-start mb-4">
+												<div class="flex items-start gap-4">
+													<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+														<span class="material-symbols-outlined">
+															{notification.subject_type === 'PullRequest' ? 'rebase' : 'error'}
+														</span>
+													</div>
+													<div>
+														<div class="flex items-center gap-2 text-[10px] text-on-surface-variant tracking-wider uppercase mb-1">
+															<span>{notification.repo_full_name}</span>
+															<span>&bull;</span>
+															<span>{timeAgo(notification.updated_at)}</span>
+														</div>
+														<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
+													</div>
+												</div>
+												<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+													<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markUnread(notification)}>
+														<span class="material-symbols-outlined text-sm">mark_as_unread</span>
+														MARK UNREAD
+													</button>
+													<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
+														<span class="material-symbols-outlined text-sm">notifications_off</span>
+														UNSUBSCRIBE
+													</button>
+													<button class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary flex items-center gap-2" onclick={() => openInGithub(notification)}>
+														<span class="material-symbols-outlined text-sm">open_in_new</span>
+														GITHUB
+													</button>
+												</div>
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 				<!-- Closed threads (terminal) -->
 				{#if closedNotifications.length > 0}
