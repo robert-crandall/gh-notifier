@@ -60,11 +60,11 @@
 **Goal:** Assigning a notification to a project teaches the app to auto-route future notifications from the same thread.
 
 ### Tasks
-- [ ] When user assigns a notification to a project, save a mapping in `thread_mappings` (keyed by repo + thread ID)
-- [ ] During sync, check incoming notifications against `thread_mappings` and auto-assign matches
-- [ ] Show newly auto-routed notifications in the project detail view
-- [ ] Update unread counts on the dashboard after sync
-- [ ] Handle edge case: notification for a snoozed project (wake it if snooze_mode = "notification")
+- [x] When user assigns a notification to a project, save a mapping in `thread_mappings` (keyed by repo + thread ID)
+- [x] During sync, check incoming notifications against `thread_mappings` and auto-assign matches
+- [x] Show newly auto-routed notifications in the project detail view
+- [x] Update unread counts on the dashboard after sync
+- [x] Handle edge case: notification for a snoozed project (wake it if snooze_mode = "notification")
 
 ### Done when
 - Assign notification from `org/repo#42` to "My Project"
@@ -78,12 +78,12 @@
 **Goal:** User can hide projects and they resurface at the right time.
 
 ### Tasks
-- [ ] Implement snooze UI (modal/popover with three mode options: date picker, "next notification", manual)
-- [ ] `snooze_project` command → set status to "snoozed", save mode + until date
-- [ ] `wake_project` command → set status back to "active", clear snooze fields
-- [ ] On app startup, check date-based snoozes: if `snooze_until <= now`, auto-wake
-- [ ] During notification sync, if a snoozed project (mode=notification) gets a new notification, auto-wake it
-- [ ] Dashboard: snoozed section collapsed by default, shows resume criteria
+- [x] Implement snooze UI (modal/popover with three mode options: date picker, "next notification", manual)
+- [x] `snooze_project` command → set status to "snoozed", save mode + until date
+- [x] `wake_project` command → set status back to "active", clear snooze fields
+- [x] On app startup, check date-based snoozes: if `snooze_until <= now`, auto-wake
+- [x] During notification sync, if a snoozed project (mode=notification) gets a new notification, auto-wake it
+- [x] Dashboard: snoozed section collapsed by default, shows resume criteria
 
 ### Done when
 - Snooze a project until tomorrow → it disappears from Active → reappears tomorrow
