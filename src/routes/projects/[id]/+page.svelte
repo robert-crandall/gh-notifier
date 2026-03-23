@@ -58,6 +58,25 @@
 			await open(url);
 		}
 	}
+
+	async function markRead(notification: GithubNotification) {
+		try {
+			await api.markNotificationRead(notification.id);
+			notification.is_read = true;
+			notifications = notifications;
+		} catch (e) {
+			console.error('Failed to mark read:', e);
+		}
+	}
+
+	async function unsubscribe(notification: GithubNotification) {
+		try {
+			await api.unsubscribeThread(notification.id);
+			notifications = notifications.filter((n) => n.id !== notification.id);
+		} catch (e) {
+			console.error('Failed to unsubscribe:', e);
+		}
+	}
 </script>
 
 {#if loading}
@@ -181,12 +200,12 @@
 								</div>
 								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
 									{#if !notification.is_read}
-										<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2">
+										<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
 											<span class="material-symbols-outlined text-sm">check_circle</span>
 											MARK READ
 										</button>
 									{/if}
-									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2">
+									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
 										<span class="material-symbols-outlined text-sm">notifications_off</span>
 										UNSUBSCRIBE
 									</button>
