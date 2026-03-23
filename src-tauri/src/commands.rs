@@ -54,7 +54,10 @@ fn decrypt_token(stored: &str, key: &[u8; 32]) -> Result<String, String> {
   let nonce_bytes = from_hex(nonce_hex)?;
   let ciphertext = from_hex(ct_hex)?;
   let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
-  let nonce = Nonce::from_slice(&nonce_bytes);
+  let nonce_array: [u8; 12] = nonce_bytes
+    .try_into()
+    .map_err(|_| "invalid nonce length for encrypted token".to_string())?;
+  let nonce = Nonce::from_slice(&nonce_array);
   let plaintext = cipher
     .decrypt(nonce, ciphertext.as_ref())
     .map_err(|_| "decryption failed — token may be corrupt".to_string())?;
@@ -64,15 +67,20 @@ fn decrypt_token(stored: &str, key: &[u8; 32]) -> Result<String, String> {
 /// Load the PAT from `SQLite` (AES-256-GCM encrypted) — used only once at startup.
 /// All runtime code reads from `TokenCache` instead.
 pub(crate) fn load_token_for_cache(conn: &rusqlite::Connection, key: &[u8; 32]) -> Option<String> {
-  let encrypted: Option<String> = conn
+  let encrypted: Option<String> = match conn
     .query_row(
       "SELECT value FROM settings WHERE key = 'github_token_enc'",
       [],
       |row| row.get(0),
     )
     .optional()
-    .ok()
-    .flatten();
+  {
+    Ok(row_opt) => row_opt,
+    Err(e) => {
+      eprintln!("Failed to load encrypted GitHub token from SQLite: {e}");
+      None
+    }
+  };
 
   encrypted.and_then(|enc| {
     decrypt_token(&enc, key)
@@ -450,17 +458,19 @@ pub fn save_github_token(
   // Encrypt the PAT with AES-256-GCM and store it in SQLite.
   let encrypted = encrypt_token(&token, &enc_key.0)?;
   {
-    let db = state.0.lock().map_err(|e| e.to_string())?;
-    db.execute(
+    let mut db = state.0.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+    tx.execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES ('github_token_enc', ?1)",
       params![encrypted],
     )
     .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
       "INSERT OR REPLACE INTO settings (key, value) VALUES ('is_setup_complete', 'true')",
       [],
     )
     .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
   }
 
   // Update the in-memory cache so subsequent calls don't re-read SQLite.
@@ -964,5 +974,81 @@ mod tests {
       )
       .unwrap();
     assert_eq!(status, "snoozed");
+  }
+
+  // ---------------------------------------------------------------------------
+  // AES-256-GCM encryption/decryption unit tests
+  // ---------------------------------------------------------------------------
+
+  #[test]
+  fn test_encrypt_decrypt_round_trip() {
+    use super::{decrypt_token, encrypt_token};
+    let key = [42u8; 32];
+    let token = "ghp_testtoken1234567890";
+
+    let encrypted = encrypt_token(token, &key).expect("encryption should succeed");
+    let decrypted = decrypt_token(&encrypted, &key).expect("decryption should succeed");
+
+    assert_eq!(decrypted, token);
+  }
+
+  #[test]
+  fn test_decrypt_invalid_format() {
+    use super::decrypt_token;
+    let key = [42u8; 32];
+
+    // Missing the ':' separator
+    let result = decrypt_token("badhex", &key);
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), "invalid encrypted token format");
+  }
+
+  #[test]
+  fn test_decrypt_invalid_nonce_length() {
+    use super::decrypt_token;
+    let key = [42u8; 32];
+
+    // Valid hex but wrong nonce length (8 bytes instead of 12)
+    let result = decrypt_token("0102030405060708:abcdef", &key);
+    assert!(result.is_err());
+    assert_eq!(
+      result.unwrap_err(),
+      "invalid nonce length for encrypted token"
+    );
+  }
+
+  #[test]
+  fn test_decrypt_corrupted_ciphertext() {
+    use super::{decrypt_token, encrypt_token};
+    let key = [42u8; 32];
+
+    let encrypted = encrypt_token("ghp_test", &key).expect("encryption should succeed");
+    let (nonce_hex, _) = encrypted.split_once(':').unwrap();
+
+    // Replace ciphertext with garbage (but valid hex)
+    let corrupted = format!("{nonce_hex}:deadbeef");
+    let result = decrypt_token(&corrupted, &key);
+
+    assert!(result.is_err());
+    assert_eq!(
+      result.unwrap_err(),
+      "decryption failed — token may be corrupt"
+    );
+  }
+
+  #[test]
+  fn test_decrypt_wrong_key() {
+    use super::{decrypt_token, encrypt_token};
+    let key1 = [1u8; 32];
+    let key2 = [2u8; 32];
+
+    let encrypted = encrypt_token("ghp_test", &key1).expect("encryption should succeed");
+    let result = decrypt_token(&encrypted, &key2);
+
+    assert!(result.is_err());
+    assert_eq!(
+      result.unwrap_err(),
+      "decryption failed — token may be corrupt"
+    );
   }
 }
