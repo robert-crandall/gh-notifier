@@ -49,4 +49,6 @@ export interface RepoRoutingHint {
 	project_name: string;
 	/** Number of pre-existing thread mappings for this repo. */
 	existing_thread_count: number;
+	/** Unmapped inbox notifications from this repo auto-routed when the rule is created. */
+	inbox_notification_count: number;
 }

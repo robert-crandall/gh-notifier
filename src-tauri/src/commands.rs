@@ -350,6 +350,7 @@ pub fn assign_notification_to_project(
       project_id,
       project_name: String::new(),
       existing_thread_count: 0,
+      inbox_notification_count: 0,
     });
   }
 
@@ -390,12 +391,24 @@ pub fn assign_notification_to_project(
 
   let existing_thread_count = i64::try_from(other_project_ids.len()).unwrap_or(0);
 
+  // Count unmapped inbox notifications from the same repo (excluding the one
+  // just assigned, which now has project_id set).
+  let inbox_notification_count: i64 = db
+    .query_row(
+      "SELECT COUNT(*) FROM notifications \
+       WHERE repo_full_name = ?1 AND project_id IS NULL",
+      params![repo_full_name],
+      |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())?;
+
   Ok(RepoRoutingHint {
     kind: kind.into(),
     repo_full_name,
     project_id,
     project_name,
     existing_thread_count,
+    inbox_notification_count,
   })
 }
 
@@ -412,14 +425,22 @@ pub fn create_repo_rule(
     params![repo_full_name, project_id],
   )
   .map_err(|e| e.to_string())?;
+  // Always route inbox notifications for this repo — assigning for the first
+  // time is non-destructive and is exactly what the rule promises.
+  db.execute(
+    "UPDATE notifications SET project_id = ?1 \
+     WHERE repo_full_name = ?2 AND project_id IS NULL",
+    params![project_id, repo_full_name],
+  )
+  .map_err(|e| e.to_string())?;
   if migrate_existing_threads {
-    // Reassign all notifications for this repo to the target project.
+    // Also reassign already-mapped threads and remove their thread-level entries.
     db.execute(
-      "UPDATE notifications SET project_id = ?1 WHERE repo_full_name = ?2",
+      "UPDATE notifications SET project_id = ?1 \
+       WHERE repo_full_name = ?2 AND project_id != ?1",
       params![project_id, repo_full_name],
     )
     .map_err(|e| e.to_string())?;
-    // Remove thread-level mappings — the repo rule now covers them.
     db.execute(
       "DELETE FROM thread_mappings WHERE repo_full_name = ?1",
       params![repo_full_name],

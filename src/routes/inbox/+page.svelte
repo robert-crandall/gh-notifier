@@ -67,6 +67,10 @@
 		try {
 			if (acceptRepoRule) {
 				await api.createRepoRule(routingHint.repo_full_name, routingHint.project_id, migrateThreads);
+				// Remove all remaining inbox notifications for this repo from the local list —
+				// the rule just routed them all.
+				const repo = routingHint.repo_full_name;
+				notifications = notifications.filter((n) => n.repo_full_name !== repo);
 			}
 		} catch (e) {
 			console.error('Failed to create repo rule:', e);
@@ -159,6 +163,13 @@
 							to <span class="font-semibold">{routingHint.project_name}</span>
 						</span>
 					</label>
+					{#if routingHint.inbox_notification_count > 0}
+						<p class="text-xs text-on-surface-variant pl-7 flex items-center gap-1.5">
+							<span class="material-symbols-outlined text-[14px] text-primary">inbox</span>
+							{routingHint.inbox_notification_count} other inbox
+							{routingHint.inbox_notification_count === 1 ? 'notification' : 'notifications'} from this repo will also be routed automatically.
+						</p>
+					{/if}
 					{#if routingHint.existing_thread_count > 0}
 						<label class="flex items-center gap-3 cursor-pointer select-none pl-7">
 							<input

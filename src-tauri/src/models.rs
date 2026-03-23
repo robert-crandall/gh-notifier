@@ -59,4 +59,7 @@ pub struct RepoRoutingHint {
   /// Number of pre-existing thread mappings for this repo (used for the
   /// optional migration prompt when the user accepts the repo rule).
   pub existing_thread_count: i64,
+  /// Number of unmapped inbox notifications from this repo that will be
+  /// auto-routed when the repo rule is created (no separate prompt needed).
+  pub inbox_notification_count: i64,
 }
