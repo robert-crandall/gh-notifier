@@ -1,47 +1,68 @@
 /**
- * Custom ESLint plugin for project-specific rules
+ * Custom ESLint plugin for gh-notifier project style rules.
+ *
+ * Enforces:
+ *  - Semantic M3 color tokens (no raw Tailwind palette classes)
+ *  - No dark: color variants (M3 tokens handle theming)
+ *  - No emojis (use Material Symbols Outlined)
+ *  - No SvelteKit redirect/error inside try blocks
+ *  - M3 contrast pairing: bg-primary requires text-on-primary
+ *
+ * Usage in eslint.config.js:
+ *   import stylePlugin from './eslint-style.js';
  */
 
+// Raw Tailwind palette classes (e.g. bg-blue-500, text-red-700).
+// All colors must come from the semantic M3 tokens in tailwind.config.js.
 const TAILWIND_COLOR_REGEX =
   /\b(bg|text|border|ring|from|via|to|fill|stroke|divide|placeholder|caret|accent|decoration|outline|shadow)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(50|100|200|300|400|500|600|700|800|900|950)\b|\b(bg|text|border|ring|from|via|to|fill|stroke|divide|placeholder|caret|accent|decoration|outline|shadow)-(white|black)\b/;
 
-const SEMANTIC_COLORS_MESSAGE =
-  'Use semantic color classes (bg-primary, text-foreground, etc.) instead of hardcoded Tailwind colors. See docs/color-system.md for available semantic colors.';
+const NO_HARDCODED_COLORS_MESSAGE =
+  'Use semantic M3 color tokens (e.g. bg-surface, text-on-primary, border-outline-variant) ' +
+  'instead of raw Tailwind palette colors. See tailwind.config.js for available tokens.';
 
-const DARK_MODE_COLORS_MESSAGE =
-  'Use semantic colors instead of dark: variants for colors. Semantic colors automatically adapt to dark mode.';
+// dark: color variants are unnecessary — M3 tokens express both light and dark values.
+const DARK_COLOR_REGEX =
+  /\bdark:(bg|text|border|ring|from|via|to|fill|stroke|divide|placeholder|decoration|outline)-([\w-]+)/;
 
-// Regex to detect emojis (covers most common emoji ranges)
+const NO_DARK_MODE_COLORS_MESSAGE =
+  'Use semantic M3 color tokens instead of dark: color variants. ' +
+  'M3 tokens adapt automatically to the active theme.';
+
+// Emojis should be replaced with Material Symbols Outlined (loaded via Google Fonts CDN in app.html).
 const EMOJI_REGEX =
   /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/u;
 
-const USE_LUCIDE_MESSAGE =
-  'Use Lucide icons instead of emojis or Material Symbols Outlined. Import from lucide-svelte (e.g., import { Heart } from "lucide-svelte").';
+const NO_EMOJI_MESSAGE =
+  'Use Material Symbols Outlined icons instead of emojis. ' +
+  'Add a <span class="material-symbols-outlined">icon_name</span> element.';
 
+// SvelteKit redirect() and error() throw exceptions — must not be inside try blocks.
 const SVELTEKIT_REDIRECT_IN_TRY_MESSAGE =
-  'SvelteKit redirect() and error() throw exceptions and should not be called inside try blocks. The catch block will intercept them, preventing proper handling. Move the redirect/error call outside the try/catch, or use isRedirect()/isHttpError() in the catch block to re-throw them.';
+  'SvelteKit redirect() and error() throw exceptions. Do not call them inside a try block. ' +
+  'Move the call outside the try/catch, or re-throw using isRedirect() / isHttpError() in catch.';
 
-// SvelteKit functions that throw exceptions
 const SVELTEKIT_THROWING_FUNCTIONS = ['redirect', 'error'];
 
+// M3 contrast pairing: bg-primary requires text-on-primary for accessible contrast.
 const PRIMARY_BG_REGEX = /(?:^|\s)bg-primary(?!\/)\b/;
-const PRIMARY_FOREGROUND_REGEX = /(?:^|\s)text-primary-foreground\b/;
-const PRIMARY_CONTRAST_MESSAGE =
-  'Use text-primary-foreground with bg-primary to ensure accessible contrast.';
+const ON_PRIMARY_REGEX = /(?:^|\s)text-on-primary\b/;
+const M3_CONTRAST_MESSAGE =
+  'Use text-on-primary alongside bg-primary to maintain M3 accessible contrast.';
 
-// Define the plugin with rules
+/** @type {import('eslint').ESLint.Plugin} */
 const stylePlugin = {
   rules: {
     'no-hardcoded-colors': {
       meta: {
         type: 'problem',
         docs: {
-          description: 'Enforce semantic color classes instead of hardcoded Tailwind colors',
+          description: 'Enforce semantic M3 color tokens instead of raw Tailwind palette classes',
           category: 'Best Practices',
           recommended: true,
         },
         messages: {
-          noHardcodedColors: SEMANTIC_COLORS_MESSAGE,
+          noHardcodedColors: NO_HARDCODED_COLORS_MESSAGE,
         },
       },
       create(context) {
@@ -49,19 +70,13 @@ const stylePlugin = {
           // Check string literals and template literals in JavaScript/TypeScript
           Literal(node) {
             if (typeof node.value === 'string' && TAILWIND_COLOR_REGEX.test(node.value)) {
-              context.report({
-                node,
-                messageId: 'noHardcodedColors',
-              });
+              context.report({ node, messageId: 'noHardcodedColors' });
             }
           },
           TemplateLiteral(node) {
-            const templateValue = node.quasis.map((q) => q.value.raw).join('');
-            if (TAILWIND_COLOR_REGEX.test(templateValue)) {
-              context.report({
-                node,
-                messageId: 'noHardcodedColors',
-              });
+            const raw = node.quasis.map((q) => q.value.raw).join('');
+            if (TAILWIND_COLOR_REGEX.test(raw)) {
+              context.report({ node, messageId: 'noHardcodedColors' });
             }
           },
         };
@@ -71,71 +86,53 @@ const stylePlugin = {
       meta: {
         type: 'problem',
         docs: {
-          description: 'Disallow dark: variants with color utilities (use semantic colors instead)',
+          description: 'Disallow dark: color variants — use M3 semantic tokens instead',
           category: 'Best Practices',
           recommended: true,
         },
         messages: {
-          noDarkModeColors: DARK_MODE_COLORS_MESSAGE,
+          noDarkModeColors: NO_DARK_MODE_COLORS_MESSAGE,
         },
       },
       create(context) {
-        // Match dark: with color utilities like dark:bg-gray-800, dark:text-white, etc.
-        const DARK_COLOR_REGEX =
-          /\bdark:(bg|text|border|ring|from|via|to|fill|stroke|divide|placeholder|decoration|outline)-([\w-]+)/;
-
         return {
           Literal(node) {
             if (typeof node.value === 'string' && DARK_COLOR_REGEX.test(node.value)) {
-              context.report({
-                node,
-                messageId: 'noDarkModeColors',
-              });
+              context.report({ node, messageId: 'noDarkModeColors' });
             }
           },
           TemplateLiteral(node) {
-            const templateValue = node.quasis.map((q) => q.value.raw).join('');
-            if (DARK_COLOR_REGEX.test(templateValue)) {
-              context.report({
-                node,
-                messageId: 'noDarkModeColors',
-              });
+            const raw = node.quasis.map((q) => q.value.raw).join('');
+            if (DARK_COLOR_REGEX.test(raw)) {
+              context.report({ node, messageId: 'noDarkModeColors' });
             }
           },
         };
       },
     },
-    'use-lucide-icons': {
+    'no-emoji': {
       meta: {
         type: 'problem',
         docs: {
-          description: 'Enforce Lucide icons instead of emojis or Material Symbols Outlined',
+          description: 'Disallow emojis in source — use Material Symbols Outlined instead',
           category: 'Best Practices',
           recommended: true,
         },
         messages: {
-          useLucideIcons: USE_LUCIDE_MESSAGE,
+          noEmoji: NO_EMOJI_MESSAGE,
         },
       },
       create(context) {
         return {
-          // Check for emojis in string literals
           Literal(node) {
             if (typeof node.value === 'string' && EMOJI_REGEX.test(node.value)) {
-              context.report({
-                node,
-                messageId: 'useLucideIcons',
-              });
+              context.report({ node, messageId: 'noEmoji' });
             }
           },
-          // Check for emojis in template literals
           TemplateLiteral(node) {
-            const templateValue = node.quasis.map((q) => q.value.raw).join('');
-            if (EMOJI_REGEX.test(templateValue)) {
-              context.report({
-                node,
-                messageId: 'useLucideIcons',
-              });
+            const raw = node.quasis.map((q) => q.value.raw).join('');
+            if (EMOJI_REGEX.test(raw)) {
+              context.report({ node, messageId: 'noEmoji' });
             }
           },
         };
@@ -145,7 +142,7 @@ const stylePlugin = {
       meta: {
         type: 'problem',
         docs: {
-          description: 'Disallow SvelteKit redirect() and error() calls inside try blocks',
+          description: 'Disallow SvelteKit redirect() and error() inside try blocks',
           category: 'Possible Errors',
           recommended: true,
         },
@@ -155,7 +152,6 @@ const stylePlugin = {
       },
       create(context) {
         let tryDepth = 0;
-
         return {
           TryStatement() {
             tryDepth++;
@@ -169,49 +165,37 @@ const stylePlugin = {
               node.callee.type === 'Identifier' &&
               SVELTEKIT_THROWING_FUNCTIONS.includes(node.callee.name)
             ) {
-              context.report({
-                node,
-                messageId: 'noRedirectInTry',
-              });
+              context.report({ node, messageId: 'noRedirectInTry' });
             }
           },
         };
       },
     },
-    'primary-bg-contrast': {
+    'm3-on-primary-contrast': {
       meta: {
         type: 'problem',
         docs: {
-          description: 'Require text-primary-foreground whenever bg-primary is used',
+          description: 'Require text-on-primary whenever bg-primary is used (M3 contrast pairing)',
           category: 'Accessibility',
           recommended: true,
         },
         messages: {
-          primaryContrast: PRIMARY_CONTRAST_MESSAGE,
+          m3Contrast: M3_CONTRAST_MESSAGE,
         },
       },
       create(context) {
-        function checkString(value, node) {
-          if (!/\s/.test(value)) {
-            return;
-          }
-          if (PRIMARY_BG_REGEX.test(value) && !PRIMARY_FOREGROUND_REGEX.test(value)) {
-            context.report({
-              node,
-              messageId: 'primaryContrast',
-            });
+        function check(value, node) {
+          if (!/\s/.test(value)) return;
+          if (PRIMARY_BG_REGEX.test(value) && !ON_PRIMARY_REGEX.test(value)) {
+            context.report({ node, messageId: 'm3Contrast' });
           }
         }
-
         return {
           Literal(node) {
-            if (typeof node.value === 'string') {
-              checkString(node.value, node);
-            }
+            if (typeof node.value === 'string') check(node.value, node);
           },
           TemplateLiteral(node) {
-            const templateValue = node.quasis.map((q) => q.value.raw).join('');
-            checkString(templateValue, node);
+            check(node.quasis.map((q) => q.value.raw).join(''), node);
           },
         };
       },
@@ -219,16 +203,4 @@ const stylePlugin = {
   },
 };
 
-// Export as flat config
-export default {
-  plugins: {
-    'style-plugin': stylePlugin,
-  },
-  rules: {
-    'style-plugin/no-hardcoded-colors': 'error',
-    'style-plugin/no-dark-mode-colors': 'error',
-    'style-plugin/use-lucide-icons': 'error',
-    'style-plugin/no-redirect-in-try': 'error',
-    'style-plugin/primary-bg-contrast': 'error',
-  },
-};
+export default stylePlugin;
