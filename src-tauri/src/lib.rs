@@ -25,7 +25,7 @@ pub fn run() {
            SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
                updated_at = datetime('now') \
            WHERE status = 'snoozed' AND snooze_mode = 'date' \
-             AND snooze_until IS NOT NULL AND snooze_until <= datetime('now')",
+             AND snooze_until IS NOT NULL AND datetime(snooze_until) <= datetime('now')",
           [],
         )
         .map_err(std::io::Error::other)?;

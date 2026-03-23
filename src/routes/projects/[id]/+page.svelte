@@ -90,8 +90,16 @@
 
 	async function doSnooze() {
 		if (!project) return;
-		const until = snoozeMode === 'date' ? snoozeUntil || null : null;
-		if (snoozeMode === 'date' && !until) return;
+
+		let until: string | null = null;
+
+		if (snoozeMode === 'date') {
+			const trimmed = snoozeUntil.trim();
+			if (!trimmed) return;
+			// `datetime-local` is local time; convert to UTC ISO string for backend
+			until = new Date(trimmed).toISOString();
+		}
+
 		try {
 			await api.snoozeProject(project.id, snoozeMode, until);
 			project.status = 'snoozed';
@@ -277,13 +285,20 @@
 	{#if showSnoozeModal}
 		<div
 			class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-			role="dialog"
-			aria-modal="true"
-			aria-label="Snooze project"
 		>
-			<div class="bg-surface-container-lowest rounded-2xl p-8 w-[420px] space-y-6 shadow-2xl border border-outline-variant/20">
+			<div
+				class="bg-surface-container-lowest rounded-2xl p-8 w-[420px] space-y-6 shadow-2xl border border-outline-variant/20"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="snooze-dialog-title"
+			>
 				<div class="flex items-center justify-between">
-					<h3 class="font-black text-on-surface text-lg">Snooze Project</h3>
+					<h3
+						id="snooze-dialog-title"
+						class="font-black text-on-surface text-lg"
+					>
+						Snooze Project
+					</h3>
 					<button
 						class="p-1 hover:bg-surface-container-high rounded transition-colors"
 						onclick={() => (showSnoozeModal = false)}
