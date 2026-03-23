@@ -336,22 +336,26 @@
 						<button
 							class="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors mb-3 w-full text-left"
 							onclick={() => (showClosedSection = !showClosedSection)}
+							aria-expanded={showClosedSection}
+							aria-controls="closed-notifications-section"
 						>
 							<span class="material-symbols-outlined text-base transition-transform {showClosedSection ? 'rotate-90' : ''}">chevron_right</span>
 							Closed
 							<span class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[9px] font-bold">{closedNotifications.length}</span>
 						</button>
 						{#if showClosedSection}
-							<div class="space-y-3">
+							<div id="closed-notifications-section" class="space-y-3">
 								{#each closedNotifications as notification (notification.id)}
 									<div class="relative group opacity-50 hover:opacity-80 transition-opacity">
 										<div class="absolute -left-6 top-0 bottom-0 w-[3px] bg-surface-container-highest rounded-full"></div>
 										<div class="bg-surface-dim/20 border border-outline-variant/10 p-5 rounded-xl">
 											<div class="flex justify-between items-start">
 												<div class="flex items-start gap-3">
+													<!-- TODO: Icon should vary based on terminal_state (merged vs closed).
+													     Currently showing generic check_circle for all terminal states. -->
 													<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant">
 														<span class="material-symbols-outlined text-base">
-															{notification.subject_type === 'PullRequest' ? 'merge' : 'check_circle'}
+															check_circle
 														</span>
 													</div>
 													<div>
@@ -359,8 +363,10 @@
 															<span>{notification.repo_full_name}</span>
 															<span>&bull;</span>
 															<span>{timeAgo(notification.updated_at)}</span>
+															<!-- TODO: Backend stores only is_terminal flag; doesn't distinguish merged vs closed PRs.
+															     Consider adding terminal_state: 'merged' | 'closed' to show accurate status. -->
 															<span class="bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded text-[9px] font-bold">
-																{notification.subject_type === 'PullRequest' ? 'MERGED' : 'CLOSED'}
+																CLOSED
 															</span>
 														</div>
 														<h3 class="font-medium text-on-surface-variant text-sm">{notification.subject_title}</h3>
