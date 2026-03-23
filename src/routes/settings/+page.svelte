@@ -23,9 +23,20 @@
 			tokenInput = s.github_token ? '••••••••' : '';
 		}).catch((e) => {
 			console.error('Failed to load settings:', e);
+			message = 'Failed to load settings. Please try again.';
 		});
-		api.getRepoRules().then((r) => { repoRules = r; }).catch(() => {});
-		api.getProjects().then((p) => { projects = p; }).catch(() => {});
+		api.getRepoRules().then((r) => {
+			repoRules = r;
+		}).catch((e) => {
+			console.error('Failed to load repo routing rules:', e);
+			message = 'Failed to load repo routing rules. Please try again.';
+		});
+		api.getProjects().then((p) => {
+			projects = p;
+		}).catch((e) => {
+			console.error('Failed to load projects:', e);
+			message = 'Failed to load projects. Please try again.';
+		});
 	});
 
 	async function deleteRule(id: number) {
@@ -44,7 +55,11 @@
 
 	async function saveEdit(id: number) {
 		try {
-			await api.updateRepoRule(id, editingProjectId);
+			// Ensure editingProjectId is a number (select values are strings).
+			const projectId = typeof editingProjectId === 'string' 
+				? parseInt(editingProjectId, 10) 
+				: editingProjectId;
+			await api.updateRepoRule(id, projectId);
 			repoRules = repoRules.map((r) =>
 				r.id === id
 					? { ...r, project_id: editingProjectId, project_name: projects.find((p) => p.id === editingProjectId)?.name ?? r.project_name }
@@ -220,6 +235,7 @@
 							<button
 								class="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded transition-all"
 								title="Change project"
+								aria-label="Change project for {rule.repo_full_name}"
 								onclick={() => startEdit(rule)}
 							>
 								<span class="material-symbols-outlined text-[18px]">edit</span>
@@ -227,6 +243,7 @@
 							<button
 								class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-all"
 								title="Delete rule"
+								aria-label="Delete rule for {rule.repo_full_name}"
 								onclick={() => deleteRule(rule.id)}
 							>
 								<span class="material-symbols-outlined text-[18px]">delete</span>

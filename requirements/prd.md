@@ -66,6 +66,11 @@ The user receives ~80% of their actionable work through GitHub notifications but
 2. Appears in "Inbox" (unmapped area)
 3. User assigns it to a project (or creates new project)
 4. System remembers: future notifications from that thread → same project
+5. After assigning, the system checks whether a repo-level rule should be offered:
+   - **No other mapped threads from that repo:** Offer an opt-in checkbox — "Always route [repo] to [project]?"
+   - **All other threads already go to the same project:** Offer an opt-out checkbox (pre-checked) — pattern is already established
+   - **Threads are split across multiple projects:** No offer — thread-level mapping is correct
+6. If the user creates a repo rule, all unmapped inbox notifications from that repo are routed automatically. An optional checkbox lets the user also migrate already-mapped threads to the rule.
 
 ### Snoozing
 - User can snooze a project:
@@ -91,8 +96,11 @@ The user receives ~80% of their actionable work through GitHub notifications but
 - **Notification Sync:** Poll GitHub API for notifications (configurable interval)
 - **Filtering:** Automatically hide `team_mention` type notifications
 - **Thread Mapping:** Remember which repo/issue/PR belongs to which project
+- **Repo-Level Routing Rules:** Declare that all notifications from a given repo go to a specific project. Thread-level mappings take precedence when both exist. Rules can be created from the Inbox after assigning a notification, and managed (edited or deleted) from Settings.
 - **Unsubscribe:** Call GitHub API to unsubscribe from specific threads
 - **Read Status:** Track read/unread state locally
+
+**Routing precedence:** thread-level mapping > repo-level rule > inbox
 
 ### 3. Dashboard
 **Active Projects Section:**

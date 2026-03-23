@@ -47,6 +47,11 @@
 
 	async function assignToProject(notificationId: number, projectId: number) {
 		try {
+			// Clear any stale routing hint from a previous assignment.
+			routingHint = null;
+			acceptRepoRule = false;
+			migrateThreads = false;
+			
 			const hint = await api.assignNotificationToProject(notificationId, projectId);
 			notifications = notifications.filter((n) => n.id !== notificationId);
 			if (hint.kind !== 'none') {

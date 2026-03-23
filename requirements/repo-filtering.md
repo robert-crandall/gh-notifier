@@ -24,6 +24,6 @@ When a repo-level rule is created and existing thread mappings exist for that re
 
 Thread-level mapping > repo-level rule > inbox
 
-**Out of scope for this request**
+**Managing repo rules**
 
-A UI for managing/editing repo rules globally. That can follow as a separate task once rules exist in the system.
+The global UI for managing/editing repo rules lives in Settings and is responsible for listing, editing, and deleting existing rules.

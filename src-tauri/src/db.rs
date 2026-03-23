@@ -62,6 +62,12 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
   std::fs::create_dir_all(app_data_dir).map_err(|e| e.to_string())?;
   let db_path = app_data_dir.join("gh-notifier.db");
   let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+
+  // Enable foreign key enforcement so cascades and constraints apply.
+  conn
+    .execute("PRAGMA foreign_keys = ON", [])
+    .map_err(|e| e.to_string())?;
+
   migrate(&conn).map_err(|e| e.to_string())?;
   Ok(conn)
 }

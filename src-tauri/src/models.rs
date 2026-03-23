@@ -57,12 +57,23 @@ pub struct RepoRule {
   pub created_at: String,
 }
 
+/// Kind of repo-level routing hint.
+///
+/// Serialized as `"none" | "opt_in" | "opt_out"` for the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RepoRoutingKind {
+  None,
+  OptIn,
+  OptOut,
+}
+
 /// Returned by `assign_notification_to_project` to let the UI decide whether to
 /// offer a repo-level routing rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepoRoutingHint {
   /// `"none"` | `"opt_in"` | `"opt_out"`
-  pub kind: String,
+  pub kind: RepoRoutingKind,
   pub repo_full_name: String,
   pub project_id: i64,
   pub project_name: String,

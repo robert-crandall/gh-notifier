@@ -4,7 +4,10 @@
 use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
-  models::{AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint, RepoRule},
+  models::{
+    AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint, RepoRoutingKind,
+    RepoRule,
+  },
 };
 use aes_gcm::{
   aead::{Aead, KeyInit},
@@ -345,7 +348,7 @@ pub fn assign_notification_to_project(
 
   if rule_exists {
     return Ok(RepoRoutingHint {
-      kind: "none".into(),
+      kind: RepoRoutingKind::None,
       repo_full_name,
       project_id,
       project_name: String::new(),
@@ -380,13 +383,13 @@ pub fn assign_notification_to_project(
 
   let kind = if other_project_ids.is_empty() {
     // No prior threads from this repo — offer an opt-in repo rule.
-    "opt_in"
+    RepoRoutingKind::OptIn
   } else if other_project_ids.iter().all(|&pid| pid == project_id) {
     // All prior threads already route to the same project — offer opt-out.
-    "opt_out"
+    RepoRoutingKind::OptOut
   } else {
     // Threads split across multiple projects — no offer.
-    "none"
+    RepoRoutingKind::None
   };
 
   let existing_thread_count = i64::try_from(other_project_ids.len()).unwrap_or(0);
@@ -403,7 +406,7 @@ pub fn assign_notification_to_project(
     .map_err(|e| e.to_string())?;
 
   Ok(RepoRoutingHint {
-    kind: kind.into(),
+    kind,
     repo_full_name,
     project_id,
     project_name,
@@ -420,33 +423,42 @@ pub fn create_repo_rule(
   state: tauri::State<'_, DbState>,
 ) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
-  db.execute(
-    "INSERT OR REPLACE INTO repo_rules (repo_full_name, project_id) VALUES (?1, ?2)",
+
+  // Wrap all statements in a transaction for atomicity.
+  let tx = db.unchecked_transaction().map_err(|e| e.to_string())?;
+
+  tx.execute(
+    "INSERT INTO repo_rules (repo_full_name, project_id) VALUES (?1, ?2) \
+     ON CONFLICT(repo_full_name) DO UPDATE SET project_id = excluded.project_id",
     params![repo_full_name, project_id],
   )
   .map_err(|e| e.to_string())?;
+
   // Always route inbox notifications for this repo — assigning for the first
   // time is non-destructive and is exactly what the rule promises.
-  db.execute(
+  tx.execute(
     "UPDATE notifications SET project_id = ?1 \
      WHERE repo_full_name = ?2 AND project_id IS NULL",
     params![project_id, repo_full_name],
   )
   .map_err(|e| e.to_string())?;
+
   if migrate_existing_threads {
     // Also reassign already-mapped threads and remove their thread-level entries.
-    db.execute(
+    tx.execute(
       "UPDATE notifications SET project_id = ?1 \
        WHERE repo_full_name = ?2 AND project_id != ?1",
       params![project_id, repo_full_name],
     )
     .map_err(|e| e.to_string())?;
-    db.execute(
+    tx.execute(
       "DELETE FROM thread_mappings WHERE repo_full_name = ?1",
       params![repo_full_name],
     )
     .map_err(|e| e.to_string())?;
   }
+
+  tx.commit().map_err(|e| e.to_string())?;
   Ok(())
 }
 
