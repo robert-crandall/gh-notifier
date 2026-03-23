@@ -138,7 +138,7 @@
 			<div class="flex items-center gap-6">
 				{#if lastSynced}
 					<span class="text-[10px] text-on-surface-variant/60 font-mono hidden lg:block">
-						synced {new Date(lastSynced + 'Z').toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+						synced {new Date(lastSynced.includes('T') ? lastSynced : `${lastSynced.replace(' ', 'T')}Z`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
 					</span>
 				{/if}
 				<div class="relative w-64">
