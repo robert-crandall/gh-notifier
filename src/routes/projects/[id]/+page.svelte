@@ -24,6 +24,7 @@
 	let editingName = $state(false);
 	let editedName = $state('');
 	let renameInput = $state<HTMLInputElement | null>(null);
+	let cancellingRename = $state(false);
 
 	// Delete modal state
 	let showDeleteModal = $state(false);
@@ -195,12 +196,22 @@
 	}
 
 	async function commitRename() {
-		if (!project) return;
+		if (!project || cancellingRename) {
+			cancellingRename = false;
+			return;
+		}
 		const trimmed = editedName.trim();
 		editingName = false;
 		if (!trimmed || trimmed === project.name) return;
 		project.name = trimmed;
 		await saveProject();
+	}
+
+	function cancelRename() {
+		if (!project) return;
+		cancellingRename = true;
+		editedName = project.name;
+		editingName = false;
 	}
 
 	async function openDeleteModal() {
@@ -288,7 +299,10 @@
 								bind:value={editedName}
 								onkeydown={(e) => {
 									if (e.key === 'Enter') commitRename();
-									if (e.key === 'Escape') editingName = false;
+									if (e.key === 'Escape') {
+										e.preventDefault();
+										cancelRename();
+									}
 								}}
 								onblur={commitRename}
 							/>
@@ -649,6 +663,7 @@
 					<button
 						class="p-1 hover:bg-surface-container-high rounded transition-colors"
 						onclick={() => (showDeleteModal = false)}
+						aria-label="Close delete dialog"
 					>
 						<span class="material-symbols-outlined text-on-surface-variant">close</span>
 					</button>
