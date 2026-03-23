@@ -24,6 +24,7 @@ export interface GithubNotification {
 	project_id: number | null;
 	author: string;
 	author_avatar: string | null;
+	html_url: string | null;
 }
 
 export interface ManualTask {
