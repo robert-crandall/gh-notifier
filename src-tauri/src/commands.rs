@@ -5,8 +5,8 @@ use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
   models::{
-    AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint, RepoRoutingKind,
-    RepoRule,
+    AppSettings, Bookmark, GithubNotification, ManualTask, Project, RepoRoutingHint,
+    RepoRoutingKind, RepoRule,
   },
 };
 use aes_gcm::{
@@ -238,7 +238,7 @@ pub fn delete_project(
   })();
 
   match result {
-    Ok(_) => {
+    Ok(()) => {
       db.execute("COMMIT", params![]).map_err(|e| e.to_string())?;
       Ok(())
     }
@@ -962,6 +962,69 @@ pub fn delete_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(
 }
 
 // ---------------------------------------------------------------------------
+// Bookmark commands
+// ---------------------------------------------------------------------------
+
+fn bookmark_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Bookmark> {
+  Ok(Bookmark {
+    id: row.get(0)?,
+    project_id: row.get(1)?,
+    name: row.get(2)?,
+    url: row.get(3)?,
+  })
+}
+
+#[tauri::command]
+pub fn get_bookmarks(
+  project_id: i64,
+  state: tauri::State<'_, DbState>,
+) -> Result<Vec<Bookmark>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare(
+      "SELECT id, project_id, name, url FROM bookmarks \
+       WHERE project_id = ?1 ORDER BY created_at ASC",
+    )
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map(params![project_id], bookmark_from_row)
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn create_bookmark(
+  project_id: i64,
+  name: String,
+  url: String,
+  state: tauri::State<'_, DbState>,
+) -> Result<Bookmark, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT INTO bookmarks (project_id, name, url) VALUES (?1, ?2, ?3)",
+    params![project_id, name, url],
+  )
+  .map_err(|e| e.to_string())?;
+  let id = db.last_insert_rowid();
+  db.query_row(
+    "SELECT id, project_id, name, url FROM bookmarks WHERE id = ?1",
+    params![id],
+    bookmark_from_row,
+  )
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_bookmark(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM bookmarks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Repo rule commands
 // ---------------------------------------------------------------------------
 
@@ -1068,6 +1131,13 @@ mod tests {
           title      TEXT    NOT NULL,
           is_done    INTEGER NOT NULL DEFAULT 0,
           project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE
+        );
+        CREATE TABLE bookmarks (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          name       TEXT    NOT NULL,
+          url        TEXT    NOT NULL,
+          created_at TEXT    NOT NULL DEFAULT (datetime('now'))
         );
         ",
       )
@@ -1380,6 +1450,111 @@ mod tests {
       )
       .unwrap();
     assert!(task3_exists);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bookmark CRUD unit tests
+  // ---------------------------------------------------------------------------
+
+  #[test]
+  fn create_bookmark_inserts_and_returns_bookmark() {
+    let db = test_db();
+    let pid = insert_project(&db, "Bookmark Project");
+
+    db.execute(
+      "INSERT INTO bookmarks (project_id, name, url) VALUES (?1, ?2, ?3)",
+      params![pid, "GitHub", "https://github.com"],
+    )
+    .unwrap();
+    let bookmark_id = db.last_insert_rowid();
+
+    let (name, url): (String, String) = db
+      .query_row(
+        "SELECT name, url FROM bookmarks WHERE id = ?1",
+        params![bookmark_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+      )
+      .unwrap();
+
+    assert_eq!(name, "GitHub");
+    assert_eq!(url, "https://github.com");
+  }
+
+  #[test]
+  fn get_bookmarks_returns_ordered_by_created_at() {
+    let db = test_db();
+    let pid = insert_project(&db, "Multi Bookmark Project");
+
+    db.execute(
+      "INSERT INTO bookmarks (project_id, name, url, created_at) \
+       VALUES (?1, 'First', 'https://first.com', '2024-01-01T00:00:00Z')",
+      params![pid],
+    )
+    .unwrap();
+
+    db.execute(
+      "INSERT INTO bookmarks (project_id, name, url, created_at) \
+       VALUES (?1, 'Second', 'https://second.com', '2024-01-02T00:00:00Z')",
+      params![pid],
+    )
+    .unwrap();
+
+    db.execute(
+      "INSERT INTO bookmarks (project_id, name, url, created_at) \
+       VALUES (?1, 'Third', 'https://third.com', '2024-01-03T00:00:00Z')",
+      params![pid],
+    )
+    .unwrap();
+
+    let bookmarks: Vec<String> = db
+      .prepare("SELECT name FROM bookmarks WHERE project_id = ?1 ORDER BY created_at ASC")
+      .unwrap()
+      .query_map(params![pid], |row| row.get(0))
+      .unwrap()
+      .collect::<rusqlite::Result<Vec<_>>>()
+      .unwrap();
+
+    assert_eq!(bookmarks, vec!["First", "Second", "Third"]);
+  }
+
+  #[test]
+  fn delete_bookmark_removes_bookmark() {
+    let db = test_db();
+    let pid = insert_project(&db, "Delete Bookmark Project");
+
+    db.execute(
+      "INSERT INTO bookmarks (project_id, name, url) VALUES (?1, ?2, ?3)",
+      params![pid, "To Delete", "https://example.com"],
+    )
+    .unwrap();
+    let bookmark_id = db.last_insert_rowid();
+
+    db.execute(
+      "INSERT INTO bookmarks (project_id, name, url) VALUES (?1, ?2, ?3)",
+      params![pid, "To Keep", "https://keeper.com"],
+    )
+    .unwrap();
+
+    db.execute("DELETE FROM bookmarks WHERE id = ?1", params![bookmark_id])
+      .unwrap();
+
+    let exists: bool = db
+      .query_row(
+        "SELECT EXISTS(SELECT 1 FROM bookmarks WHERE id = ?1)",
+        params![bookmark_id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert!(!exists);
+
+    let remaining: i64 = db
+      .query_row(
+        "SELECT COUNT(*) FROM bookmarks WHERE project_id = ?1",
+        params![pid],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(remaining, 1);
   }
 
   // ---------------------------------------------------------------------------

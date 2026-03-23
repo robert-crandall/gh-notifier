@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Project, GithubNotification, ManualTask, AppSettings, RepoRoutingHint, RepoRule } from './types';
+import type { Project, GithubNotification, ManualTask, AppSettings, Bookmark, RepoRoutingHint, RepoRule } from './types';
 
 export async function getProjects(): Promise<Project[]> {
 	return invoke('get_projects');
@@ -106,4 +106,16 @@ export async function toggleManualTask(id: number): Promise<void> {
 
 export async function deleteManualTask(id: number): Promise<void> {
 	return invoke('delete_manual_task', { id });
+}
+
+export async function getBookmarks(projectId: number): Promise<Bookmark[]> {
+	return invoke('get_bookmarks', { projectId });
+}
+
+export async function createBookmark(projectId: number, name: string, url: string): Promise<Bookmark> {
+	return invoke('create_bookmark', { projectId, name, url });
+}
+
+export async function deleteBookmark(id: number): Promise<void> {
+	return invoke('delete_bookmark', { id });
 }

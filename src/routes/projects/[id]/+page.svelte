@@ -2,13 +2,17 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { open } from '@tauri-apps/plugin-shell';
-	import type { Project, GithubNotification, ManualTask } from '$lib/types';
+	import type { Project, GithubNotification, ManualTask, Bookmark } from '$lib/types';
 	import * as api from '$lib/api';
 
 	let project: Project | null = $state(null);
 	let notifications: GithubNotification[] = $state([]);
 	let tasks: ManualTask[] = $state([]);
+	let bookmarks: Bookmark[] = $state([]);
 	let loading = $state(true);
+	let newBookmarkName = $state('');
+	let newBookmarkUrl = $state('');
+	let addingBookmark = $state(false);
 	let saving = $state(false);
 	let saveMessage = $state('');
 	let newTaskTitle = $state('');
@@ -48,12 +52,14 @@
 		Promise.all([
 			api.getProject(projectId),
 			api.getNotifications(projectId),
-			api.getManualTasks(projectId)
+			api.getManualTasks(projectId),
+			api.getBookmarks(projectId)
 		])
-			.then(([proj, notifs, taskList]) => {
+			.then(([proj, notifs, taskList, bookmarkList]) => {
 				project = proj;
 				notifications = notifs;
 				tasks = taskList;
+				bookmarks = bookmarkList;
 			})
 			.catch((e) => {
 				console.error('Failed to load project:', e);
@@ -186,6 +192,46 @@
 			tasks = tasks.filter((t) => t.id !== id);
 		} catch (e) {
 			console.error('Failed to delete task:', e);
+		}
+	}
+
+	async function addBookmark() {
+		const name = newBookmarkName.trim();
+		const url = newBookmarkUrl.trim();
+		if (!name || !url || addingBookmark) return;
+		addingBookmark = true;
+		try {
+			const bookmark = await api.createBookmark(projectId, name, url);
+			bookmarks = [...bookmarks, bookmark];
+			newBookmarkName = '';
+			newBookmarkUrl = '';
+		} catch (e) {
+			console.error('Failed to add bookmark:', e);
+		} finally {
+			addingBookmark = false;
+		}
+	}
+
+	async function removeBookmark(id: number) {
+		try {
+			await api.deleteBookmark(id);
+			bookmarks = bookmarks.filter((b) => b.id !== id);
+		} catch (e) {
+			console.error('Failed to delete bookmark:', e);
+		}
+	}
+
+	async function openBookmark(url: string, event: MouseEvent) {
+		event.preventDefault();
+		const normalized = url.trim();
+		if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+			console.error('Invalid bookmark URL scheme:', url);
+			return;
+		}
+		try {
+			await open(normalized);
+		} catch (e) {
+			console.error('Failed to open bookmark:', e);
 		}
 	}
 
@@ -329,6 +375,59 @@
 						bind:value={project.next_action}
 						onblur={saveProject}
 					></textarea>
+				</div>
+
+				<!-- Bookmarks -->
+				<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/15 shadow-sm">
+					<div class="flex items-center gap-2 mb-3">
+						<span class="material-symbols-outlined text-primary text-lg">bookmark</span>
+						<span class="text-[11px] font-black uppercase tracking-widest text-on-surface">Bookmarks</span>
+					</div>
+					{#if bookmarks.length > 0}
+						<ul class="space-y-1.5 mb-3">
+							{#each bookmarks as bookmark (bookmark.id)}
+								<li class="flex items-center gap-2 group">
+									<a
+										href={bookmark.url}
+										onclick={(e) => openBookmark(bookmark.url, e)}
+										class="flex-1 text-sm text-primary hover:underline truncate"
+										title={bookmark.url}
+									>{bookmark.name}</a>
+									<button
+										class="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 transition-opacity p-0.5 hover:bg-surface-container-high focus-visible:bg-surface-container-high rounded focus-visible:outline-none"
+										type="button"
+										title="Remove bookmark"
+										aria-label="Remove bookmark"
+										onclick={() => removeBookmark(bookmark.id)}
+									>
+										<span class="material-symbols-outlined text-sm text-on-surface-variant">close</span>
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					<div class="flex flex-col gap-1.5">
+						<input
+							class="w-full bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1.5 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50"
+							placeholder="Name"
+							bind:value={newBookmarkName}
+							onkeydown={(e) => { if (e.key === 'Enter') addBookmark(); }}
+						/>
+						<div class="flex gap-1.5">
+							<input
+								class="flex-1 bg-surface-container-low border border-outline-variant/20 rounded px-2 py-1.5 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/50"
+								placeholder="https://..."
+								type="url"
+								bind:value={newBookmarkUrl}
+								onkeydown={(e) => { if (e.key === 'Enter') addBookmark(); }}
+							/>
+							<button
+								class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary disabled:opacity-40"
+								disabled={addingBookmark || !newBookmarkName.trim() || !newBookmarkUrl.trim()}
+								onclick={addBookmark}
+							>ADD</button>
+						</div>
+					</div>
 				</div>
 
 				<!-- Context Document -->
