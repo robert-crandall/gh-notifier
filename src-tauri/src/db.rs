@@ -1,3 +1,4 @@
+use rand::{rngs::OsRng, RngCore};
 use rusqlite::Connection;
 use std::path::Path;
 use std::sync::Mutex;
@@ -5,9 +6,51 @@ use std::sync::Mutex;
 #[allow(clippy::module_name_repetitions)]
 pub struct DbState(pub Mutex<Connection>);
 
-/// In-memory PAT cache so commands never hit the macOS Keychain more than once
-/// per app launch (repeated Keychain access triggers OS auth prompts).
+/// In-memory PAT cache so commands never hit the encrypted store more than once
+/// per app launch.
 pub struct TokenCache(pub Mutex<Option<String>>);
+
+/// The 256-bit AES-GCM key used to encrypt the GitHub PAT at rest in `SQLite`.
+/// Loaded once at startup from `<app_data_dir>/key.bin`.
+pub struct EncKey(pub [u8; 32]);
+
+/// Load the encryption key from `<app_data_dir>/key.bin`, generating and
+/// persisting a fresh random key on first launch.  The file is created with
+/// mode 0o600 (owner read/write only) on Unix systems.
+pub fn load_or_create_key(app_data_dir: &Path) -> Result<[u8; 32], String> {
+  std::fs::create_dir_all(app_data_dir).map_err(|e| e.to_string())?;
+  let key_path = app_data_dir.join("key.bin");
+
+  if key_path.exists() {
+    let bytes = std::fs::read(&key_path).map_err(|e| e.to_string())?;
+    bytes
+      .try_into()
+      .map_err(|_| "key.bin is corrupt (wrong length — delete it to reset)".into())
+  } else {
+    let mut key = [0u8; 32];
+    OsRng.fill_bytes(&mut key);
+    write_key_file(&key_path, &key)?;
+    Ok(key)
+  }
+}
+
+#[cfg(unix)]
+fn write_key_file(path: &Path, key: &[u8]) -> Result<(), String> {
+  use std::io::Write as _;
+  use std::os::unix::fs::OpenOptionsExt as _;
+  let mut file = std::fs::OpenOptions::new()
+    .write(true)
+    .create_new(true)
+    .mode(0o600)
+    .open(path)
+    .map_err(|e| e.to_string())?;
+  file.write_all(key).map_err(|e| e.to_string())
+}
+
+#[cfg(not(unix))]
+fn write_key_file(path: &Path, key: &[u8]) -> Result<(), String> {
+  std::fs::write(path, key).map_err(|e| e.to_string())
+}
 
 pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
   std::fs::create_dir_all(app_data_dir).map_err(|e| e.to_string())?;
