@@ -98,7 +98,7 @@
 			{#each notifications as notification (notification.id)}
 				{@const badge = typeLabel(notification.subject_type)}
 				<div
-					class="group {notification.is_read
+					class="group relative {showProjectPicker === notification.id ? 'z-20' : ''} {notification.is_read
 						? 'bg-surface-dim/40 opacity-60 hover:opacity-80'
 						: 'bg-surface-container-lowest border-l-[3px] border-primary shadow-sm hover:translate-x-1'} p-5 rounded-md transition-all duration-200"
 				>
@@ -125,7 +125,7 @@
 								<span class="text-xs text-outline opacity-50">{timeAgo(notification.updated_at)}</span>
 							</div>
 						</div>
-						<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+						<div class="flex items-center gap-2 transition-opacity duration-150 {showProjectPicker === notification.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
 						<button class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200" title="Archive" onclick={() => archive(notification.id)}>
 							<span class="material-symbols-outlined text-[20px]">archive</span>
 						</button>
