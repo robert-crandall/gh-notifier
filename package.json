@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint src",
+    "ci": "cd src-tauri && cargo fmt --check && cargo clippy -- -D warnings && cd .. && bun run check && bun run lint",
     "tauri": "tauri"
   },
   "devDependencies": {
