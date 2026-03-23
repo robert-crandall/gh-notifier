@@ -3,6 +3,7 @@
 
 use crate::{
   db::DbState,
+  github,
   models::{AppSettings, GithubNotification, ManualTask, Project},
 };
 use keyring::Entry;
@@ -37,7 +38,7 @@ fn project_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
 }
 
 // Columns: id, github_id, repo_full_name, subject_title, subject_type,
-//          subject_url, reason, is_read, updated_at, project_id, author, author_avatar
+//          subject_url, reason, is_read, updated_at, project_id, author, author_avatar, html_url
 fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNotification> {
   Ok(GithubNotification {
     id: row.get(0)?,
@@ -52,6 +53,7 @@ fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNoti
     project_id: row.get(9)?,
     author: row.get(10)?,
     author_avatar: row.get(11)?,
+    html_url: row.get(12)?,
   })
 }
 
@@ -177,8 +179,8 @@ pub fn wake_project(id: i64, state: tauri::State<'_, DbState>) -> Result<(), Str
 // ---------------------------------------------------------------------------
 
 const NOTIFICATION_COLS: &str = "SELECT id, github_id, repo_full_name, subject_title, \
-  subject_type, subject_url, reason, is_read, updated_at, project_id, author, author_avatar \
-  FROM notifications";
+  subject_type, subject_url, reason, is_read, updated_at, project_id, author, author_avatar, \
+  html_url FROM notifications";
 
 #[tauri::command]
 pub fn get_notifications(
@@ -212,7 +214,9 @@ pub fn get_unmapped_notifications(
   state: tauri::State<'_, DbState>,
 ) -> Result<Vec<GithubNotification>, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
-  let sql = format!("{NOTIFICATION_COLS} WHERE project_id IS NULL ORDER BY updated_at DESC");
+  let sql = format!(
+    "{NOTIFICATION_COLS} WHERE project_id IS NULL AND is_read = 0 ORDER BY updated_at DESC"
+  );
   let mut stmt = db.prepare(&sql).map_err(|e| e.to_string())?;
   let result = stmt
     .query_map([], notification_from_row)
@@ -250,8 +254,25 @@ pub fn mark_notification_read(id: i64, state: tauri::State<'_, DbState>) -> Resu
 
 #[tauri::command]
 pub fn unsubscribe_thread(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
-  // M2 will add the GitHub API call; for M1 just mark the notification as read
   let db = state.0.lock().map_err(|e| e.to_string())?;
+
+  // Fetch the github_id needed to call the GitHub API.
+  let github_id: String = db
+    .query_row(
+      "SELECT github_id FROM notifications WHERE id = ?1",
+      params![id],
+      |row| row.get(0),
+    )
+    .map_err(|_| format!("Notification {id} not found"))?;
+
+  // Call the GitHub API if a token is configured.  If there is no token the
+  // notification was created manually / before setup — just mark it read.
+  match keychain_entry()?.get_password() {
+    Ok(token) => github::unsubscribe_thread(&token, &github_id)?,
+    Err(keyring::Error::NoEntry) => {} // no token yet — skip API call
+    Err(e) => return Err(format!("Keychain error: {e}")),
+  }
+
   db.execute(
     "UPDATE notifications SET is_read = 1 WHERE id = ?1",
     params![id],
@@ -305,7 +326,10 @@ pub fn get_settings(state: tauri::State<'_, DbState>) -> Result<AppSettings, Str
 
 #[tauri::command]
 pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Result<(), String> {
-  // Store the PAT in the macOS Keychain (encrypted at rest)
+  // Validate before storing — fail fast with a useful error message.
+  github::validate_token(&token)?;
+
+  // Store the PAT in the macOS Keychain (encrypted at rest).
   keychain_entry()?
     .set_password(&token)
     .map_err(|e| e.to_string())?;
@@ -319,11 +343,63 @@ pub fn save_github_token(token: String, state: tauri::State<'_, DbState>) -> Res
   Ok(())
 }
 
-// M2 will add error cases when GitHub sync is implemented
-#[allow(clippy::unnecessary_wraps)]
 #[tauri::command]
-pub fn sync_notifications(_state: tauri::State<'_, DbState>) -> Result<(), String> {
-  // M2: GitHub sync not yet implemented
+// NOTE: Uses blocking reqwest. Consider converting to async if UI responsiveness
+// degrades during sync. For now, blocking is acceptable for MVP.
+pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let token = match keychain_entry()?.get_password() {
+    Ok(t) => t,
+    Err(keyring::Error::NoEntry) => {
+      return Err("No GitHub token configured. Please complete setup first.".into())
+    }
+    Err(e) => return Err(format!("Keychain error: {e}")),
+  };
+
+  let api_notifications = github::fetch_notifications(&token)?;
+
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+
+  for n in api_notifications {
+    // Filter out team_mention noise per the PRD.
+    if n.reason == "team_mention" {
+      continue;
+    }
+
+    let html_url = n
+      .subject
+      .url
+      .as_deref()
+      .and_then(github::api_url_to_html_url);
+
+    db.execute(
+      "INSERT INTO notifications \
+         (github_id, repo_full_name, subject_title, subject_type, subject_url, \
+          reason, is_read, updated_at, html_url) \
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+       ON CONFLICT(github_id) DO UPDATE SET \
+         repo_full_name = excluded.repo_full_name, \
+         subject_title  = excluded.subject_title, \
+         subject_type   = excluded.subject_type, \
+         subject_url    = excluded.subject_url, \
+         reason         = excluded.reason, \
+         is_read        = CASE WHEN excluded.is_read = 0 THEN 0 ELSE notifications.is_read END, \
+         updated_at     = excluded.updated_at, \
+         html_url       = excluded.html_url",
+      params![
+        n.id,
+        n.repository.full_name,
+        n.subject.title,
+        n.subject.subject_type,
+        n.subject.url,
+        n.reason,
+        !n.unread, // GitHub "unread" = true  →  our is_read = false
+        n.updated_at,
+        html_url,
+      ],
+    )
+    .map_err(|e| e.to_string())?;
+  }
+
   Ok(())
 }
 

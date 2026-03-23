@@ -28,6 +28,7 @@ pub struct GithubNotification {
   pub project_id: Option<i64>,
   pub author: String,
   pub author_avatar: Option<String>,
+  pub html_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

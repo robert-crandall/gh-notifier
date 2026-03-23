@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { open } from '@tauri-apps/plugin-shell';
 	import type { Project, GithubNotification } from '$lib/types';
 	import * as api from '$lib/api';
 
@@ -49,6 +50,37 @@
 		const days = Math.floor(hours / 24);
 		if (days === 1) return 'Yesterday';
 		return `${days}d ago`;
+	}
+
+	async function openInGithub(notification: GithubNotification) {
+		const url = notification.html_url ?? notification.subject_url;
+		if (url) {
+			try {
+				await open(url);
+			} catch (e) {
+				console.error('Failed to open URL in GitHub:', e);
+			}
+		}
+	}
+
+	async function markRead(notification: GithubNotification) {
+		try {
+			await api.markNotificationRead(notification.id);
+			notification.is_read = true;
+			notifications = notifications;
+		} catch (e) {
+			console.error('Failed to mark read:', e);
+		}
+	}
+
+	async function unsubscribe(notification: GithubNotification) {
+		try {
+			await api.unsubscribeThread(notification.id);
+			notification.is_read = true;
+			notifications = notifications;
+		} catch (e) {
+			console.error('Failed to unsubscribe:', e);
+		}
 	}
 </script>
 
@@ -173,16 +205,16 @@
 								</div>
 								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
 									{#if !notification.is_read}
-										<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2">
+										<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
 											<span class="material-symbols-outlined text-sm">check_circle</span>
 											MARK READ
 										</button>
 									{/if}
-									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2">
+									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
 										<span class="material-symbols-outlined text-sm">notifications_off</span>
 										UNSUBSCRIBE
 									</button>
-									<button class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary flex items-center gap-2">
+									<button class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary flex items-center gap-2" onclick={() => openInGithub(notification)}>
 										<span class="material-symbols-outlined text-sm">open_in_new</span>
 										GITHUB
 									</button>

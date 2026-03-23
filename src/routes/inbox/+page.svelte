@@ -51,6 +51,24 @@
 		}
 		showProjectPicker = null;
 	}
+
+	async function archive(id: number) {
+		try {
+			await api.markNotificationRead(id);
+			notifications = notifications.filter((n) => n.id !== id);
+		} catch (e) {
+			console.error('Failed to archive notification:', e);
+		}
+	}
+
+	async function unsubscribe(id: number) {
+		try {
+			await api.unsubscribeThread(id);
+			notifications = notifications.filter((n) => n.id !== id);
+		} catch (e) {
+			console.error('Failed to unsubscribe:', e);
+		}
+	}
 </script>
 
 <section class="flex-1 px-8 py-10 bg-surface">
@@ -80,7 +98,7 @@
 			{#each notifications as notification (notification.id)}
 				{@const badge = typeLabel(notification.subject_type)}
 				<div
-					class="group {notification.is_read
+					class="group relative {showProjectPicker === notification.id ? 'z-20' : ''} {notification.is_read
 						? 'bg-surface-dim/40 opacity-60 hover:opacity-80'
 						: 'bg-surface-container-lowest border-l-[3px] border-primary shadow-sm hover:translate-x-1'} p-5 rounded-md transition-all duration-200"
 				>
@@ -107,12 +125,12 @@
 								<span class="text-xs text-outline opacity-50">{timeAgo(notification.updated_at)}</span>
 							</div>
 						</div>
-						<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-							<button class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200" title="Archive">
-								<span class="material-symbols-outlined text-[20px]">archive</span>
-							</button>
-							<button class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200" title="Skip">
-								<span class="material-symbols-outlined text-[20px]">visibility_off</span>
+						<div class="flex items-center gap-2 transition-opacity duration-150 {showProjectPicker === notification.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
+						<button class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200" title="Archive" onclick={() => archive(notification.id)}>
+							<span class="material-symbols-outlined text-[20px]">archive</span>
+						</button>
+						<button class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200" title="Unsubscribe" onclick={() => unsubscribe(notification.id)}>
+							<span class="material-symbols-outlined text-[20px]">notifications_off</span>
 							</button>
 							<div class="h-6 w-[1px] bg-outline-variant/30 mx-1"></div>
 							<div class="relative">
