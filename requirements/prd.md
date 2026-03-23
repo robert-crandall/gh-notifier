@@ -1,7 +1,5 @@
 # Product Requirements Document: GitHub Task Manager
 
-**Version:** 1.0 MVP  
-**Owner:** PM (this chat)  
 **Target User:** Solo INTJ developer with ADHD, managing work across multiple GitHub repos  
 **Platform:** macOS desktop app (Tauri + Svelte)
 
@@ -163,19 +161,3 @@ Three snooze modes:
 - **Backend:** Tauri (Rust, minimal custom code)
 - **Data:** SQLite (local storage)
 - **API:** GitHub REST API v3
-
----
-
-## Open Questions
-
-1. **Notification polling frequency:** Default to 5 minutes? User-configurable?
-2. **GitHub scope:** Should we filter by specific repos or pull everything user has access to?
-3. **Context document format:** Plain text? Markdown rendering?
-
----
-
-## Phased Rollout
-
-See separate build sequence document for engineering phases.
-
-**Phase 6 = MVP complete.** Reassess post-MVP features after user validates core workflow.
