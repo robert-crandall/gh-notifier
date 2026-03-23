@@ -233,11 +233,32 @@ pub fn assign_notification_to_project(
   state: tauri::State<'_, DbState>,
 ) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
+
+  // Look up the notification's repo and thread id so we can persist the mapping.
+  let (repo_full_name, github_id): (String, String) = db
+    .query_row(
+      "SELECT repo_full_name, github_id FROM notifications WHERE id = ?1",
+      params![notification_id],
+      |row| Ok((row.get(0)?, row.get(1)?)),
+    )
+    .map_err(|_| format!("Notification {notification_id} not found"))?;
+
+  // Assign the notification to the project.
   db.execute(
     "UPDATE notifications SET project_id = ?1 WHERE id = ?2",
     params![project_id, notification_id],
   )
   .map_err(|e| e.to_string())?;
+
+  // Persist the thread→project mapping so future notifications from the same
+  // thread are auto-routed without any user action.
+  db.execute(
+    "INSERT OR REPLACE INTO thread_mappings (repo_full_name, thread_id, project_id) \
+     VALUES (?1, ?2, ?3)",
+    params![repo_full_name, github_id, project_id],
+  )
+  .map_err(|e| e.to_string())?;
+
   Ok(())
 }
 
@@ -371,11 +392,22 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
       .as_deref()
       .and_then(github::api_url_to_html_url);
 
+    // Check thread_mappings to auto-assign project_id for this notification.
+    let mapped_project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM thread_mappings \
+         WHERE repo_full_name = ?1 AND thread_id = ?2",
+        params![n.repository.full_name, n.id],
+        |row| row.get(0),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?;
+
     db.execute(
       "INSERT INTO notifications \
          (github_id, repo_full_name, subject_title, subject_type, subject_url, \
-          reason, is_read, updated_at, html_url) \
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+          reason, is_read, updated_at, html_url, project_id) \
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) \
        ON CONFLICT(github_id) DO UPDATE SET \
          repo_full_name = excluded.repo_full_name, \
          subject_title  = excluded.subject_title, \
@@ -384,7 +416,8 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
          reason         = excluded.reason, \
          is_read        = CASE WHEN excluded.is_read = 0 THEN 0 ELSE notifications.is_read END, \
          updated_at     = excluded.updated_at, \
-         html_url       = excluded.html_url",
+         html_url       = excluded.html_url, \
+         project_id     = COALESCE(notifications.project_id, excluded.project_id)",
       params![
         n.id,
         n.repository.full_name,
@@ -395,9 +428,37 @@ pub fn sync_notifications(state: tauri::State<'_, DbState>) -> Result<(), String
         !n.unread, // GitHub "unread" = true  →  our is_read = false
         n.updated_at,
         html_url,
+        mapped_project_id,
       ],
     )
     .map_err(|e| e.to_string())?;
+
+    // Wake the project this notification is actually assigned to (if any).
+    // We look up the effective project_id after the upsert, to account for
+    // cases where an existing notifications.project_id was preserved by
+    // COALESCE(notifications.project_id, excluded.project_id).
+    let effective_project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM notifications \
+         WHERE github_id = ?1 AND project_id IS NOT NULL",
+        params![n.id],
+        |row| row.get(0),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?;
+
+    // If the notification is assigned to a snoozed project with
+    // snooze_mode = 'notification', wake that project now.
+    if let Some(pid) = effective_project_id {
+      db.execute(
+        "UPDATE projects \
+         SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
+             updated_at = datetime('now') \
+         WHERE id = ?1 AND status = 'snoozed' AND snooze_mode = 'notification'",
+        params![pid],
+      )
+      .map_err(|e| e.to_string())?;
+    }
   }
 
   Ok(())
@@ -469,4 +530,289 @@ pub fn toggle_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(
   )
   .map_err(|e| e.to_string())?;
   Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Thread-mapping unit tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+  use rusqlite::{params, Connection, OptionalExtension};
+
+  /// Open an in-memory SQLite database with the full production schema applied.
+  fn test_db() -> Connection {
+    let conn = Connection::open_in_memory().unwrap();
+    conn
+      .execute_batch(
+        "
+        CREATE TABLE projects (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          name         TEXT    NOT NULL,
+          context_doc  TEXT    NOT NULL DEFAULT '',
+          next_action  TEXT    NOT NULL DEFAULT '',
+          status       TEXT    NOT NULL DEFAULT 'active',
+          snooze_mode  TEXT,
+          snooze_until TEXT,
+          icon         TEXT    NOT NULL DEFAULT 'folder',
+          repo_label   TEXT    NOT NULL DEFAULT '',
+          created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE notifications (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          github_id      TEXT    NOT NULL UNIQUE,
+          repo_full_name TEXT    NOT NULL,
+          subject_title  TEXT    NOT NULL,
+          subject_type   TEXT    NOT NULL,
+          subject_url    TEXT,
+          reason         TEXT    NOT NULL,
+          is_read        INTEGER NOT NULL DEFAULT 0,
+          updated_at     TEXT    NOT NULL,
+          project_id     INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+          author         TEXT    NOT NULL DEFAULT '',
+          author_avatar  TEXT,
+          html_url       TEXT
+        );
+        CREATE TABLE thread_mappings (
+          repo_full_name TEXT    NOT NULL,
+          thread_id      TEXT    NOT NULL,
+          project_id     INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          PRIMARY KEY (repo_full_name, thread_id)
+        );
+        ",
+      )
+      .unwrap();
+    conn
+  }
+
+  /// Seed a project and return its id.
+  fn insert_project(db: &Connection, name: &str) -> i64 {
+    db.execute("INSERT INTO projects (name) VALUES (?1)", params![name])
+      .unwrap();
+    db.last_insert_rowid()
+  }
+
+  /// Seed a bare notification (no project_id) and return its id.
+  fn insert_notification(db: &Connection, github_id: &str, repo: &str) -> i64 {
+    db.execute(
+      "INSERT INTO notifications \
+       (github_id, repo_full_name, subject_title, subject_type, reason, updated_at) \
+       VALUES (?1, ?2, 'Test notification', 'Issue', 'mention', '2024-01-01T00:00:00Z')",
+      params![github_id, repo],
+    )
+    .unwrap();
+    db.last_insert_rowid()
+  }
+
+  // Replicates the SQL used by `assign_notification_to_project`.
+  fn assign(db: &Connection, notification_id: i64, project_id: i64) {
+    let (repo_full_name, github_id): (String, String) = db
+      .query_row(
+        "SELECT repo_full_name, github_id FROM notifications WHERE id = ?1",
+        params![notification_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+      )
+      .unwrap();
+    db.execute(
+      "UPDATE notifications SET project_id = ?1 WHERE id = ?2",
+      params![project_id, notification_id],
+    )
+    .unwrap();
+    db.execute(
+      "INSERT OR REPLACE INTO thread_mappings (repo_full_name, thread_id, project_id) \
+       VALUES (?1, ?2, ?3)",
+      params![repo_full_name, github_id, project_id],
+    )
+    .unwrap();
+  }
+
+  // Replicates the upsert + wake logic from `sync_notifications` for one notification.
+  fn sync_one(
+    db: &Connection,
+    github_id: &str,
+    repo: &str,
+    is_unread: bool,
+    mapped_project_id: Option<i64>,
+  ) {
+    db.execute(
+      "INSERT INTO notifications \
+         (github_id, repo_full_name, subject_title, subject_type, reason, \
+          is_read, updated_at, project_id) \
+       VALUES (?1, ?2, 'Updated title', 'Issue', 'mention', ?3, '2024-02-01T00:00:00Z', ?4) \
+       ON CONFLICT(github_id) DO UPDATE SET \
+         subject_title = excluded.subject_title, \
+         is_read       = CASE WHEN excluded.is_read = 0 THEN 0 ELSE notifications.is_read END, \
+         updated_at    = excluded.updated_at, \
+         project_id    = COALESCE(notifications.project_id, excluded.project_id)",
+      params![github_id, repo, !is_unread, mapped_project_id],
+    )
+    .unwrap();
+
+    let effective_project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM notifications \
+         WHERE github_id = ?1 AND project_id IS NOT NULL",
+        params![github_id],
+        |row| row.get(0),
+      )
+      .optional()
+      .unwrap();
+
+    if let Some(pid) = effective_project_id {
+      db.execute(
+        "UPDATE projects \
+         SET status = 'active', snooze_mode = NULL, snooze_until = NULL, \
+             updated_at = datetime('now') \
+         WHERE id = ?1 AND status = 'snoozed' AND snooze_mode = 'notification'",
+        params![pid],
+      )
+      .unwrap();
+    }
+  }
+
+  #[test]
+  fn assign_saves_thread_mapping() {
+    let db = test_db();
+    let pid = insert_project(&db, "My Project");
+    let nid = insert_notification(&db, "thread-1", "org/repo");
+
+    assign(&db, nid, pid);
+
+    let mapped: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM thread_mappings \
+         WHERE repo_full_name = 'org/repo' AND thread_id = 'thread-1'",
+        [],
+        |row| row.get(0),
+      )
+      .optional()
+      .unwrap();
+    assert_eq!(mapped, Some(pid));
+  }
+
+  #[test]
+  fn assign_updates_notification_project_id() {
+    let db = test_db();
+    let pid = insert_project(&db, "My Project");
+    let nid = insert_notification(&db, "thread-2", "org/repo");
+
+    assign(&db, nid, pid);
+
+    let project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM notifications WHERE id = ?1",
+        params![nid],
+        |row| row.get(0),
+      )
+      .optional()
+      .unwrap()
+      .flatten();
+    assert_eq!(project_id, Some(pid));
+  }
+
+  #[test]
+  fn sync_auto_routes_via_thread_mapping() {
+    let db = test_db();
+    let pid = insert_project(&db, "Auto Route Project");
+
+    // Pre-seed a mapping: any notification from thread-3 → pid.
+    db.execute(
+      "INSERT INTO thread_mappings (repo_full_name, thread_id, project_id) VALUES (?1, ?2, ?3)",
+      params!["org/repo", "thread-3", pid],
+    )
+    .unwrap();
+
+    sync_one(&db, "thread-3", "org/repo", true, Some(pid));
+
+    let project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM notifications WHERE github_id = 'thread-3'",
+        [],
+        |row| row.get(0),
+      )
+      .optional()
+      .unwrap()
+      .flatten();
+    assert_eq!(project_id, Some(pid));
+  }
+
+  #[test]
+  fn sync_does_not_overwrite_existing_assignment() {
+    let db = test_db();
+    let pid_original = insert_project(&db, "Original Project");
+    let pid_other = insert_project(&db, "Other Project");
+    let nid = insert_notification(&db, "thread-4", "org/repo");
+
+    // Manually assign the notification to pid_original.
+    db.execute(
+      "UPDATE notifications SET project_id = ?1 WHERE id = ?2",
+      params![pid_original, nid],
+    )
+    .unwrap();
+
+    // Sync arrives carrying a mapping to pid_other — should not overwrite.
+    sync_one(&db, "thread-4", "org/repo", true, Some(pid_other));
+
+    let project_id: Option<i64> = db
+      .query_row(
+        "SELECT project_id FROM notifications WHERE github_id = 'thread-4'",
+        [],
+        |row| row.get(0),
+      )
+      .optional()
+      .unwrap()
+      .flatten();
+    assert_eq!(project_id, Some(pid_original));
+  }
+
+  #[test]
+  fn sync_wakes_notification_snoozed_project() {
+    let db = test_db();
+    let pid = insert_project(&db, "Sleeping Project");
+
+    // Put project into notification-based snooze.
+    db.execute(
+      "UPDATE projects SET status = 'snoozed', snooze_mode = 'notification' WHERE id = ?1",
+      params![pid],
+    )
+    .unwrap();
+
+    sync_one(&db, "thread-5", "org/repo", true, Some(pid));
+
+    let status: String = db
+      .query_row(
+        "SELECT status FROM projects WHERE id = ?1",
+        params![pid],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(status, "active");
+  }
+
+  #[test]
+  fn sync_does_not_wake_date_snoozed_project() {
+    let db = test_db();
+    let pid = insert_project(&db, "Date-Snoozed Project");
+
+    // snooze_mode = 'date' — should NOT be woken by an incoming notification.
+    db.execute(
+      "UPDATE projects \
+       SET status = 'snoozed', snooze_mode = 'date', snooze_until = '2099-12-31' \
+       WHERE id = ?1",
+      params![pid],
+    )
+    .unwrap();
+
+    sync_one(&db, "thread-6", "org/repo", true, Some(pid));
+
+    let status: String = db
+      .query_row(
+        "SELECT status FROM projects WHERE id = ?1",
+        params![pid],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(status, "snoozed");
+  }
 }

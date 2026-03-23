@@ -9,19 +9,19 @@
 **Goal:** Every action the user takes persists across app restarts.
 
 ### Tasks
-- [ ] Add `rusqlite` (bundled) and `tokio` to Cargo.toml
-- [ ] Create `db.rs` — initialize SQLite at the macOS app data directory
-- [ ] Write schema migration (v1):
+- [x] Add `rusqlite` (bundled) and `tokio` to Cargo.toml
+- [x] Create `db.rs` — initialize SQLite at the macOS app data directory
+- [x] Write schema migration (v1):
   - `projects` table (id, name, context_doc, next_action, status, snooze_mode, snooze_until, icon, repo_label, created_at, updated_at)
   - `notifications` table (id, github_id, repo_full_name, subject_title, subject_type, subject_url, reason, is_read, updated_at, project_id, author, author_avatar)
   - `manual_tasks` table (id, title, is_done, project_id)
   - `settings` table (key, value) — stores github_token, poll_interval, etc.
   - `thread_mappings` table (repo_full_name, thread_id, project_id) — for auto-routing
-- [ ] Replace all 7 project commands with real CRUD queries
-- [ ] Replace notification query commands (get, get_unmapped, mark_read, assign)
-- [ ] Replace task commands with real queries
-- [ ] Replace settings commands (get/save)
-- [ ] Update frontend to remove try/catch fallback stubs (Tauri commands now work)
+- [x] Replace all 7 project commands with real CRUD queries
+- [x] Replace notification query commands (get, get_unmapped, mark_read, assign)
+- [x] Replace task commands with real queries
+- [x] Replace settings commands (get/save)
+- [x] Update frontend to remove try/catch fallback stubs (Tauri commands now work)
 
 ### Done when
 - Create a project → restart app → project is still there
@@ -35,17 +35,17 @@
 **Goal:** App pulls real notifications from GitHub and displays them.
 
 ### Tasks
-- [ ] Add `reqwest` to Cargo.toml
-- [ ] Create `github.rs` — GitHub REST API v3 client
-- [ ] Implement `sync_notifications` command:
+- [x] Add `reqwest` to Cargo.toml
+- [x] Create `github.rs` — GitHub REST API v3 client
+- [x] Implement `sync_notifications` command:
   - Call `GET /notifications` with the stored PAT
   - Upsert results into the notifications table
   - Filter out `team_mention` reason notifications automatically
   - Compute `unread_count` per project
-- [ ] Implement token validation — test the PAT on save, show error if invalid
-- [ ] Implement `unsubscribe_thread` — call `DELETE /notifications/threads/{id}/subscription`
-- [ ] Implement "Open in GitHub" — resolve `subject.url` API URLs to browser-friendly HTML URLs
-- [ ] Wire the Setup page to actually validate + save + do first sync
+- [x] Implement token validation — test the PAT on save, show error if invalid
+- [x] Implement `unsubscribe_thread` — call `DELETE /notifications/threads/{id}/subscription`
+- [x] Implement "Open in GitHub" — resolve `subject.url` API URLs to browser-friendly HTML URLs
+- [x] Wire the Setup page to actually validate + save + do first sync
 
 ### Done when
 - Enter a real GitHub PAT → app pulls your actual notifications
