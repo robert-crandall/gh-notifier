@@ -213,8 +213,19 @@ pub fn update_project(project: Project, state: tauri::State<'_, DbState>) -> Res
 }
 
 #[tauri::command]
-pub fn delete_project(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+pub fn delete_project(
+  id: i64,
+  reassign_to: Option<i64>,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
+  if let Some(target_id) = reassign_to {
+    db.execute(
+      "UPDATE notifications SET project_id = ?1 WHERE project_id = ?2",
+      params![target_id, id],
+    )
+    .map_err(|e| e.to_string())?;
+  }
   db.execute("DELETE FROM projects WHERE id = ?1", params![id])
     .map_err(|e| e.to_string())?;
   Ok(())

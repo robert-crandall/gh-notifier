@@ -17,8 +17,8 @@ export async function updateProject(project: Project): Promise<void> {
 	return invoke('update_project', { project });
 }
 
-export async function deleteProject(id: number): Promise<void> {
-	return invoke('delete_project', { id });
+export async function deleteProject(id: number, reassignTo?: number | null): Promise<void> {
+	return invoke('delete_project', { id, reassignTo: reassignTo ?? null });
 }
 
 export async function snoozeProject(
