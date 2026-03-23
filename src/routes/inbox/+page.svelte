@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { open } from '@tauri-apps/plugin-shell';
 	import type { GithubNotification, Project, RepoRoutingHint } from '$lib/types';
 	import * as api from '$lib/api';
 
@@ -85,6 +86,17 @@
 
 	function dismissRepoRule() {
 		routingHint = null;
+	}
+
+	async function openInGithub(notification: GithubNotification) {
+		const url = notification.html_url ?? notification.subject_url;
+		if (url) {
+			try {
+				await open(url);
+			} catch (e) {
+				console.error('Failed to open URL in GitHub:', e);
+			}
+		}
 	}
 
 	async function archive(id: number) {
@@ -246,8 +258,9 @@
 								<span class="text-xs text-outline opacity-50">{timeAgo(notification.updated_at)}</span>
 							</div>
 						</div>
-						<div class="flex items-center gap-2 transition-opacity duration-150 {showProjectPicker === notification.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
-						<button class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200" title="Archive" onclick={() => archive(notification.id)}>
+						<div class="flex items-center gap-2 transition-opacity duration-150 {showProjectPicker === notification.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">					<button class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200" title="Open in GitHub" onclick={() => openInGithub(notification)} disabled={!notification.html_url && !notification.subject_url}>
+						<span class="material-symbols-outlined text-[20px]">open_in_new</span>
+					</button>						<button class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200" title="Archive" onclick={() => archive(notification.id)}>
 							<span class="material-symbols-outlined text-[20px]">archive</span>
 						</button>
 						<button class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200" title="Unsubscribe" onclick={() => unsubscribe(notification.id)}>
