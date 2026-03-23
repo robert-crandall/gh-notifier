@@ -40,3 +40,23 @@ export interface AppSettings {
 	is_setup_complete: boolean;
 	last_synced_at: string | null;
 }
+
+export interface RepoRule {
+	id: number;
+	repo_full_name: string;
+	project_id: number;
+	project_name: string;
+	created_at: string;
+}
+
+export interface RepoRoutingHint {
+	/** 'none' | 'opt_in' | 'opt_out' */
+	kind: 'none' | 'opt_in' | 'opt_out';
+	repo_full_name: string;
+	project_id: number;
+	project_name: string;
+	/** Number of pre-existing thread mappings for this repo. */
+	existing_thread_count: number;
+	/** Unmapped inbox notifications from this repo auto-routed when the rule is created. */
+	inbox_notification_count: number;
+}

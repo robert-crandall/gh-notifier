@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AppSettings } from '$lib/types';
+	import type { AppSettings, RepoRule, Project } from '$lib/types';
 	import * as api from '$lib/api';
 
 	let settings: AppSettings = $state({
@@ -12,6 +12,10 @@
 	let saving = $state(false);
 	let syncing = $state(false);
 	let message = $state('');
+	let repoRules: RepoRule[] = $state([]);
+	let projects: Project[] = $state([]);
+	let editingRuleId = $state<number | null>(null);
+	let editingProjectId = $state<number>(0);
 
 	$effect(() => {
 		api.getSettings().then((s) => {
@@ -19,8 +23,53 @@
 			tokenInput = s.github_token ? '••••••••' : '';
 		}).catch((e) => {
 			console.error('Failed to load settings:', e);
+			message = 'Failed to load settings. Please try again.';
+		});
+		api.getRepoRules().then((r) => {
+			repoRules = r;
+		}).catch((e) => {
+			console.error('Failed to load repo routing rules:', e);
+			message = 'Failed to load repo routing rules. Please try again.';
+		});
+		api.getProjects().then((p) => {
+			projects = p;
+		}).catch((e) => {
+			console.error('Failed to load projects:', e);
+			message = 'Failed to load projects. Please try again.';
 		});
 	});
+
+	async function deleteRule(id: number) {
+		try {
+			await api.deleteRepoRule(id);
+			repoRules = repoRules.filter((r) => r.id !== id);
+		} catch (e) {
+			console.error('Failed to delete repo rule:', e);
+		}
+	}
+
+	function startEdit(rule: RepoRule) {
+		editingRuleId = rule.id;
+		editingProjectId = rule.project_id;
+	}
+
+	async function saveEdit(id: number) {
+		try {
+			// Ensure editingProjectId is a number (select values are strings).
+			const projectId = typeof editingProjectId === 'string' 
+				? parseInt(editingProjectId, 10) 
+				: editingProjectId;
+			await api.updateRepoRule(id, projectId);
+			repoRules = repoRules.map((r) =>
+				r.id === id
+					? { ...r, project_id: editingProjectId, project_name: projects.find((p) => p.id === editingProjectId)?.name ?? r.project_name }
+					: r
+			);
+		} catch (e) {
+			console.error('Failed to update repo rule:', e);
+		}
+		editingRuleId = null;
+	}
 
 	async function saveToken() {
 		if (!tokenInput.trim() || tokenInput === '••••••••') return;
@@ -149,4 +198,60 @@
 	{#if message}
 		<div class="bg-primary/10 text-primary text-sm px-4 py-3 rounded-lg">{message}</div>
 	{/if}
+
+	<!-- Repo Routing Rules -->
+	<section class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm space-y-4">
+		<div class="flex items-center gap-2">
+			<span class="material-symbols-outlined text-primary">route</span>
+			<h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Repo Routing Rules</h2>
+		</div>
+		{#if repoRules.length === 0}
+			<p class="text-sm text-on-surface-variant">No rules yet. Assign a notification in the Inbox to create one.</p>
+		{:else}
+			<ul class="divide-y divide-outline-variant/10">
+				{#each repoRules as rule (rule.id)}
+					<li class="flex items-center gap-3 py-3">
+						<span class="font-mono text-xs text-on-surface flex-1 truncate">{rule.repo_full_name}</span>
+						{#if editingRuleId === rule.id}
+							<select
+								class="bg-surface-container-high border border-outline-variant/20 rounded-lg py-1 px-2 text-sm focus:ring-2 focus:ring-primary/40"
+								bind:value={editingProjectId}
+							>
+								{#each projects as project (project.id)}
+									<option value={project.id}>{project.name}</option>
+								{/each}
+							</select>
+							<button
+								class="px-3 py-1 bg-primary text-on-primary text-xs font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all"
+								onclick={() => saveEdit(rule.id)}
+							>Save</button>
+							<button
+								class="px-3 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-all"
+								onclick={() => { editingRuleId = null; }}
+							>Cancel</button>
+						{:else}
+							<span class="text-sm text-on-surface-variant">→</span>
+							<span class="text-sm font-medium text-on-surface">{rule.project_name}</span>
+							<button
+								class="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded transition-all"
+								title="Change project"
+								aria-label="Change project for {rule.repo_full_name}"
+								onclick={() => startEdit(rule)}
+							>
+								<span class="material-symbols-outlined text-[18px]">edit</span>
+							</button>
+							<button
+								class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-all"
+								title="Delete rule"
+								aria-label="Delete rule for {rule.repo_full_name}"
+								onclick={() => deleteRule(rule.id)}
+							>
+								<span class="material-symbols-outlined text-[18px]">delete</span>
+							</button>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
 </div>

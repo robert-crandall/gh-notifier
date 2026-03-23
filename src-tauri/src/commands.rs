@@ -4,7 +4,10 @@
 use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
-  models::{AppSettings, GithubNotification, ManualTask, Project},
+  models::{
+    AppSettings, GithubNotification, ManualTask, Project, RepoRoutingHint, RepoRoutingKind,
+    RepoRule,
+  },
 };
 use aes_gcm::{
   aead::{Aead, KeyInit},
@@ -304,7 +307,7 @@ pub fn assign_notification_to_project(
   notification_id: i64,
   project_id: i64,
   state: tauri::State<'_, DbState>,
-) -> Result<(), String> {
+) -> Result<RepoRoutingHint, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
 
   // Look up the notification's repo and thread id so we can persist the mapping.
@@ -332,6 +335,130 @@ pub fn assign_notification_to_project(
   )
   .map_err(|e| e.to_string())?;
 
+  // If a repo rule already exists for this repo, no offer is needed.
+  let rule_exists: bool = db
+    .query_row(
+      "SELECT 1 FROM repo_rules WHERE repo_full_name = ?1",
+      params![repo_full_name],
+      |_| Ok(true),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?
+    .is_some();
+
+  if rule_exists {
+    return Ok(RepoRoutingHint {
+      kind: RepoRoutingKind::None,
+      repo_full_name,
+      project_id,
+      project_name: String::new(),
+      existing_thread_count: 0,
+      inbox_notification_count: 0,
+    });
+  }
+
+  let project_name: String = db
+    .query_row(
+      "SELECT name FROM projects WHERE id = ?1",
+      params![project_id],
+      |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())?;
+
+  // Query other thread_mappings for this repo, excluding the one just inserted.
+  let other_project_ids: Vec<i64> = {
+    let mut stmt = db
+      .prepare(
+        "SELECT project_id FROM thread_mappings \
+         WHERE repo_full_name = ?1 AND thread_id != ?2",
+      )
+      .map_err(|e| e.to_string())?;
+    let rows = stmt
+      .query_map(params![repo_full_name, github_id], |row| row.get(0))
+      .map_err(|e| e.to_string())?
+      .collect::<rusqlite::Result<Vec<_>>>()
+      .map_err(|e| e.to_string())?;
+    rows
+  };
+
+  let kind = if other_project_ids.is_empty() {
+    // No prior threads from this repo — offer an opt-in repo rule.
+    RepoRoutingKind::OptIn
+  } else if other_project_ids.iter().all(|&pid| pid == project_id) {
+    // All prior threads already route to the same project — offer opt-out.
+    RepoRoutingKind::OptOut
+  } else {
+    // Threads split across multiple projects — no offer.
+    RepoRoutingKind::None
+  };
+
+  let existing_thread_count = i64::try_from(other_project_ids.len()).unwrap_or(0);
+
+  // Count unmapped inbox notifications from the same repo (excluding the one
+  // just assigned, which now has project_id set).
+  let inbox_notification_count: i64 = db
+    .query_row(
+      "SELECT COUNT(*) FROM notifications \
+       WHERE repo_full_name = ?1 AND project_id IS NULL",
+      params![repo_full_name],
+      |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())?;
+
+  Ok(RepoRoutingHint {
+    kind,
+    repo_full_name,
+    project_id,
+    project_name,
+    existing_thread_count,
+    inbox_notification_count,
+  })
+}
+
+#[tauri::command]
+pub fn create_repo_rule(
+  repo_full_name: String,
+  project_id: i64,
+  migrate_existing_threads: bool,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+
+  // Wrap all statements in a transaction for atomicity.
+  let tx = db.unchecked_transaction().map_err(|e| e.to_string())?;
+
+  tx.execute(
+    "INSERT INTO repo_rules (repo_full_name, project_id) VALUES (?1, ?2) \
+     ON CONFLICT(repo_full_name) DO UPDATE SET project_id = excluded.project_id",
+    params![repo_full_name, project_id],
+  )
+  .map_err(|e| e.to_string())?;
+
+  // Always route inbox notifications for this repo — assigning for the first
+  // time is non-destructive and is exactly what the rule promises.
+  tx.execute(
+    "UPDATE notifications SET project_id = ?1 \
+     WHERE repo_full_name = ?2 AND project_id IS NULL",
+    params![project_id, repo_full_name],
+  )
+  .map_err(|e| e.to_string())?;
+
+  if migrate_existing_threads {
+    // Also reassign already-mapped threads and remove their thread-level entries.
+    tx.execute(
+      "UPDATE notifications SET project_id = ?1 \
+       WHERE repo_full_name = ?2 AND project_id != ?1",
+      params![project_id, repo_full_name],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+      "DELETE FROM thread_mappings WHERE repo_full_name = ?1",
+      params![repo_full_name],
+    )
+    .map_err(|e| e.to_string())?;
+  }
+
+  tx.commit().map_err(|e| e.to_string())?;
   Ok(())
 }
 
@@ -512,7 +639,7 @@ fn process_notifications(
       .and_then(github::api_url_to_html_url);
 
     // Check thread_mappings to auto-assign project_id for this notification.
-    let mapped_project_id: Option<i64> = db
+    let thread_project_id: Option<i64> = db
       .query_row(
         "SELECT project_id FROM thread_mappings \
          WHERE repo_full_name = ?1 AND thread_id = ?2",
@@ -521,6 +648,19 @@ fn process_notifications(
       )
       .optional()
       .map_err(|e| e.to_string())?;
+
+    // Fall back to a repo-level rule when there is no thread-level mapping.
+    let mapped_project_id: Option<i64> = if thread_project_id.is_some() {
+      thread_project_id
+    } else {
+      db.query_row(
+        "SELECT project_id FROM repo_rules WHERE repo_full_name = ?1",
+        params![n.repository.full_name],
+        |row| row.get(0),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?
+    };
 
     db.execute(
       "INSERT INTO notifications \
@@ -696,6 +836,60 @@ pub fn toggle_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(
 pub fn delete_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
   db.execute("DELETE FROM manual_tasks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Repo rule commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_repo_rules(state: tauri::State<'_, DbState>) -> Result<Vec<RepoRule>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare(
+      "SELECT r.id, r.repo_full_name, r.project_id, p.name, r.created_at \
+       FROM repo_rules r \
+       JOIN projects p ON p.id = r.project_id \
+       ORDER BY r.repo_full_name",
+    )
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map([], |row| {
+      Ok(RepoRule {
+        id: row.get(0)?,
+        repo_full_name: row.get(1)?,
+        project_id: row.get(2)?,
+        project_name: row.get(3)?,
+        created_at: row.get(4)?,
+      })
+    })
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn update_repo_rule(
+  id: i64,
+  project_id: i64,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "UPDATE repo_rules SET project_id = ?1 WHERE id = ?2",
+    params![project_id, id],
+  )
+  .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+#[tauri::command]
+pub fn delete_repo_rule(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM repo_rules WHERE id = ?1", params![id])
     .map_err(|e| e.to_string())?;
   Ok(())
 }

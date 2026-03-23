@@ -62,6 +62,12 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
   std::fs::create_dir_all(app_data_dir).map_err(|e| e.to_string())?;
   let db_path = app_data_dir.join("gh-notifier.db");
   let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+
+  // Enable foreign key enforcement so cascades and constraints apply.
+  conn
+    .execute("PRAGMA foreign_keys = ON", [])
+    .map_err(|e| e.to_string())?;
+
   migrate(&conn).map_err(|e| e.to_string())?;
   Ok(conn)
 }
@@ -131,6 +137,19 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
       "ALTER TABLE notifications ADD COLUMN html_url TEXT;
        PRAGMA user_version = 2;",
+    )?;
+  }
+
+  if version < 3 {
+    // Add repo_rules table for repo-level routing rules.
+    conn.execute_batch(
+      "CREATE TABLE IF NOT EXISTS repo_rules (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_full_name TEXT    NOT NULL UNIQUE,
+        project_id     INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      PRAGMA user_version = 3;",
     )?;
   }
 
