@@ -2,14 +2,23 @@
 	import '../app.css';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import * as api from '$lib/api';
 
 	let { children } = $props();
 
-	const navItems = [
-		{ href: '/', icon: 'dashboard', label: 'Dashboard' },
-		{ href: '/inbox', icon: 'inbox', label: 'Inbox', badge: 12 },
-		{ href: '/settings', icon: 'settings', label: 'Settings' }
-	];
+	let inboxCount = $state(0);
+
+	$effect(() => {
+		api.getUnmappedNotifications().then((notifs) => {
+			inboxCount = notifs.filter((n) => !n.is_read).length;
+		}).catch(() => {});
+	});
+
+	const navItems = $derived([
+		{ href: '/', icon: 'dashboard', label: 'Dashboard', badge: 0 },
+		{ href: '/inbox', icon: 'inbox', label: 'Inbox', badge: inboxCount },
+		{ href: '/settings', icon: 'settings', label: 'Settings', badge: 0 }
+	]);
 
 	function isActive(href: string, pathname: string): boolean {
 		if (href === '/') return pathname === '/';
@@ -57,7 +66,7 @@
 					>
 						<span class="material-symbols-outlined">{item.icon}</span>
 						<span class="text-sm tracking-wide">{item.label}</span>
-						{#if item.badge}
+						{#if item.badge > 0}
 							<span
 								class="ml-auto text-[10px] font-bold bg-tertiary-container text-white px-1.5 py-0.5 rounded-full"
 							>
