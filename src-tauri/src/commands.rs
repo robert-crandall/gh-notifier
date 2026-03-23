@@ -466,8 +466,33 @@ pub fn create_repo_rule(
 }
 
 #[tauri::command]
-pub fn mark_notification_read(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+pub fn mark_notification_read(
+  id: i64,
+  token_cache: tauri::State<'_, TokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
+
+  // Fetch the github_id so we can tell GitHub this thread is read.
+  let github_id: Option<String> = db
+    .query_row(
+      "SELECT github_id FROM notifications WHERE id = ?1",
+      params![id],
+      |row| row.get(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?;
+
+  // Tell GitHub the thread is read so it won't resurface on the next sync.
+  // Best-effort: if there's no token or the API call fails, still mark read locally.
+  if let Some(ref gid) = github_id {
+    if let Ok(token_guard) = token_cache.0.lock() {
+      if let Some(token) = token_guard.as_deref() {
+        let _ = github::mark_thread_read(token, gid);
+      }
+    }
+  }
+
   db.execute(
     "UPDATE notifications SET is_read = 1 WHERE id = ?1",
     params![id],

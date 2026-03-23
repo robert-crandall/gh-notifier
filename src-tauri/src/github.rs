@@ -176,6 +176,28 @@ pub fn fetch_is_terminal(client: &Client, subject_url: &str, subject_type: &str)
   }
 }
 
+/// Mark a GitHub notification thread as read.
+/// Calls `PATCH /notifications/threads/{thread_id}`.
+/// This prevents the thread from reappearing on the next `GET /notifications` sync.
+pub fn mark_thread_read(token: &str, thread_id: &str) -> Result<(), String> {
+  let client = make_client_public(token)?;
+  let url = format!("https://api.github.com/notifications/threads/{thread_id}");
+  let resp = client
+    .patch(&url)
+    .send()
+    .map_err(|e| format!("Network error: {e}"))?;
+
+  // 205 Reset Content = success.  404 means thread not found — treat as OK.
+  if resp.status().is_success() || resp.status().as_u16() == 404 {
+    Ok(())
+  } else {
+    Err(format!(
+      "GitHub mark-as-read returned status {}",
+      resp.status()
+    ))
+  }
+}
+
 /// Unsubscribe from a GitHub notification thread.
 /// Calls `DELETE /notifications/threads/{thread_id}/subscription`.
 pub fn unsubscribe_thread(token: &str, thread_id: &str) -> Result<(), String> {
