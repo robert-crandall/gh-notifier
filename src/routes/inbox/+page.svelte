@@ -89,7 +89,7 @@
 	}
 
 	async function openInGithub(notification: GithubNotification) {
-		const url = notification.html_url ?? notification.subject_url;
+		const url = notification.html_url;
 		if (url) {
 			try {
 				await open(url);
@@ -258,13 +258,28 @@
 								<span class="text-xs text-outline opacity-50">{timeAgo(notification.updated_at)}</span>
 							</div>
 						</div>
-						<div class="flex items-center gap-2 transition-opacity duration-150 {showProjectPicker === notification.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">					<button class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200" title="Open in GitHub" onclick={() => openInGithub(notification)} disabled={!notification.html_url && !notification.subject_url}>
-						<span class="material-symbols-outlined text-[20px]">open_in_new</span>
-					</button>						<button class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200" title="Archive" onclick={() => archive(notification.id)}>
-							<span class="material-symbols-outlined text-[20px]">archive</span>
-						</button>
-						<button class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200" title="Unsubscribe" onclick={() => unsubscribe(notification.id)}>
-							<span class="material-symbols-outlined text-[20px]">notifications_off</span>
+						<div class="flex items-center gap-2 transition-opacity duration-150 {showProjectPicker === notification.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}">
+							<button
+								class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200"
+								title="Open in GitHub"
+								onclick={() => openInGithub(notification)}
+								disabled={!notification.html_url}
+							>
+								<span class="material-symbols-outlined text-[20px]">open_in_new</span>
+							</button>
+							<button
+								class="p-2 text-outline hover:text-error hover:bg-error-container/20 rounded-md transition-all duration-200"
+								title="Archive"
+								onclick={() => archive(notification.id)}
+							>
+								<span class="material-symbols-outlined text-[20px]">archive</span>
+							</button>
+							<button
+								class="p-2 text-outline hover:text-primary hover:bg-primary-fixed/20 rounded-md transition-all duration-200"
+								title="Unsubscribe"
+								onclick={() => unsubscribe(notification.id)}
+							>
+								<span class="material-symbols-outlined text-[20px]">notifications_off</span>
 							</button>
 							<div class="h-6 w-[1px] bg-outline-variant/30 mx-1"></div>
 							<div class="relative">
