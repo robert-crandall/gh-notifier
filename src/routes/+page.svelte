@@ -62,6 +62,19 @@
 					<div class="bg-surface-container-lowest p-6 rounded-2xl animate-pulse h-48"></div>
 				{/each}
 			</div>
+		{:else if activeProjects.length === 0}
+			<div class="flex flex-col items-center justify-center py-20 text-center">
+				<span class="material-symbols-outlined text-6xl text-on-surface-variant/20 mb-4">folder_open</span>
+				<p class="text-lg font-semibold text-on-surface-variant">No active projects</p>
+				<p class="text-sm text-on-surface-variant/60 mt-1 mb-6">Create your first project to start organizing notifications.</p>
+				<button
+					class="flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-semibold hover:opacity-90 active:scale-95 transition-all"
+					onclick={() => goto('/projects/new')}
+				>
+					<span class="material-symbols-outlined text-[18px]">add</span>
+					New Project
+				</button>
+			</div>
 		{:else}
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 				{#each activeProjects as project (project.id)}

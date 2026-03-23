@@ -692,6 +692,14 @@ pub fn toggle_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(
   Ok(())
 }
 
+#[tauri::command]
+pub fn delete_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM manual_tasks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Thread-mapping unit tests
 // ---------------------------------------------------------------------------
@@ -739,6 +747,12 @@ mod tests {
           thread_id      TEXT    NOT NULL,
           project_id     INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
           PRIMARY KEY (repo_full_name, thread_id)
+        );
+        CREATE TABLE manual_tasks (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          title      TEXT    NOT NULL,
+          is_done    INTEGER NOT NULL DEFAULT 0,
+          project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE
         );
         ",
       )
@@ -974,6 +988,83 @@ mod tests {
       )
       .unwrap();
     assert_eq!(status, "snoozed");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Manual task deletion unit test
+  // ---------------------------------------------------------------------------
+
+  #[test]
+  fn delete_manual_task_removes_task_and_leaves_others() {
+    let db = test_db();
+    let pid = insert_project(&db, "Task Project");
+
+    // Create three manual tasks
+    db.execute(
+      "INSERT INTO manual_tasks (title, project_id) VALUES (?1, ?2)",
+      params!["Task 1", pid],
+    )
+    .unwrap();
+    let task1_id = db.last_insert_rowid();
+
+    db.execute(
+      "INSERT INTO manual_tasks (title, project_id) VALUES (?1, ?2)",
+      params!["Task 2", pid],
+    )
+    .unwrap();
+    let task2_id = db.last_insert_rowid();
+
+    db.execute(
+      "INSERT INTO manual_tasks (title, project_id) VALUES (?1, ?2)",
+      params!["Task 3", pid],
+    )
+    .unwrap();
+    let task3_id = db.last_insert_rowid();
+
+    // Verify all three exist
+    let count: i64 = db
+      .query_row("SELECT COUNT(*) FROM manual_tasks", [], |row| row.get(0))
+      .unwrap();
+    assert_eq!(count, 3);
+
+    // Delete task 2 (using the same SQL as delete_manual_task)
+    db.execute("DELETE FROM manual_tasks WHERE id = ?1", params![task2_id])
+      .unwrap();
+
+    // Verify only 2 remain
+    let count: i64 = db
+      .query_row("SELECT COUNT(*) FROM manual_tasks", [], |row| row.get(0))
+      .unwrap();
+    assert_eq!(count, 2);
+
+    // Verify task 2 is gone
+    let exists: bool = db
+      .query_row(
+        "SELECT EXISTS(SELECT 1 FROM manual_tasks WHERE id = ?1)",
+        params![task2_id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert!(!exists);
+
+    // Verify task 1 and 3 still exist
+    let task1_exists: bool = db
+      .query_row(
+        "SELECT EXISTS(SELECT 1 FROM manual_tasks WHERE id = ?1)",
+        params![task1_id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert!(task1_exists);
+
+    let task3_exists: bool = db
+      .query_row(
+        "SELECT EXISTS(SELECT 1 FROM manual_tasks WHERE id = ?1)",
+        params![task3_id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert!(task3_exists);
   }
 
   // ---------------------------------------------------------------------------

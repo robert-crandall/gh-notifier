@@ -116,14 +116,14 @@
 **Goal:** Support non-GitHub tasks. Polish for daily-driver use.
 
 ### Tasks
-- [ ] Manual task CRUD: create, toggle done, delete
-- [ ] Attach manual tasks to projects (or keep standalone)
-- [ ] Show manual tasks in project detail view alongside notifications
-- [ ] Keyboard shortcuts: Cmd+N (new project), Cmd+K (search), Cmd+1/2/3 (nav)
-- [ ] Empty states: no projects, no notifications, inbox zero
+- [x] Manual task CRUD: create, toggle done, delete
+- [x] Attach manual tasks to projects (or keep standalone)
+- [x] Show manual tasks in project detail view alongside notifications
+- [x] Keyboard shortcuts: Cmd+N (new project), Cmd+K (search), Cmd+1/2/3 (nav)
+- [x] Empty states: no projects, no notifications, inbox zero
 - [ ] Error handling: show user-friendly messages for API failures
 - [ ] Loading states: skeleton screens during sync
-- [ ] Window state persistence (size, position)
+- [x] Window state persistence (size, position)
 
 ### Done when
 - Can add "Call Bob about deployment" to a project
