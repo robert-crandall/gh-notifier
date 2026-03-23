@@ -794,9 +794,10 @@ fn process_notifications(
   )
   .map_err(|e| e.to_string())?;
 
-  // Record when the last successful sync completed.
+  // Record when the last successful sync completed (ISO 8601, UTC).
   db.execute(
-    "INSERT OR REPLACE INTO settings (key, value) VALUES ('last_synced_at', datetime('now'))",
+    "INSERT OR REPLACE INTO settings (key, value) \
+     VALUES ('last_synced_at', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
     [],
   )
   .map_err(|e| e.to_string())?;
@@ -811,7 +812,18 @@ pub(crate) fn background_sync(
   token_cache: &crate::db::TokenCache,
 ) -> Result<(), String> {
   let token = get_cached_token(token_cache)?;
-  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  // Read last_synced_at before releasing the lock so the fetch has no DB contention.
+  let since = {
+    let db = db_state.0.lock().map_err(|e| e.to_string())?;
+    db.query_row(
+      "SELECT value FROM settings WHERE key = 'last_synced_at'",
+      [],
+      |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?
+  };
+  let api_notifications = github::fetch_notifications(&token, since.as_deref())?; // no DB lock held
   let db = db_state.0.lock().map_err(|e| e.to_string())?;
   process_notifications(&db, &api_notifications, &token)
 }
@@ -822,7 +834,18 @@ pub fn sync_notifications(
   state: tauri::State<'_, DbState>,
 ) -> Result<(), String> {
   let token = get_cached_token(&token_cache)?;
-  let api_notifications = github::fetch_notifications(&token)?; // no DB lock held
+  // Read last_synced_at before releasing the lock so the fetch has no DB contention.
+  let since = {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    db.query_row(
+      "SELECT value FROM settings WHERE key = 'last_synced_at'",
+      [],
+      |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?
+  };
+  let api_notifications = github::fetch_notifications(&token, since.as_deref())?; // no DB lock held
   let db = state.0.lock().map_err(|e| e.to_string())?;
   process_notifications(&db, &api_notifications, &token)
 }
