@@ -136,6 +136,42 @@ pub fn fetch_notifications(token: &str) -> Result<Vec<ApiNotification>, String> 
   Ok(all_notifications)
 }
 
+/// Fetch the subject URL for an Issue or Pull Request and return `true` if it
+/// is in a terminal state (closed issue, or closed/merged PR).
+///
+/// Returns `false` for non-PR/Issue subject types, or on any network/parse
+/// error — callers should treat failures as "not terminal" and move on.
+pub fn fetch_is_terminal(token: &str, subject_url: &str, subject_type: &str) -> bool {
+  #[derive(Deserialize)]
+  struct SubjectState {
+    state: Option<String>,
+    merged: Option<bool>,
+  }
+
+  if subject_type != "PullRequest" && subject_type != "Issue" {
+    return false;
+  }
+
+  let Ok(client) = make_client(token) else {
+    return false;
+  };
+  let Ok(resp) = client.get(subject_url).send() else {
+    return false;
+  };
+  if !resp.status().is_success() {
+    return false;
+  }
+  let detail: SubjectState = match resp.json() {
+    Ok(d) => d,
+    Err(_) => return false,
+  };
+  match subject_type {
+    "PullRequest" => detail.merged.unwrap_or(false) || detail.state.as_deref() == Some("closed"),
+    "Issue" => detail.state.as_deref() == Some("closed"),
+    _ => false,
+  }
+}
+
 /// Unsubscribe from a GitHub notification thread.
 /// Calls `DELETE /notifications/threads/{thread_id}/subscription`.
 pub fn unsubscribe_thread(token: &str, thread_id: &str) -> Result<(), String> {

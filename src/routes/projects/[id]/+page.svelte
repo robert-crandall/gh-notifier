@@ -12,6 +12,7 @@
 	let saveMessage = $state('');
 	let newTaskTitle = $state('');
 	let addingTask = $state(false);
+	let showClosedSection = $state(false);
 
 	// Snooze modal state
 	let showSnoozeModal = $state(false);
@@ -19,6 +20,8 @@
 	let snoozeUntil = $state('');
 
 	let projectId = $derived(Number($page.params.id));
+	let activeNotifications = $derived(notifications.filter((n) => !n.is_terminal));
+	let closedNotifications = $derived(notifications.filter((n) => n.is_terminal));
 
 	$effect(() => {
 		Promise.all([
@@ -262,7 +265,7 @@
 					</h2>
 					<div class="flex items-center gap-2">
 						<span class="bg-surface-container-highest text-on-surface-variant px-2 py-0.5 rounded-full text-[10px] font-bold">
-							{notifications.filter((n) => !n.is_read).length} UNREAD
+							{activeNotifications.filter((n) => !n.is_read).length} UNREAD
 						</span>
 					</div>
 				</div>
@@ -279,14 +282,14 @@
 			</div>
 
 			<div class="flex-1 overflow-y-auto p-10 space-y-6 no-scrollbar">
-				{#if notifications.length === 0 && !loading}
+				{#if activeNotifications.length === 0 && !loading}
 					<div class="flex flex-col items-center justify-center h-48 text-center">
 						<span class="material-symbols-outlined text-5xl text-on-surface-variant/20 mb-3">mark_email_read</span>
 						<p class="font-medium text-on-surface-variant">No notifications</p>
 						<p class="text-xs text-on-surface-variant/50 mt-1">You're all caught up on this project.</p>
 					</div>
 				{/if}
-				{#each notifications as notification (notification.id)}
+				{#each activeNotifications as notification (notification.id)}
 					<div class="relative group {notification.is_read ? 'opacity-60 hover:opacity-100' : ''}">
 						<div class="absolute -left-6 top-0 bottom-0 w-[3px] {notification.is_read ? 'bg-secondary-fixed-dim' : 'bg-primary'} rounded-full transition-all group-hover:w-[5px]"></div>
 						<div class="{notification.is_read ? 'bg-surface-dim/20 border border-outline-variant/10' : 'bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5'} p-6 rounded-xl transition-shadow">
@@ -326,6 +329,60 @@
 						</div>
 					</div>
 				{/each}
+
+				<!-- Closed threads (terminal) -->
+				{#if closedNotifications.length > 0}
+					<div class="mt-2">
+						<button
+							class="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface transition-colors mb-3 w-full text-left"
+							onclick={() => (showClosedSection = !showClosedSection)}
+						>
+							<span class="material-symbols-outlined text-base transition-transform {showClosedSection ? 'rotate-90' : ''}">chevron_right</span>
+							Closed
+							<span class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[9px] font-bold">{closedNotifications.length}</span>
+						</button>
+						{#if showClosedSection}
+							<div class="space-y-3">
+								{#each closedNotifications as notification (notification.id)}
+									<div class="relative group opacity-50 hover:opacity-80 transition-opacity">
+										<div class="absolute -left-6 top-0 bottom-0 w-[3px] bg-surface-container-highest rounded-full"></div>
+										<div class="bg-surface-dim/20 border border-outline-variant/10 p-5 rounded-xl">
+											<div class="flex justify-between items-start">
+												<div class="flex items-start gap-3">
+													<div class="w-9 h-9 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+														<span class="material-symbols-outlined text-base">
+															{notification.subject_type === 'PullRequest' ? 'merge' : 'check_circle'}
+														</span>
+													</div>
+													<div>
+														<div class="flex items-center gap-2 text-[10px] text-on-surface-variant tracking-wider uppercase mb-1">
+															<span>{notification.repo_full_name}</span>
+															<span>&bull;</span>
+															<span>{timeAgo(notification.updated_at)}</span>
+															<span class="bg-surface-container-highest text-on-surface-variant px-1.5 py-0.5 rounded text-[9px] font-bold">
+																{notification.subject_type === 'PullRequest' ? 'MERGED' : 'CLOSED'}
+															</span>
+														</div>
+														<h3 class="font-medium text-on-surface-variant text-sm">{notification.subject_title}</h3>
+													</div>
+												</div>
+												<div class="opacity-0 group-hover:opacity-100 transition-opacity">
+													<button
+														class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary flex items-center gap-2"
+														onclick={() => openInGithub(notification)}
+													>
+														<span class="material-symbols-outlined text-sm">open_in_new</span>
+														GITHUB
+													</button>
+												</div>
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
 
 				<!-- Manual Tasks -->
 				<div class="mt-8 pt-6 bg-surface-container-low rounded-xl px-4">
