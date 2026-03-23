@@ -95,7 +95,18 @@
 		</div>
 
 		<div class="space-y-4">
-			{#each notifications as notification (notification.id)}
+			{#if loading}
+				{#each [1, 2, 3] as _, i (i)}
+					<div class="h-24 bg-surface-container-lowest rounded-md animate-pulse"></div>
+				{/each}
+			{:else if notifications.length === 0}
+				<div class="flex flex-col items-center justify-center py-24 text-center">
+					<span class="material-symbols-outlined text-6xl text-on-surface-variant/20 mb-4">inbox</span>
+					<p class="text-xl font-semibold text-on-surface-variant">Inbox Zero</p>
+					<p class="text-sm text-on-surface-variant/60 mt-2">All notifications have been assigned or archived.</p>
+				</div>
+			{:else}
+				{#each notifications as notification (notification.id)}
 				{@const badge = typeLabel(notification.subject_type)}
 				<div
 					class="group relative {showProjectPicker === notification.id ? 'z-20' : ''} {notification.is_read
@@ -165,7 +176,8 @@
 						</div>
 					</div>
 				</div>
-			{/each}
+				{/each}
+			{/if}
 
 			<!-- CTA card -->
 			<div class="relative overflow-hidden bg-gradient-to-br from-primary to-on-primary-fixed-variant p-8 rounded-xl shadow-lg mt-12 flex flex-col md:flex-row items-center justify-between">

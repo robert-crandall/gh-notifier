@@ -692,6 +692,14 @@ pub fn toggle_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(
   Ok(())
 }
 
+#[tauri::command]
+pub fn delete_manual_task(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM manual_tasks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Thread-mapping unit tests
 // ---------------------------------------------------------------------------

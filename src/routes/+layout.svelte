@@ -3,19 +3,28 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import * as api from '$lib/api';
+	import { restoreStateCurrent, StateFlags } from '@tauri-apps/plugin-window-state';
 
 	let { children } = $props();
 
 	let inboxCount = $state(0);
 	let lastSynced = $state<string | null>(null);
+	let activeCount = $state(0);
+	let snoozedCount = $state(0);
 
 	$effect(() => {
+		restoreStateCurrent(StateFlags.ALL).catch(() => {});
 		api.getUnmappedNotifications().then((notifs) => {
 			inboxCount = notifs.filter((n) => !n.is_read).length;
 		}).catch(() => {});
 
 		api.getSettings().then((s) => {
 			lastSynced = s.last_synced_at;
+		}).catch(() => {});
+
+		api.getProjects().then((projects) => {
+			activeCount = projects.filter((p) => p.status === 'active').length;
+			snoozedCount = projects.filter((p) => p.status === 'snoozed').length;
 		}).catch(() => {});
 
 		// Refresh last-synced timestamp every 30 s so the top bar stays current.
@@ -28,6 +37,36 @@
 		return () => clearInterval(interval);
 	});
 
+	$effect(() => {
+		function handleKeydown(e: KeyboardEvent) {
+			if (!e.metaKey) return;
+			switch (e.key) {
+				case 'n':
+					e.preventDefault();
+					goto('/projects/new');
+					break;
+				case 'k':
+					e.preventDefault();
+					document.querySelector<HTMLInputElement>('#cmd-k-search')?.focus();
+					break;
+				case '1':
+					e.preventDefault();
+					goto('/');
+					break;
+				case '2':
+					e.preventDefault();
+					goto('/inbox');
+					break;
+				case '3':
+					e.preventDefault();
+					goto('/settings');
+					break;
+			}
+		}
+		document.addEventListener('keydown', handleKeydown);
+		return () => document.removeEventListener('keydown', handleKeydown);
+	});
+
 	const navItems = $derived([
 		{ href: '/', icon: 'dashboard', label: 'Dashboard', badge: 0 },
 		{ href: '/inbox', icon: 'inbox', label: 'Inbox', badge: inboxCount },
@@ -38,9 +77,6 @@
 		if (href === '/') return pathname === '/';
 		return pathname.startsWith(href);
 	}
-
-	let activeCount = $state(8);
-	let snoozedCount = $state(3);
 </script>
 
 <div class="flex h-screen bg-surface text-on-surface antialiased">
@@ -150,6 +186,7 @@
 						class="w-full bg-surface-container-high border-none rounded-full py-1.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/40 placeholder:text-on-surface-variant/60"
 						placeholder="Search projects..."
 						type="text"
+						id="cmd-k-search"
 					/>
 				</div>
 				<div class="flex items-center gap-4">

@@ -83,3 +83,7 @@ export async function createManualTask(title: string, projectId: number | null):
 export async function toggleManualTask(id: number): Promise<void> {
 	return invoke('toggle_manual_task', { id });
 }
+
+export async function deleteManualTask(id: number): Promise<void> {
+	return invoke('delete_manual_task', { id });
+}

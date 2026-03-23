@@ -4,8 +4,8 @@ mod github;
 mod models;
 
 use commands::{
-  assign_notification_to_project, create_manual_task, create_project, delete_project,
-  get_manual_tasks, get_notifications, get_project, get_projects, get_settings,
+  assign_notification_to_project, create_manual_task, create_project, delete_manual_task,
+  delete_project, get_manual_tasks, get_notifications, get_project, get_projects, get_settings,
   get_unmapped_notifications, mark_notification_read, save_github_token, save_settings,
   snooze_project, sync_notifications, toggle_manual_task, unsubscribe_thread, update_project,
   wake_project,
@@ -47,6 +47,7 @@ pub fn run() {
       Ok(())
     })
     .plugin(tauri_plugin_shell::init())
+    .plugin(tauri_plugin_window_state::Builder::default().build())
     .invoke_handler(tauri::generate_handler![
       get_projects,
       get_project,
@@ -67,6 +68,7 @@ pub fn run() {
       get_manual_tasks,
       create_manual_task,
       toggle_manual_task,
+      delete_manual_task,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
