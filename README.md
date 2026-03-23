@@ -26,3 +26,15 @@ sqlite3 ~/Library/Application\ Support/com.precision-architect.gh-notifier/gh-no
 5. Quit and relaunch the app → the project and edits should still be there
 6. Go to **Settings** → enter any token string → click Save
 7. Quit and relaunch → the token field should show as `••••••••` (confirming persistence)
+
+### Security — token encryption key
+
+The GitHub PAT is stored encrypted in SQLite using AES-GCM. The 256-bit key is kept in a separate file:
+
+```
+~/Library/Application Support/com.precision-architect.gh-notifier/key.bin
+```
+
+On **Unix/macOS** the file is created with mode `0600` (owner read/write only).
+
+On **Windows**, restrictive file permissions are not enforced at creation time. The key file is the sole protection for the encrypted token — do not share or expose your app data directory. For production use on Windows, consider replacing this with DPAPI-backed storage.

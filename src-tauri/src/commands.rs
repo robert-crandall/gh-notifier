@@ -2,40 +2,91 @@
 #![allow(clippy::missing_errors_doc)]
 
 use crate::{
-  db::{DbState, TokenCache},
+  db::{DbState, EncKey, TokenCache},
   github,
   models::{AppSettings, GithubNotification, ManualTask, Project},
 };
-use keyring::Entry;
+use aes_gcm::{
+  aead::{Aead, KeyInit},
+  Aes256Gcm, Nonce,
+};
+use rand::{rngs::OsRng, RngCore};
 use rusqlite::{params, OptionalExtension};
 
-pub(crate) const KEYRING_SERVICE: &str = "gh-notifier";
-pub(crate) const KEYRING_USER: &str = "github_token";
+// ---------------------------------------------------------------------------
+// Token encryption helpers (AES-256-GCM, key stored in key.bin)
+// ---------------------------------------------------------------------------
 
-fn keychain_entry() -> Result<Entry, String> {
-  Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())
+fn to_hex(bytes: &[u8]) -> String {
+  bytes
+    .iter()
+    .fold(String::with_capacity(bytes.len() * 2), |mut acc, b| {
+      use std::fmt::Write as _;
+      write!(acc, "{b:02x}").expect("writing to String is infallible");
+      acc
+    })
 }
 
-/// Load the PAT directly from the macOS Keychain — used only once at startup.
+fn from_hex(s: &str) -> Result<Vec<u8>, String> {
+  if !s.len().is_multiple_of(2) {
+    return Err("invalid hex string length".into());
+  }
+  (0..s.len() / 2)
+    .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|e| e.to_string()))
+    .collect()
+}
+
+fn encrypt_token(token: &str, key: &[u8; 32]) -> Result<String, String> {
+  let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+  let mut nonce_bytes = [0u8; 12];
+  OsRng.fill_bytes(&mut nonce_bytes);
+  let nonce = Nonce::from_slice(&nonce_bytes);
+  let ciphertext = cipher
+    .encrypt(nonce, token.as_bytes())
+    .map_err(|e| e.to_string())?;
+  Ok(format!("{}:{}", to_hex(&nonce_bytes), to_hex(&ciphertext)))
+}
+
+fn decrypt_token(stored: &str, key: &[u8; 32]) -> Result<String, String> {
+  let (nonce_hex, ct_hex) = stored
+    .split_once(':')
+    .ok_or("invalid encrypted token format")?;
+  let nonce_bytes = from_hex(nonce_hex)?;
+  let ciphertext = from_hex(ct_hex)?;
+  let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+  let nonce_array: [u8; 12] = nonce_bytes
+    .try_into()
+    .map_err(|_| "invalid nonce length for encrypted token".to_string())?;
+  let nonce = Nonce::from_slice(&nonce_array);
+  let plaintext = cipher
+    .decrypt(nonce, ciphertext.as_ref())
+    .map_err(|_| "decryption failed — token may be corrupt".to_string())?;
+  String::from_utf8(plaintext).map_err(|e| e.to_string())
+}
+
+/// Load the PAT from `SQLite` (AES-256-GCM encrypted) — used only once at startup.
 /// All runtime code reads from `TokenCache` instead.
-pub(crate) fn load_token_for_cache() -> Option<String> {
-  match keychain_entry() {
-    Ok(entry) => match entry.get_password() {
-      Ok(password) => Some(password),
-      Err(err) => {
-        eprintln!(
-          "Failed to read GitHub token from keychain (service: {KEYRING_SERVICE}, user: {KEYRING_USER}): {err}",
-        );
-        None
-      }
-    },
-    Err(err) => {
-      eprintln!(
-        "Failed to access keychain entry for GitHub token (service: {KEYRING_SERVICE}, user: {KEYRING_USER}): {err}",
-      );
+pub(crate) fn load_token_for_cache(conn: &rusqlite::Connection, key: &[u8; 32]) -> Option<String> {
+  let encrypted: Option<String> = match conn
+    .query_row(
+      "SELECT value FROM settings WHERE key = 'github_token_enc'",
+      [],
+      |row| row.get(0),
+    )
+    .optional()
+  {
+    Ok(row_opt) => row_opt,
+    Err(e) => {
+      eprintln!("Failed to load encrypted GitHub token from SQLite: {e}");
       None
     }
-  }
+  };
+
+  encrypted.and_then(|enc| {
+    decrypt_token(&enc, key)
+      .map_err(|e| eprintln!("Failed to decrypt GitHub token: {e}"))
+      .ok()
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -399,24 +450,32 @@ pub fn save_github_token(
   token: String,
   token_cache: tauri::State<'_, TokenCache>,
   state: tauri::State<'_, DbState>,
+  enc_key: tauri::State<'_, EncKey>,
 ) -> Result<(), String> {
   // Validate before storing — fail fast with a useful error message.
   github::validate_token(&token)?;
 
-  // Store the PAT in the macOS Keychain (encrypted at rest).
-  keychain_entry()?
-    .set_password(&token)
+  // Encrypt the PAT with AES-256-GCM and store it in SQLite.
+  let encrypted = encrypt_token(&token, &enc_key.0)?;
+  {
+    let mut db = state.0.lock().map_err(|e| e.to_string())?;
+    let tx = db.transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('github_token_enc', ?1)",
+      params![encrypted],
+    )
     .map_err(|e| e.to_string())?;
+    tx.execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('is_setup_complete', 'true')",
+      [],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+  }
 
-  // Update the in-memory cache so subsequent calls don't touch the Keychain.
+  // Update the in-memory cache so subsequent calls don't re-read SQLite.
   *token_cache.0.lock().map_err(|e| e.to_string())? = Some(token);
 
-  let db = state.0.lock().map_err(|e| e.to_string())?;
-  db.execute(
-    "INSERT OR REPLACE INTO settings (key, value) VALUES ('is_setup_complete', 'true')",
-    [],
-  )
-  .map_err(|e| e.to_string())?;
   Ok(())
 }
 
@@ -915,5 +974,81 @@ mod tests {
       )
       .unwrap();
     assert_eq!(status, "snoozed");
+  }
+
+  // ---------------------------------------------------------------------------
+  // AES-256-GCM encryption/decryption unit tests
+  // ---------------------------------------------------------------------------
+
+  #[test]
+  fn test_encrypt_decrypt_round_trip() {
+    use super::{decrypt_token, encrypt_token};
+    let key = [42u8; 32];
+    let token = "ghp_testtoken1234567890";
+
+    let encrypted = encrypt_token(token, &key).expect("encryption should succeed");
+    let decrypted = decrypt_token(&encrypted, &key).expect("decryption should succeed");
+
+    assert_eq!(decrypted, token);
+  }
+
+  #[test]
+  fn test_decrypt_invalid_format() {
+    use super::decrypt_token;
+    let key = [42u8; 32];
+
+    // Missing the ':' separator
+    let result = decrypt_token("badhex", &key);
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err(), "invalid encrypted token format");
+  }
+
+  #[test]
+  fn test_decrypt_invalid_nonce_length() {
+    use super::decrypt_token;
+    let key = [42u8; 32];
+
+    // Valid hex but wrong nonce length (8 bytes instead of 12)
+    let result = decrypt_token("0102030405060708:abcdef", &key);
+    assert!(result.is_err());
+    assert_eq!(
+      result.unwrap_err(),
+      "invalid nonce length for encrypted token"
+    );
+  }
+
+  #[test]
+  fn test_decrypt_corrupted_ciphertext() {
+    use super::{decrypt_token, encrypt_token};
+    let key = [42u8; 32];
+
+    let encrypted = encrypt_token("ghp_test", &key).expect("encryption should succeed");
+    let (nonce_hex, _) = encrypted.split_once(':').unwrap();
+
+    // Replace ciphertext with garbage (but valid hex)
+    let corrupted = format!("{nonce_hex}:deadbeef");
+    let result = decrypt_token(&corrupted, &key);
+
+    assert!(result.is_err());
+    assert_eq!(
+      result.unwrap_err(),
+      "decryption failed — token may be corrupt"
+    );
+  }
+
+  #[test]
+  fn test_decrypt_wrong_key() {
+    use super::{decrypt_token, encrypt_token};
+    let key1 = [1u8; 32];
+    let key2 = [2u8; 32];
+
+    let encrypted = encrypt_token("ghp_test", &key1).expect("encryption should succeed");
+    let result = decrypt_token(&encrypted, &key2);
+
+    assert!(result.is_err());
+    assert_eq!(
+      result.unwrap_err(),
+      "decryption failed — token may be corrupt"
+    );
   }
 }

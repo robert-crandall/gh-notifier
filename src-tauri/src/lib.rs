@@ -31,11 +31,13 @@ pub fn run() {
           [],
         )
         .map_err(std::io::Error::other)?;
-      app.manage(db::DbState(std::sync::Mutex::new(conn)));
 
-      // Load the PAT from the Keychain exactly once so runtime code never needs
-      // to access it again (repeated Keychain access triggers macOS auth prompts).
-      let cached_token = commands::load_token_for_cache();
+      // Load (or generate on first launch) the AES-256-GCM key, then decrypt
+      // the PAT from SQLite into the in-memory cache — no user prompt needed.
+      let enc_key = db::load_or_create_key(&app_data_dir).map_err(std::io::Error::other)?;
+      let cached_token = commands::load_token_for_cache(&conn, &enc_key);
+      app.manage(db::DbState(std::sync::Mutex::new(conn)));
+      app.manage(db::EncKey(enc_key));
       app.manage(db::TokenCache(std::sync::Mutex::new(cached_token)));
 
       // Spawn the background notification polling loop.
