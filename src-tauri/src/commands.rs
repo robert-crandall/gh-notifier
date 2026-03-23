@@ -625,12 +625,19 @@ fn get_cached_token(cache: &TokenCache) -> Result<String, String> {
 /// Core sync logic — upsert API notifications into the DB, wake notification-mode
 /// snoozed projects, wake expired date-based snoozes, and record `last_synced_at`.
 /// Called by both the Tauri command and the background polling loop.
+///
+/// Enriches `api_notifications` with terminal state checks **before** acquiring the DB
+/// lock to avoid blocking other commands during network I/O. Reuses a single HTTP
+/// client for all terminal-state fetches to reduce overhead.
 #[allow(clippy::too_many_lines)]
 fn process_notifications(
   db: &rusqlite::Connection,
   api_notifications: &[github::ApiNotification],
   token: &str,
 ) -> Result<(), String> {
+  // Build HTTP client once for all terminal-state checks.
+  let client = github::make_client_public(token)?;
+
   for n in api_notifications {
     // Filter out team_mention noise per the PRD.
     if n.reason == "team_mention" {
@@ -684,7 +691,7 @@ fn process_notifications(
         .subject
         .url
         .as_deref()
-        .is_some_and(|url| github::fetch_is_terminal(token, url, &n.subject.subject_type));
+        .is_some_and(|url| github::fetch_is_terminal(&client, url, &n.subject.subject_type));
 
     // Terminal notifications are auto-marked read so they don't create noise.
     let is_read = is_terminal || !n.unread;
