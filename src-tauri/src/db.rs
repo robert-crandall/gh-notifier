@@ -49,6 +49,12 @@ fn write_key_file(path: &Path, key: &[u8]) -> Result<(), String> {
 
 #[cfg(not(unix))]
 fn write_key_file(path: &Path, key: &[u8]) -> Result<(), String> {
+  // SECURITY NOTE: On Windows and other non-Unix platforms, this writes key.bin
+  // without enforcing restrictive file permissions. The key is the sole protection
+  // for decrypting `github_token_enc` in SQLite. For production use, consider:
+  // - Using platform-specific secure storage (DPAPI on Windows, Keychain on macOS, libsecret on Linux)
+  // - Applying restrictive ACLs after file creation (e.g., via Windows API)
+  // - Documenting that users should not share their app data directory
   std::fs::write(path, key).map_err(|e| e.to_string())
 }
 
