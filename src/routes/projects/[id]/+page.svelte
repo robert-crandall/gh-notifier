@@ -165,6 +165,16 @@
 		}
 	}
 
+	async function markAllRead() {
+		if (!project) return;
+		try {
+			await api.markAllNotificationsRead(project.id);
+			notifications = notifications.map((n) => ({ ...n, is_read: true }));
+		} catch (e) {
+			console.error('Failed to mark all read:', e);
+		}
+	}
+
 	async function doSnooze() {
 		if (!project) return;
 
@@ -514,8 +524,11 @@
 						<span class="material-symbols-outlined text-base">filter_list</span>
 						FILTER
 					</button>
-					<button class="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
-						<span class="material-symbols-outlined text-base">done_all</span>
+					<button
+						onclick={markAllRead}
+						class="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1"
+					>
+						<span class="material-symbols-outlined text-base">drafts</span>
 						MARK ALL READ
 					</button>
 				</div>

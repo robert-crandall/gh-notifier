@@ -586,6 +586,68 @@ pub fn mark_notification_unread(id: i64, state: tauri::State<'_, DbState>) -> Re
   Ok(())
 }
 
+#[tauri::command]
+pub fn mark_all_notifications_read(
+  project_id: Option<i64>,
+  token_cache: tauri::State<'_, TokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  // Fetch all unread notification IDs and their github_ids.
+  let notifications: Vec<(i64, Option<String>)> = {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    if let Some(pid) = project_id {
+      let mut stmt = db
+        .prepare("SELECT id, github_id FROM notifications WHERE project_id = ?1 AND is_read = 0")
+        .map_err(|e| e.to_string())?;
+      let rows = stmt
+        .query_map(params![pid], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?;
+      rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?
+    } else {
+      let mut stmt = db
+        .prepare("SELECT id, github_id FROM notifications WHERE project_id IS NULL AND is_read = 0")
+        .map_err(|e| e.to_string())?;
+      let rows = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?;
+      rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?
+    }
+  };
+
+  // Take a copy of the token so we don't hold the lock during network calls.
+  let token: Option<String> = if let Ok(token_guard) = token_cache.0.lock() {
+    token_guard.as_deref().map(str::to_owned)
+  } else {
+    None
+  };
+
+  // Best-effort: tell GitHub each thread is read.
+  if let Some(token) = token.as_ref() {
+    for (_id, github_id) in &notifications {
+      if let Some(gid) = github_id {
+        let _ = github::mark_thread_read(token, gid);
+      }
+    }
+  }
+
+  // Mark all as read in the database for the exact rows we fetched above.
+  {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    for (id, _github_id) in &notifications {
+      db.execute(
+        "UPDATE notifications SET is_read = 1 WHERE id = ?1 AND is_read = 0",
+        params![id],
+      )
+      .map_err(|e| e.to_string())?;
+    }
+  }
+  Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Settings commands
 // ---------------------------------------------------------------------------

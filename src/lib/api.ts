@@ -86,6 +86,10 @@ export async function markNotificationUnread(id: number): Promise<void> {
 	return invoke('mark_notification_unread', { id });
 }
 
+export async function markAllNotificationsRead(projectId?: number | null): Promise<void> {
+	return invoke('mark_all_notifications_read', { projectId: projectId ?? null });
+}
+
 export async function unsubscribeThread(id: number): Promise<void> {
 	return invoke('unsubscribe_thread', { id });
 }
