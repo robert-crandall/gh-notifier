@@ -46,7 +46,7 @@
 	let projectId = $derived(Number($page.params.id));
 	let filtered = $derived(applyFilters(notifications, filterChips));
 	let activeNotifications = $derived(filtered.filter((n) => !n.is_terminal));
-	let unreadActiveNotifications = $derived(
+	let attentionNeededActiveNotifications = $derived(
 		activeNotifications.filter((n) => !n.is_read || n.action_needed)
 	);
 	let readActiveNotifications = $derived(
@@ -609,7 +609,7 @@
 						<p class="text-xs text-on-surface-variant/50 mt-1">You're all caught up on this project.</p>
 					</div>
 				{/if}
-				{#each unreadActiveNotifications as notification (notification.id)}
+				{#each attentionNeededActiveNotifications as notification (notification.id)}
 				<div class="relative group">
 					<div class="absolute -left-6 top-0 bottom-0 w-[3px] {notification.action_needed ? 'bg-tertiary' : 'bg-primary'} rounded-full transition-all group-hover:w-[5px]"></div>
 					<div class="bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5 p-6 rounded-xl transition-shadow {notification.action_needed && notification.is_read ? 'opacity-80' : ''}">
