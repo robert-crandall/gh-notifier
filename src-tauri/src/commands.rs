@@ -5,8 +5,8 @@ use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
   models::{
-    AppSettings, Bookmark, GithubNotification, ManualTask, Project, RepoRoutingHint,
-    RepoRoutingKind, RepoRule,
+    AppSettings, Bookmark, GithubNotification, GlobalFilter, ManualTask, Project, RepoFilter,
+    RepoRoutingHint, RepoRoutingKind, RepoRule,
   },
 };
 use aes_gcm::{
@@ -715,31 +715,54 @@ fn process_notifications(
   // Build HTTP client once for all terminal-state checks.
   let client = github::make_client_public(token)?;
 
+  // Load all global filters into a HashSet for fast lookups
+  let global_filters: std::collections::HashSet<String> = {
+    let mut stmt = db
+      .prepare("SELECT reason FROM global_filters")
+      .map_err(|e| e.to_string())?;
+    let rows = stmt
+      .query_map([], |row| row.get::<_, String>(0))
+      .map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+  };
+
+  // Load all repo filters into a map: repo_full_name -> set of reasons
+  let repo_filters: std::collections::HashMap<String, std::collections::HashSet<String>> = {
+    let mut stmt = db
+      .prepare("SELECT repo_full_name, reason FROM repo_filters")
+      .map_err(|e| e.to_string())?;
+    let rows = stmt
+      .query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+      })
+      .map_err(|e| e.to_string())?;
+
+    let mut map: std::collections::HashMap<String, std::collections::HashSet<String>> =
+      std::collections::HashMap::new();
+    for row_result in rows {
+      let (repo, reason) = row_result.map_err(|e| e.to_string())?;
+      map.entry(repo).or_default().insert(reason);
+    }
+    map
+  };
+
   for n in api_notifications {
-    // Check if this notification should be filtered:
-    // 1. Global filter for this reason (applies to all repos)
-    let is_globally_filtered: bool = db
-      .query_row(
-        "SELECT 1 FROM global_filters WHERE reason = ?1",
-        params![n.reason],
-        |_| Ok(true),
-      )
-      .optional()
-      .map_err(|e| e.to_string())?
-      .unwrap_or(false);
+    // Check if this notification should be filtered using in-memory lookups
+    let is_globally_filtered = global_filters.contains(&n.reason);
+    let is_repo_filtered = repo_filters
+      .get(&n.repository.full_name)
+      .is_some_and(|reasons| reasons.contains(&n.reason));
 
-    // 2. Repo-specific filter for this reason (only for this repo)
-    let is_repo_filtered: bool = db
-      .query_row(
-        "SELECT 1 FROM repo_filters WHERE repo_full_name = ?1 AND reason = ?2",
-        params![n.repository.full_name, n.reason],
-        |_| Ok(true),
-      )
-      .optional()
-      .map_err(|e| e.to_string())?
-      .unwrap_or(false);
-
-    // Skip this notification if either filter matches
+    // FIXME: Current implementation skips filtered notifications entirely (continue
+    // before INSERT). Because GitHub API sync uses `since=last_synced_at`, a
+    // notification filtered once may never be re-fetched unless it gets new activity.
+    // This means removing a filter won't reliably resurface previously filtered
+    // notifications. To make filtering non-destructive, we should:
+    // 1. Add `is_filtered BOOLEAN DEFAULT 0` column to notifications table
+    // 2. INSERT all notifications and set is_filtered=1 for matched filters
+    // 3. Update all SELECT queries to filter out `WHERE is_filtered = 0` by default
+    // 4. Add UI to view/unfilter hidden notifications
+    // This requires schema migration + changes across multiple files.
     if is_globally_filtered || is_repo_filtered {
       continue;
     }
@@ -1293,8 +1316,6 @@ pub fn delete_bookmark(id: i64, state: tauri::State<'_, DbState>) -> Result<(), 
 // ---------------------------------------------------------------------------
 // Global filter commands
 // ---------------------------------------------------------------------------
-
-use crate::models::{GlobalFilter, RepoFilter};
 
 fn global_filter_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GlobalFilter> {
   Ok(GlobalFilter {

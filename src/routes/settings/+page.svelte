@@ -48,6 +48,11 @@
 		'team_mention'
 	];
 
+	// Filter out reasons that are already in global filters
+	let availableGlobalReasons = $derived(
+		availableReasons.filter(r => !globalFilters.some(f => f.reason === r))
+	);
+
 	// Unified repo configuration: merge rules and filters by repo
 	interface RepoConfig {
 		repo_full_name: string;
@@ -266,8 +271,10 @@
 			const filter = await api.createGlobalFilter(newGlobalReason);
 			globalFilters = [...globalFilters, filter];
 			newGlobalReason = '';
+			message = '';
 		} catch (e) {
 			console.error('Failed to create global filter:', e);
+			message = `Failed to add filter: ${e}`;
 		}
 		addingGlobalFilter = false;
 	}
@@ -393,9 +400,9 @@
 		{#if globalFilters.length === 0}
 			<p class="text-sm text-on-surface-variant italic">No global filters.</p>
 		{:else}
-			<ul class="divide-y divide-outline-variant/10">
+			<ul class="space-y-2">
 				{#each globalFilters as filter (filter.id)}
-					<li class="flex items-center gap-3 py-2">
+					<li class="flex items-center gap-3 py-2 bg-surface-container-low rounded-lg px-3">
 						<code class="font-mono text-xs text-on-surface flex-1">{filter.reason}</code>
 						<button
 							class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-all"
@@ -409,13 +416,13 @@
 				{/each}
 			</ul>
 		{/if}
-		<div class="flex gap-2 pt-2 border-t border-outline-variant/10">
+		<div class="flex gap-2 pt-4">
 			<select
 				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40"
 				bind:value={newGlobalReason}
 			>
 				<option value="">Select reason...</option>
-				{#each availableReasons as reason}
+				{#each availableGlobalReasons as reason}
 					<option value={reason}>{reason}</option>
 				{/each}
 			</select>
@@ -465,7 +472,7 @@
 
 						<!-- Expanded content -->
 						{#if expandedRepos.has(config.repo_full_name)}
-							<div class="p-4 bg-surface-container border-t border-outline-variant/10 space-y-4">
+							<div class="p-4 bg-surface-container space-y-4">
 								<!-- Routing -->
 								<div>
 									<div class="flex items-center justify-between mb-2">
@@ -555,7 +562,7 @@
 		{/if}
 
 		<!-- Add new repo configuration -->
-		<div class="pt-4 border-t border-outline-variant/10 space-y-2">
+		<div class="pt-4 space-y-2">
 			<p class="text-xs font-semibold text-on-surface uppercase tracking-wider">Add Repository</p>
 			<div class="flex flex-col gap-2">
 				<input

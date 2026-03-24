@@ -72,6 +72,10 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
   Ok(conn)
 }
 
+// NOTE: This migration function is intentionally linear and append-only so all
+// schema evolution lives in one place. As new versions are added, keep each
+// version's steps small by extracting helpers for complex logic, but allow the
+// overall function to exceed the `too_many_lines` heuristic.
 #[allow(clippy::too_many_lines)]
 fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   // Read the current schema version (0 = fresh database).
