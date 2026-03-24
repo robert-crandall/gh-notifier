@@ -1710,15 +1710,24 @@ fn build_messages(query_type: &str, notification_text: &str) -> Vec<ChatMessage>
 pub fn query_copilot(
   query_type: String,
   copilot_cache: tauri::State<'_, CopilotTokenCache>,
+  token_cache: tauri::State<'_, TokenCache>,
   state: tauri::State<'_, DbState>,
 ) -> Result<String, String> {
-  // Retrieve the stored Copilot Fine-Grained PAT.
-  let copilot_token: String = copilot_cache
-    .0
-    .lock()
-    .map_err(|e| e.to_string())?
-    .clone()
-    .ok_or("No Copilot token configured. Add a Fine-Grained PAT with Copilot scope in Settings.")?;
+  // Prefer the dedicated Copilot Fine-Grained PAT; fall back to the
+  // notifications Classic PAT — GitHub Models accepts both.
+  let token: String = {
+    let copilot = copilot_cache.0.lock().map_err(|e| e.to_string())?.clone();
+    if let Some(t) = copilot {
+      t
+    } else {
+      token_cache
+        .0
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("No GitHub token configured. Please complete setup first.")?
+    }
+  };
 
   // Fetch active notifications (unread OR action_needed, non-terminal).
   let notifications: Vec<crate::models::GithubNotification> = {
@@ -1746,14 +1755,14 @@ pub fn query_copilot(
 
   let messages = build_messages(&query_type, &notification_text);
   let request_body = ChatRequest {
-    model: "gpt-4o".into(),
+    model: "openai/gpt-5-mini".into(),
     messages,
     stream: false,
   };
 
   let resp = client
-    .post("https://api.githubcopilot.com/chat/completions")
-    .header("Authorization", format!("Bearer {copilot_token}"))
+    .post("https://models.github.ai/inference/chat/completions")
+    .header("Authorization", format!("Bearer {token}"))
     .header("Content-Type", "application/json")
     .header("User-Agent", "gh-notifier/0.1")
     .json(&request_body)
@@ -1762,7 +1771,8 @@ pub fn query_copilot(
 
   if !resp.status().is_success() {
     let status = resp.status().as_u16();
-    return Err(format!("Copilot API returned HTTP {status}"));
+    let body = resp.text().unwrap_or_default();
+    return Err(format!("GitHub Models API returned HTTP {status}: {body}"));
   }
 
   let chat: ChatResponse = resp
