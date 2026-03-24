@@ -1058,7 +1058,7 @@ fn recheck_stale_nonterminal(
   let mut stmt = db
     .prepare(
       "SELECT id, subject_url, subject_type FROM notifications \
-       WHERE is_terminal = 0 AND is_read = 0 \
+       WHERE is_terminal = 0 AND (is_read = 0 OR action_needed = 1) \
          AND subject_type IN ('PullRequest', 'Issue') \
          AND subject_url IS NOT NULL \
          AND (?1 IS NULL OR datetime(updated_at) < datetime(?1))",
