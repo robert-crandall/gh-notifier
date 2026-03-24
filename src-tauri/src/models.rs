@@ -32,6 +32,10 @@ pub struct GithubNotification {
   /// `true` when the underlying thread is closed/merged — auto-marked read
   /// and shown in a collapsed "Closed" section rather than active threads.
   pub is_terminal: bool,
+  /// `true` when the user has flagged this notification as requiring action.
+  /// Flagged notifications remain in the Active Threads view even after being
+  /// marked read.
+  pub action_needed: bool,
   /// Latest comment prefetched in the background after sync.
   /// Cleared when `updated_at` changes (new activity on the thread).
   pub comment_body: Option<String>,

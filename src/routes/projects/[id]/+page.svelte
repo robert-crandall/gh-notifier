@@ -41,8 +41,12 @@
 
 	let projectId = $derived(Number($page.params.id));
 	let activeNotifications = $derived(notifications.filter((n) => !n.is_terminal));
-	let unreadActiveNotifications = $derived(activeNotifications.filter((n) => !n.is_read));
-	let readActiveNotifications = $derived(activeNotifications.filter((n) => n.is_read));
+	let unreadActiveNotifications = $derived(
+		activeNotifications.filter((n) => !n.is_read || n.action_needed)
+	);
+	let readActiveNotifications = $derived(
+		activeNotifications.filter((n) => n.is_read && !n.action_needed)
+	);
 	let closedNotifications = $derived(notifications.filter((n) => n.is_terminal));
 
 	$effect(() => {
@@ -162,6 +166,17 @@
 			notifications = notifications;
 		} catch (e) {
 			console.error('Failed to mark unread:', e);
+		}
+	}
+
+	async function toggleActionNeeded(notification: GithubNotification) {
+		const newVal = !notification.action_needed;
+		try {
+			await api.setActionNeeded(notification.id, newVal);
+			notification.action_needed = newVal;
+			notifications = notifications;
+		} catch (e) {
+			console.error('Failed to set action needed:', e);
 		}
 	}
 
@@ -589,65 +604,84 @@
 					</div>
 				{/if}
 				{#each unreadActiveNotifications as notification (notification.id)}
-					<div class="relative group">
-						<div class="absolute -left-6 top-0 bottom-0 w-[3px] bg-primary rounded-full transition-all group-hover:w-[5px]"></div>
-						<div class="bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5 p-6 rounded-xl transition-shadow">
-							<div class="flex justify-between items-start mb-4">
-								<div class="flex items-start gap-4">
-									<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
-										<span class="material-symbols-outlined">
-											{notification.subject_type === 'PullRequest' ? 'rebase' : 'error'}
-										</span>
-									</div>
-									<div>
-										<div class="flex items-center gap-2 text-[10px] text-on-surface-variant tracking-wider uppercase mb-1">
-											<span>{notification.repo_full_name}</span>
+				<div class="relative group">
+					<div class="absolute -left-6 top-0 bottom-0 w-[3px] {notification.action_needed ? 'bg-amber-400' : 'bg-primary'} rounded-full transition-all group-hover:w-[5px]"></div>
+					<div class="bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5 p-6 rounded-xl transition-shadow {notification.action_needed && notification.is_read ? 'opacity-80' : ''}">
+						<div class="flex justify-between items-start mb-4">
+							<div class="flex items-start gap-4">
+								<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center {notification.action_needed ? 'text-amber-400' : 'text-primary'}">
+									<span class="material-symbols-outlined">
+										{notification.subject_type === 'PullRequest' ? 'rebase' : 'error'}
+									</span>
+								</div>
+								<div>
+									<div class="flex items-center gap-2 text-[10px] text-on-surface-variant tracking-wider uppercase mb-1">
+										<span>{notification.repo_full_name}</span>
+										<span>&bull;</span>
+										<span>{timeAgo(notification.updated_at)}</span>
+										{#if notification.action_needed}
 											<span>&bull;</span>
-											<span>{timeAgo(notification.updated_at)}</span>
-										</div>
-										<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
-										{#if notification.comment_body}
-											<div class="mt-3 flex items-start gap-2.5">
-												{#if notification.comment_avatar}
-													<img
-														src={notification.comment_avatar}
-														alt={notification.comment_author ?? ''}
-														class="w-5 h-5 rounded-full flex-shrink-0 mt-0.5"
-													/>
-												{:else}
-													<span class="material-symbols-outlined text-base text-on-surface-variant flex-shrink-0 mt-0.5">account_circle</span>
-												{/if}
-												<div class="min-w-0">
-													<p class="text-[10px] text-on-surface-variant mb-0.5">
-														<span class="font-semibold">{notification.comment_author}</span>
-														{#if notification.comment_at}
-															&bull; {timeAgo(notification.comment_at)}
-														{/if}
-													</p>
-													<p class="text-xs text-on-surface-variant/80 line-clamp-2 leading-relaxed">{notification.comment_body}</p>
-												</div>
-											</div>
+											<span class="px-2 py-0.5 rounded font-bold bg-amber-400/20 text-amber-400 normal-case">Action needed</span>
 										{/if}
 									</div>
+									<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
+									{#if notification.comment_body}
+										<div class="mt-3 flex items-start gap-2.5">
+											{#if notification.comment_avatar}
+												<img
+													src={notification.comment_avatar}
+													alt={notification.comment_author ?? ''}
+													class="w-5 h-5 rounded-full flex-shrink-0 mt-0.5"
+												/>
+											{:else}
+												<span class="material-symbols-outlined text-base text-on-surface-variant flex-shrink-0 mt-0.5">account_circle</span>
+											{/if}
+											<div class="min-w-0">
+												<p class="text-[10px] text-on-surface-variant mb-0.5">
+													<span class="font-semibold">{notification.comment_author}</span>
+													{#if notification.comment_at}
+														&bull; {timeAgo(notification.comment_at)}
+													{/if}
+												</p>
+												<p class="text-xs text-on-surface-variant/80 line-clamp-2 leading-relaxed">{notification.comment_body}</p>
+											</div>
+										</div>
+									{/if}
 								</div>
-								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+							</div>
+							<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+								<button
+									class="px-3 py-1.5 rounded text-[10px] font-black tracking-widest flex items-center gap-2 {notification.action_needed ? 'bg-amber-400/20 hover:bg-amber-400/30 text-amber-400' : 'bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant'}"
+									onclick={() => toggleActionNeeded(notification)}
+									title={notification.action_needed ? 'Remove action needed flag' : 'Flag as action needed'}
+								>
+									<span class="material-symbols-outlined text-sm">{notification.action_needed ? 'flag' : 'outlined_flag'}</span>
+									{notification.action_needed ? 'UNFLAG' : 'FLAG'}
+								</button>
+								{#if notification.is_read}
+									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markUnread(notification)}>
+										<span class="material-symbols-outlined text-sm">mark_as_unread</span>
+										MARK UNREAD
+									</button>
+								{:else}
 									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markRead(notification)}>
 										<span class="material-symbols-outlined text-sm">check_circle</span>
 										MARK READ
 									</button>
-									<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
-										<span class="material-symbols-outlined text-sm">notifications_off</span>
-										UNSUBSCRIBE
-									</button>
-									<button class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary flex items-center gap-2" onclick={() => openInGithub(notification)}>
-										<span class="material-symbols-outlined text-sm">open_in_new</span>
-										GITHUB
-									</button>
-								</div>
+								{/if}
+								<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => unsubscribe(notification)}>
+									<span class="material-symbols-outlined text-sm">notifications_off</span>
+									UNSUBSCRIBE
+								</button>
+								<button class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 rounded text-[10px] font-black tracking-widest text-primary flex items-center gap-2" onclick={() => openInGithub(notification)}>
+									<span class="material-symbols-outlined text-sm">open_in_new</span>
+									GITHUB
+								</button>
 							</div>
 						</div>
 					</div>
-				{/each}
+				</div>
+			{/each}
 
 				<!-- Read threads — collapsed by default -->
 				{#if readActiveNotifications.length > 0}
@@ -688,6 +722,14 @@
 													</div>
 												</div>
 												<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+													<button
+														class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2"
+														onclick={() => toggleActionNeeded(notification)}
+														title="Flag as action needed"
+													>
+														<span class="material-symbols-outlined text-sm">outlined_flag</span>
+														FLAG
+													</button>
 													<button class="px-3 py-1.5 bg-surface-container-low hover:bg-surface-container-high rounded text-[10px] font-black tracking-widest text-on-surface-variant flex items-center gap-2" onclick={() => markUnread(notification)}>
 														<span class="material-symbols-outlined text-sm">mark_as_unread</span>
 														MARK UNREAD

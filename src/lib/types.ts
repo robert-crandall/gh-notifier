@@ -27,6 +27,8 @@ export interface GithubNotification {
 	html_url: string | null;
 	/** true when the underlying thread is closed/merged — auto-marked read and shown in a collapsed "Closed" section */
 	is_terminal: boolean;
+	/** true when the user has flagged this notification as requiring action — stays in Active Threads even after being read */
+	action_needed: boolean;
 	/** Latest comment prefetched in the background. Null until fetched, or after new activity on the thread. */
 	comment_body: string | null;
 	comment_author: string | null;

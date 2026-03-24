@@ -212,5 +212,14 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
   }
 
+  if version < 8 {
+    // Add action_needed flag — flagged notifications remain visible in the
+    // Active Threads section even after they are marked read.
+    conn.execute_batch(
+      "ALTER TABLE notifications ADD COLUMN action_needed INTEGER NOT NULL DEFAULT 0;
+       PRAGMA user_version = 8;",
+    )?;
+  }
+
   Ok(())
 }
