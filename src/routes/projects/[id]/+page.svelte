@@ -5,6 +5,8 @@
 	import { listen } from '@tauri-apps/api/event';
 	import type { Project, GithubNotification, ManualTask, Bookmark } from '$lib/types';
 	import * as api from '$lib/api';
+	import NotificationFilter from '$lib/NotificationFilter.svelte';
+	import { applyFilters, type FilterChip } from '$lib/notification-filter';
 
 	let project: Project | null = $state(null);
 	let notifications: GithubNotification[] = $state([]);
@@ -39,15 +41,18 @@
 	let allProjects = $state<Project[]>([]);
 	let deleting = $state(false);
 
+	let filterChips = $state<FilterChip[]>([]);
+
 	let projectId = $derived(Number($page.params.id));
-	let activeNotifications = $derived(notifications.filter((n) => !n.is_terminal));
+	let filtered = $derived(applyFilters(notifications, filterChips));
+	let activeNotifications = $derived(filtered.filter((n) => !n.is_terminal));
 	let unreadActiveNotifications = $derived(
 		activeNotifications.filter((n) => !n.is_read || n.action_needed)
 	);
 	let readActiveNotifications = $derived(
 		activeNotifications.filter((n) => n.is_read && !n.action_needed)
 	);
-	let closedNotifications = $derived(notifications.filter((n) => n.is_terminal));
+	let closedNotifications = $derived(filtered.filter((n) => n.is_terminal));
 
 	$effect(() => {
 		if (editingName && renameInput) {
@@ -535,10 +540,6 @@
 					</div>
 				</div>
 				<div class="flex items-center gap-4">
-					<button class="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
-						<span class="material-symbols-outlined text-base">filter_list</span>
-						FILTER
-					</button>
 					<button
 						onclick={markAllRead}
 						class="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1"
@@ -548,6 +549,11 @@
 					</button>
 				</div>
 			</div>
+			{#if notifications.length > 0}
+				<div class="px-10 py-3 bg-surface-container-low/30">
+					<NotificationFilter {notifications} filteredCount={filtered.length} bind:chips={filterChips} />
+				</div>
+			{/if}
 
 			<div class="flex-1 overflow-y-auto p-10 space-y-6 no-scrollbar">
 				<!-- Manual Tasks -->
