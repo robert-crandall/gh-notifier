@@ -10,12 +10,12 @@ This compiles Rust, starts the Vite dev server, and opens the desktop window. Fi
 
 The SQLite database is created at:
 ```
-~/Library/Application Support/com.precision-architect.gh-notifier/gh-notifier.db
+~/Library/Application Support/com.gh-notifier/gh-notifier.db
 ```
 
 To inspect it directly:
 ```bash
-sqlite3 ~/Library/Application\ Support/com.precision-architect.gh-notifier/gh-notifier.db
+sqlite3 ~/Library/Application\ Support/com.gh-notifier/gh-notifier.db
 ```
 
 **Click-through test sequence:**
@@ -32,7 +32,7 @@ sqlite3 ~/Library/Application\ Support/com.precision-architect.gh-notifier/gh-no
 The GitHub PAT is stored encrypted in SQLite using AES-GCM. The 256-bit key is kept in a separate file:
 
 ```
-~/Library/Application Support/com.precision-architect.gh-notifier/key.bin
+~/Library/Application Support/com.gh-notifier/key.bin
 ```
 
 On **Unix/macOS** the file is created with mode `0600` (owner read/write only).
