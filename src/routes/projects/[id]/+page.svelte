@@ -535,8 +535,8 @@
 				</div>
 			</div>
 			{#if notifications.length > 0}
-				<div class="px-10 py-3 border-b border-outline-variant/10">
-					<NotificationFilter {notifications} bind:chips={filterChips} />
+				<div class="px-10 py-3 bg-surface-container-low/30">
+					<NotificationFilter {notifications} filteredCount={filtered.length} bind:chips={filterChips} />
 				</div>
 			{/if}
 

@@ -194,7 +194,7 @@
 			</button>
 		</div>
 		<div class="mb-8">
-			<NotificationFilter {notifications} bind:chips={filterChips} />
+			<NotificationFilter {notifications} filteredCount={filtered.length} bind:chips={filterChips} />
 		</div>
 
 		<div class="space-y-4">
