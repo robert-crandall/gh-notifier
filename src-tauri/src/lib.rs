@@ -122,8 +122,9 @@ async fn poll_loop(handle: tauri::AppHandle) {
     match result {
       Ok(Ok(())) => {
         // After a successful sync, prefetch latest comments for unread threads
-        // that don't have cached content yet.  Fire-and-forget — errors are logged
-        // inside do_prefetch_comments and never surface to the user.
+        // that don't have cached content yet. Fire-and-forget — failures in
+        // do_prefetch_comments don't surface to the user, and only panics in this
+        // background task are logged here.
         let handle3 = handle.clone();
         tauri::async_runtime::spawn(async move {
           if let Err(e) = tokio::task::spawn_blocking(move || {

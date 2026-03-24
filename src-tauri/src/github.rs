@@ -301,10 +301,13 @@ fn comments_url_for(subject_url: &str, subject_type: &str) -> Option<String> {
 
 /// Fetch the most recent comment on an Issue or PR thread.
 ///
-/// Uses the `sort=created&direction=desc&per_page=1` query params so GitHub
-/// returns only the latest entry.  Returns `None` if the thread has no
-/// comments, or on any network/parse error — callers should treat this as
-/// "no comment available" and skip updating the DB.
+/// The GitHub issue/PR comments endpoint always returns comments
+/// oldest-first and does not support `sort` / `direction` query
+/// parameters, so this walks pages to the end (with a large
+/// `per_page` value) and returns the last comment from the final
+/// page. Returns `None` if the thread has no comments, or on any
+/// network/parse error — callers should treat this as "no comment
+/// available" and skip updating the DB.
 pub fn fetch_latest_comment(
   client: &Client,
   subject_url: &str,
@@ -325,43 +328,88 @@ pub fn fetch_latest_comment(
     created_at: String,
   }
 
+  fn parse_last_page(link_header: &str) -> Option<u32> {
+    for part in link_header.split(',') {
+      let part = part.trim();
+      if !part.contains(r#"rel="last""#) {
+        continue;
+      }
+
+      let start = part.find('<')?;
+      let end = part.find('>')?;
+      if start + 1 >= end {
+        continue;
+      }
+
+      let url = &part[start + 1..end];
+      let page_pos = url.rfind("page=")?;
+      let page_start = page_pos + 5;
+      if page_start >= url.len() {
+        continue;
+      }
+
+      let mut page_end = page_start;
+      let bytes = url.as_bytes();
+      while page_end < bytes.len() && bytes[page_end].is_ascii_digit() {
+        page_end += 1;
+      }
+
+      if page_end == page_start {
+        continue;
+      }
+
+      if let Ok(page) = url[page_start..page_end].parse::<u32>() {
+        return Some(page);
+      }
+    }
+
+    None
+  }
+
   let url = comments_url_for(subject_url, subject_type)?;
   // GitHub's issue/PR comments endpoint does not support sort/direction params —
   // it always returns comments oldest-first.  To get the latest comment we need
-  // to walk to the last page.  Fetch with a large page size to minimise round
+  // to find the last page.  Fetch with a large page size to minimise round
   // trips; for most threads a single page is enough.
-  let mut page = 1u32;
-  let mut last_comment: Option<ApiComment> = None;
+  let first_url = format!("{url}?per_page={PAGE_SIZE}&page=1");
+  let resp = client.get(&first_url).send().ok()?;
 
-  loop {
-    let paged_url = format!("{url}?per_page={PAGE_SIZE}&page={page}");
-    let resp = client.get(&paged_url).send().ok()?;
-
-    if !resp.status().is_success() {
-      return None;
-    }
-
-    // Check for a `Link: ...; rel="next"` header before consuming the body.
-    let has_next = resp
-      .headers()
-      .get("Link")
-      .and_then(|v| v.to_str().ok())
-      .is_some_and(|l| l.contains(r#"rel="next""#));
-
-    let batch: Vec<ApiComment> = resp.json().ok()?;
-
-    if batch.is_empty() {
-      break;
-    }
-
-    last_comment = batch.into_iter().last();
-
-    if has_next {
-      page += 1;
-    } else {
-      break;
-    }
+  if !resp.status().is_success() {
+    return None;
   }
+
+  let last_page = resp
+    .headers()
+    .get("Link")
+    .and_then(|v| v.to_str().ok())
+    .and_then(parse_last_page);
+
+  let first_batch: Vec<ApiComment> = resp.json().ok()?;
+
+  if first_batch.is_empty() {
+    return None;
+  }
+
+  let last_comment = if let Some(last_page) = last_page {
+    if last_page > 1 {
+      let last_url = format!("{url}?per_page={PAGE_SIZE}&page={last_page}");
+      let last_resp = client.get(&last_url).send().ok()?;
+
+      if !last_resp.status().is_success() {
+        return None;
+      }
+
+      let last_batch: Vec<ApiComment> = last_resp.json().ok()?;
+      last_batch
+        .into_iter()
+        .last()
+        .or_else(|| first_batch.into_iter().last())
+    } else {
+      first_batch.into_iter().last()
+    }
+  } else {
+    first_batch.into_iter().last()
+  };
 
   last_comment.map(|c| LatestComment {
     body: c.body,
