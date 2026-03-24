@@ -102,3 +102,20 @@ pub struct RepoRoutingHint {
   /// auto-routed when the repo rule is created (no separate prompt needed).
   pub inbox_notification_count: i64,
 }
+
+/// A global filter — suppresses a notification reason across all repos.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalFilter {
+  pub id: i64,
+  pub reason: String,
+  pub created_at: String,
+}
+
+/// A per-repo filter — suppresses a notification reason for a specific repo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepoFilter {
+  pub id: i64,
+  pub repo_full_name: String,
+  pub reason: String,
+  pub created_at: String,
+}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { AppSettings, RepoRule, Project } from '$lib/types';
+	import type { AppSettings, RepoRule, Project, GlobalFilter, RepoFilter } from '$lib/types';
 	import * as api from '$lib/api';
 
 	let settings: AppSettings = $state({
@@ -16,6 +16,31 @@
 	let projects: Project[] = $state([]);
 	let editingRuleId = $state<number | null>(null);
 	let editingProjectId = $state<number>(0);
+
+	// Filter state
+	let globalFilters: GlobalFilter[] = $state([]);
+	let repoFilters: RepoFilter[] = $state([]);
+	let newGlobalReason = $state('');
+	let newRepoFilterRepo = $state('');
+	let newRepoFilterReason = $state('');
+	let addingGlobalFilter = $state(false);
+	let addingRepoFilter = $state(false);
+
+	// List of available GitHub notification reasons
+	const availableReasons = [
+		'assign',
+		'author',
+		'comment',
+		'ci_activity',
+		'invitation',
+		'manual',
+		'mention',
+		'review_requested',
+		'security_alert',
+		'state_change',
+		'subscribed',
+		'team_mention'
+	];
 
 	$effect(() => {
 		api.getSettings().then((s) => {
@@ -36,6 +61,16 @@
 		}).catch((e) => {
 			console.error('Failed to load projects:', e);
 			message = 'Failed to load projects. Please try again.';
+		});
+		api.getGlobalFilters().then((f) => {
+			globalFilters = f;
+		}).catch((e) => {
+			console.error('Failed to load global filters:', e);
+		});
+		api.getRepoFilters().then((f) => {
+			repoFilters = f;
+		}).catch((e) => {
+			console.error('Failed to load repo filters:', e);
 		});
 	});
 
@@ -97,6 +132,52 @@
 			message = `Sync failed: ${e}`;
 		}
 		syncing = false;
+	}
+
+	// Filter management functions
+	async function addGlobalFilter() {
+		if (!newGlobalReason.trim()) return;
+		addingGlobalFilter = true;
+		try {
+			const filter = await api.createGlobalFilter(newGlobalReason);
+			globalFilters = [...globalFilters, filter];
+			newGlobalReason = '';
+		} catch (e) {
+			console.error('Failed to create global filter:', e);
+		}
+		addingGlobalFilter = false;
+	}
+
+	async function removeGlobalFilter(id: number) {
+		try {
+			await api.deleteGlobalFilter(id);
+			globalFilters = globalFilters.filter((f) => f.id !== id);
+		} catch (e) {
+			console.error('Failed to delete global filter:', e);
+		}
+	}
+
+	async function addRepoFilter() {
+		if (!newRepoFilterRepo.trim() || !newRepoFilterReason.trim()) return;
+		addingRepoFilter = true;
+		try {
+			const filter = await api.createRepoFilter(newRepoFilterRepo, newRepoFilterReason);
+			repoFilters = [...repoFilters, filter];
+			newRepoFilterRepo = '';
+			newRepoFilterReason = '';
+		} catch (e) {
+			console.error('Failed to create repo filter:', e);
+		}
+		addingRepoFilter = false;
+	}
+
+	async function removeRepoFilter(id: number) {
+		try {
+			await api.deleteRepoFilter(id);
+			repoFilters = repoFilters.filter((f) => f.id !== id);
+		} catch (e) {
+			console.error('Failed to delete repo filter:', e);
+		}
 	}
 
 	async function onPollIntervalChange(e: Event) {
@@ -253,5 +334,109 @@
 				{/each}
 			</ul>
 		{/if}
+	</section>
+
+	<!-- Global Filters -->
+	<section class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm space-y-4">
+		<div class="flex items-center gap-2">
+			<span class="material-symbols-outlined text-primary">block</span>
+			<h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Global Filters</h2>
+		</div>
+		<p class="text-xs text-on-surface-variant">
+			Suppress notification types across all repos. These filters cannot be overridden per-repo.
+		</p>
+		{#if globalFilters.length === 0}
+			<p class="text-sm text-on-surface-variant italic">No global filters.</p>
+		{:else}
+			<ul class="divide-y divide-outline-variant/10">
+				{#each globalFilters as filter (filter.id)}
+					<li class="flex items-center gap-3 py-2">
+						<code class="font-mono text-xs text-on-surface flex-1">{filter.reason}</code>
+						<button
+							class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-all"
+							title="Remove filter"
+							aria-label="Remove filter for {filter.reason}"
+							onclick={() => removeGlobalFilter(filter.id)}
+						>
+							<span class="material-symbols-outlined text-[18px]">delete</span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		<div class="flex gap-2 pt-2 border-t border-outline-variant/10">
+			<select
+				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40"
+				bind:value={newGlobalReason}
+			>
+				<option value="">Select reason...</option>
+				{#each availableReasons as reason}
+					<option value={reason}>{reason}</option>
+				{/each}
+			</select>
+			<button
+				class="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+				onclick={addGlobalFilter}
+				disabled={addingGlobalFilter || !newGlobalReason}
+			>
+				Add
+			</button>
+		</div>
+	</section>
+
+	<!-- Repo Filters -->
+	<section class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm space-y-4">
+		<div class="flex items-center gap-2">
+			<span class="material-symbols-outlined text-primary">filter_alt</span>
+			<h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Per-Repo Filters</h2>
+		</div>
+		<p class="text-xs text-on-surface-variant">
+			Suppress specific notification types for individual repos. These are in addition to global filters.
+		</p>
+		{#if repoFilters.length === 0}
+			<p class="text-sm text-on-surface-variant italic">No per-repo filters.</p>
+		{:else}
+			<ul class="divide-y divide-outline-variant/10">
+				{#each repoFilters as filter (filter.id)}
+					<li class="flex items-center gap-3 py-2">
+						<code class="font-mono text-xs text-on-surface flex-1">{filter.repo_full_name}</code>
+						<span class="text-sm text-on-surface-variant">→</span>
+						<code class="font-mono text-xs text-on-surface">{filter.reason}</code>
+						<button
+							class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-all"
+							title="Remove filter"
+							aria-label="Remove filter for {filter.repo_full_name} / {filter.reason}"
+							onclick={() => removeRepoFilter(filter.id)}
+						>
+							<span class="material-symbols-outlined text-[18px]">delete</span>
+						</button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		<div class="flex gap-2 pt-2 border-t border-outline-variant/10">
+			<input
+				type="text"
+				bind:value={newRepoFilterRepo}
+				placeholder="owner/repo"
+				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40"
+			/>
+			<select
+				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40"
+				bind:value={newRepoFilterReason}
+			>
+				<option value="">Select reason...</option>
+				{#each availableReasons as reason}
+					<option value={reason}>{reason}</option>
+				{/each}
+			</select>
+			<button
+				class="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+				onclick={addRepoFilter}
+				disabled={addingRepoFilter || !newRepoFilterRepo || !newRepoFilterReason}
+			>
+				Add
+			</button>
+		</div>
 	</section>
 </div>

@@ -716,8 +716,31 @@ fn process_notifications(
   let client = github::make_client_public(token)?;
 
   for n in api_notifications {
-    // Filter out team_mention noise per the PRD.
-    if n.reason == "team_mention" {
+    // Check if this notification should be filtered:
+    // 1. Global filter for this reason (applies to all repos)
+    let is_globally_filtered: bool = db
+      .query_row(
+        "SELECT 1 FROM global_filters WHERE reason = ?1",
+        params![n.reason],
+        |_| Ok(true),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?
+      .unwrap_or(false);
+
+    // 2. Repo-specific filter for this reason (only for this repo)
+    let is_repo_filtered: bool = db
+      .query_row(
+        "SELECT 1 FROM repo_filters WHERE repo_full_name = ?1 AND reason = ?2",
+        params![n.repository.full_name, n.reason],
+        |_| Ok(true),
+      )
+      .optional()
+      .map_err(|e| e.to_string())?
+      .unwrap_or(false);
+
+    // Skip this notification if either filter matches
+    if is_globally_filtered || is_repo_filtered {
       continue;
     }
 
@@ -1263,6 +1286,121 @@ pub fn create_bookmark(
 pub fn delete_bookmark(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
   db.execute("DELETE FROM bookmarks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Global filter commands
+// ---------------------------------------------------------------------------
+
+use crate::models::{GlobalFilter, RepoFilter};
+
+fn global_filter_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GlobalFilter> {
+  Ok(GlobalFilter {
+    id: row.get(0)?,
+    reason: row.get(1)?,
+    created_at: row.get(2)?,
+  })
+}
+
+#[tauri::command]
+pub fn get_global_filters(state: tauri::State<'_, DbState>) -> Result<Vec<GlobalFilter>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare("SELECT id, reason, created_at FROM global_filters ORDER BY reason ASC")
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map([], global_filter_from_row)
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn create_global_filter(
+  reason: String,
+  state: tauri::State<'_, DbState>,
+) -> Result<GlobalFilter, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT INTO global_filters (reason) VALUES (?1)",
+    params![reason],
+  )
+  .map_err(|e| e.to_string())?;
+  let id = db.last_insert_rowid();
+  db.query_row(
+    "SELECT id, reason, created_at FROM global_filters WHERE id = ?1",
+    params![id],
+    global_filter_from_row,
+  )
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_global_filter(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM global_filters WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Repo filter commands
+// ---------------------------------------------------------------------------
+
+fn repo_filter_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RepoFilter> {
+  Ok(RepoFilter {
+    id: row.get(0)?,
+    repo_full_name: row.get(1)?,
+    reason: row.get(2)?,
+    created_at: row.get(3)?,
+  })
+}
+
+#[tauri::command]
+pub fn get_repo_filters(state: tauri::State<'_, DbState>) -> Result<Vec<RepoFilter>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare(
+      "SELECT id, repo_full_name, reason, created_at FROM repo_filters \
+       ORDER BY repo_full_name ASC, reason ASC",
+    )
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map([], repo_filter_from_row)
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn create_repo_filter(
+  repo_full_name: String,
+  reason: String,
+  state: tauri::State<'_, DbState>,
+) -> Result<RepoFilter, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT INTO repo_filters (repo_full_name, reason) VALUES (?1, ?2)",
+    params![repo_full_name, reason],
+  )
+  .map_err(|e| e.to_string())?;
+  let id = db.last_insert_rowid();
+  db.query_row(
+    "SELECT id, repo_full_name, reason, created_at FROM repo_filters WHERE id = ?1",
+    params![id],
+    repo_filter_from_row,
+  )
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_repo_filter(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM repo_filters WHERE id = ?1", params![id])
     .map_err(|e| e.to_string())?;
   Ok(())
 }
