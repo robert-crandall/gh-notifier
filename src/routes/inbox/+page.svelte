@@ -9,6 +9,7 @@
 	let loading = $state(true);
 	let showProjectPicker = $state<number | null>(null);
 	let routingHint = $state<RepoRoutingHint | null>(null);
+	let pendingAssignmentId = $state<number | null>(null);
 	let acceptRepoRule = $state(false);
 	let migrateThreads = $state(false);
 
@@ -50,23 +51,34 @@
 
 	async function assignToProject(notificationId: number, projectId: number) {
 		try {
-			// Clear any stale routing hint from a previous assignment.
+			// If a previous assignment is awaiting a dialog decision, remove it now
+			// before starting the next assignment.
+			if (pendingAssignmentId !== null) {
+				removePendingNotification();
+			}
+			// Clear any stale routing hint state.
 			routingHint = null;
+			pendingAssignmentId = null;
 			acceptRepoRule = false;
 			migrateThreads = false;
-			
+
 			const hint = await api.assignNotificationToProject(notificationId, projectId);
-			const notification = notifications.find((n) => n.id === notificationId);
-			if (notification && !notification.is_read) {
-				decrementInboxCount();
-			}
-			notifications = notifications.filter((n) => n.id !== notificationId);
 			if (hint.kind !== 'none') {
+				// Keep the notification visible while the dialog is shown so the user
+				// can see what they just assigned and make an informed repo-rule decision.
+				pendingAssignmentId = notificationId;
 				routingHint = hint;
 				// opt_out: pre-accept since the pattern is already established.
 				// opt_in: leave unchecked — user must explicitly opt in.
 				acceptRepoRule = hint.kind === 'opt_out';
 				migrateThreads = hint.kind === 'opt_out';
+			} else {
+				// No dialog needed — remove the notification immediately.
+				const notification = notifications.find((n) => n.id === notificationId);
+				if (notification && !notification.is_read) {
+					decrementInboxCount();
+				}
+				notifications = notifications.filter((n) => n.id !== notificationId);
 			}
 		} catch (e) {
 			console.error('Failed to assign notification:', e);
@@ -74,25 +86,41 @@
 		showProjectPicker = null;
 	}
 
+	function removePendingNotification() {
+		if (pendingAssignmentId === null) return;
+		const notification = notifications.find((n) => n.id === pendingAssignmentId);
+		if (notification && !notification.is_read) {
+			decrementInboxCount();
+		}
+		notifications = notifications.filter((n) => n.id !== pendingAssignmentId);
+		pendingAssignmentId = null;
+	}
+
 	async function confirmRepoRule() {
 		if (!routingHint) return;
+		const { repo_full_name, project_id } = routingHint;
 		try {
 			if (acceptRepoRule) {
-				await api.createRepoRule(routingHint.repo_full_name, routingHint.project_id, migrateThreads);
-				// Remove all remaining inbox notifications for this repo from the local list —
-				// the rule just routed them all.
-				const repo = routingHint.repo_full_name;
-				const removed = notifications.filter((n) => n.repo_full_name === repo && !n.is_read).length;
-				notifications = notifications.filter((n) => n.repo_full_name !== repo);
+				await api.createRepoRule(repo_full_name, project_id, migrateThreads);
+				// Remove all notifications from this repo — the rule has routed them all.
+				const removed = notifications.filter((n) => n.repo_full_name === repo_full_name && !n.is_read).length;
+				notifications = notifications.filter((n) => n.repo_full_name !== repo_full_name);
 				decrementInboxCount(removed);
+				pendingAssignmentId = null;
+			} else {
+				// User kept the checkbox unchecked — just remove the pending notification.
+				removePendingNotification();
 			}
 		} catch (e) {
 			console.error('Failed to create repo rule:', e);
+			removePendingNotification();
 		}
 		routingHint = null;
 	}
 
 	function dismissRepoRule() {
+		// User clicked × or Skip without creating a rule — remove the pending notification.
+		removePendingNotification();
 		routingHint = null;
 	}
 
