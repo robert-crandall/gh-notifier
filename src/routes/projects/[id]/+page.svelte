@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { open } from '@tauri-apps/plugin-shell';
+	import { listen } from '@tauri-apps/api/event';
 	import type { Project, GithubNotification, ManualTask, Bookmark } from '$lib/types';
 	import * as api from '$lib/api';
 
@@ -63,6 +64,8 @@
 				notifications = notifs;
 				tasks = taskList;
 				bookmarks = bookmarkList;
+				// Kick off background comment prefetch — returns immediately.
+				api.prefetchNotificationComments().catch(() => {});
 			})
 			.catch((e) => {
 				console.error('Failed to load project:', e);
@@ -70,6 +73,20 @@
 			.finally(() => {
 				loading = false;
 			});
+
+		// Subscribe to comment-ready events so each card updates as soon as its
+		// comment resolves, without requiring a full page reload.
+		let unlisten: (() => void) | null = null;
+		listen<GithubNotification>('notification-comment-ready', (event) => {
+			const updated = event.payload;
+			notifications = notifications.map((n) => (n.id === updated.id ? updated : n));
+		}).then((fn) => {
+			unlisten = fn;
+		});
+
+		return () => {
+			unlisten?.();
+		};
 	});
 
 	async function saveProject() {
@@ -567,6 +584,28 @@
 											<span>{timeAgo(notification.updated_at)}</span>
 										</div>
 										<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
+										{#if notification.comment_body}
+											<div class="mt-3 flex items-start gap-2.5">
+												{#if notification.comment_avatar}
+													<img
+														src={notification.comment_avatar}
+														alt={notification.comment_author ?? ''}
+														class="w-5 h-5 rounded-full flex-shrink-0 mt-0.5"
+													/>
+												{:else}
+													<span class="material-symbols-outlined text-base text-on-surface-variant flex-shrink-0 mt-0.5">account_circle</span>
+												{/if}
+												<div class="min-w-0">
+													<p class="text-[10px] text-on-surface-variant mb-0.5">
+														<span class="font-semibold">{notification.comment_author}</span>
+														{#if notification.comment_at}
+															&bull; {timeAgo(notification.comment_at)}
+														{/if}
+													</p>
+													<p class="text-xs text-on-surface-variant/80 line-clamp-2 leading-relaxed">{notification.comment_body}</p>
+												</div>
+											</div>
+										{/if}
 									</div>
 								</div>
 								<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">

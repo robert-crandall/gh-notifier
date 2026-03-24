@@ -1,6 +1,6 @@
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, USER_AGENT};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // GitHub API response types
@@ -27,6 +27,15 @@ pub struct ApiSubject {
   pub url: Option<String>,
   #[serde(rename = "type")]
   pub subject_type: String,
+}
+
+/// The latest comment fetched in the background for a notification thread.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LatestComment {
+  pub body: String,
+  pub author: String,
+  pub avatar: Option<String>,
+  pub created_at: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -270,9 +279,101 @@ pub fn api_url_to_html_url(url: &str) -> Option<String> {
   Some(html)
 }
 
+/// Derive the GitHub REST API comments URL from a subject URL.
+///
+/// - Issues: `…/issues/{n}` → `…/issues/{n}/comments`
+/// - Pull Requests: `…/pulls/{n}` → `…/issues/{n}/comments`
+///   (PR comments are served under the issues endpoint)
+///
+/// Returns `None` for subject types that don't have an issue-style comment
+/// thread (Releases, commits, etc.).
+fn comments_url_for(subject_url: &str, subject_type: &str) -> Option<String> {
+  match subject_type {
+    "Issue" => Some(format!("{subject_url}/comments")),
+    "PullRequest" => {
+      // subject_url ends with …/pulls/{n}; comments live at …/issues/{n}/comments
+      let converted = subject_url.replace("/pulls/", "/issues/");
+      Some(format!("{converted}/comments"))
+    }
+    _ => None,
+  }
+}
+
+/// Fetch the most recent comment on an Issue or PR thread.
+///
+/// Uses the `sort=created&direction=desc&per_page=1` query params so GitHub
+/// returns only the latest entry.  Returns `None` if the thread has no
+/// comments, or on any network/parse error — callers should treat this as
+/// "no comment available" and skip updating the DB.
+pub fn fetch_latest_comment(
+  client: &Client,
+  subject_url: &str,
+  subject_type: &str,
+) -> Option<LatestComment> {
+  const PAGE_SIZE: u32 = 100;
+
+  #[derive(Deserialize)]
+  struct ApiUser {
+    login: String,
+    avatar_url: String,
+  }
+
+  #[derive(Deserialize)]
+  struct ApiComment {
+    body: String,
+    user: ApiUser,
+    created_at: String,
+  }
+
+  let url = comments_url_for(subject_url, subject_type)?;
+  // GitHub's issue/PR comments endpoint does not support sort/direction params —
+  // it always returns comments oldest-first.  To get the latest comment we need
+  // to walk to the last page.  Fetch with a large page size to minimise round
+  // trips; for most threads a single page is enough.
+  let mut page = 1u32;
+  let mut last_comment: Option<ApiComment> = None;
+
+  loop {
+    let paged_url = format!("{url}?per_page={PAGE_SIZE}&page={page}");
+    let resp = client.get(&paged_url).send().ok()?;
+
+    if !resp.status().is_success() {
+      return None;
+    }
+
+    // Check for a `Link: ...; rel="next"` header before consuming the body.
+    let has_next = resp
+      .headers()
+      .get("Link")
+      .and_then(|v| v.to_str().ok())
+      .is_some_and(|l| l.contains(r#"rel="next""#));
+
+    let batch: Vec<ApiComment> = resp.json().ok()?;
+
+    if batch.is_empty() {
+      break;
+    }
+
+    last_comment = batch.into_iter().last();
+
+    if has_next {
+      page += 1;
+    } else {
+      break;
+    }
+  }
+
+  last_comment.map(|c| LatestComment {
+    body: c.body,
+    author: c.user.login,
+    avatar: Some(c.user.avatar_url),
+    created_at: c.created_at,
+  })
+}
+
 #[cfg(test)]
 mod tests {
-  use super::api_url_to_html_url;
+  use super::{api_url_to_html_url, comments_url_for};
 
   #[test]
   fn converts_issue_url() {
@@ -293,5 +394,35 @@ mod tests {
   #[test]
   fn returns_none_for_unknown() {
     assert_eq!(api_url_to_html_url("https://example.com/foo"), None);
+  }
+
+  #[test]
+  fn comments_url_for_issue() {
+    assert_eq!(
+      comments_url_for("https://api.github.com/repos/owner/repo/issues/42", "Issue"),
+      Some("https://api.github.com/repos/owner/repo/issues/42/comments".into())
+    );
+  }
+
+  #[test]
+  fn comments_url_for_pull_request() {
+    assert_eq!(
+      comments_url_for(
+        "https://api.github.com/repos/owner/repo/pulls/7",
+        "PullRequest"
+      ),
+      Some("https://api.github.com/repos/owner/repo/issues/7/comments".into())
+    );
+  }
+
+  #[test]
+  fn comments_url_for_release_is_none() {
+    assert_eq!(
+      comments_url_for(
+        "https://api.github.com/repos/owner/repo/releases/1",
+        "Release"
+      ),
+      None
+    );
   }
 }

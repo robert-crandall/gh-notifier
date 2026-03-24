@@ -15,6 +15,7 @@ use aes_gcm::{
 };
 use rand::{rngs::OsRng, RngCore};
 use rusqlite::{params, OptionalExtension};
+use tauri::{Emitter as _, Manager as _};
 
 // ---------------------------------------------------------------------------
 // Token encryption helpers (AES-256-GCM, key stored in key.bin)
@@ -115,7 +116,7 @@ fn project_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
 
 // Columns: id, github_id, repo_full_name, subject_title, subject_type,
 //          subject_url, reason, is_read, updated_at, project_id, author, author_avatar, html_url,
-//          is_terminal
+//          is_terminal, comment_body, comment_author, comment_avatar, comment_at
 fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNotification> {
   Ok(GithubNotification {
     id: row.get(0)?,
@@ -132,6 +133,10 @@ fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNoti
     author_avatar: row.get(11)?,
     html_url: row.get(12)?,
     is_terminal: row.get(13)?,
+    comment_body: row.get(14)?,
+    comment_author: row.get(15)?,
+    comment_avatar: row.get(16)?,
+    comment_at: row.get(17)?,
   })
 }
 
@@ -288,7 +293,8 @@ pub fn wake_project(id: i64, state: tauri::State<'_, DbState>) -> Result<(), Str
 
 const NOTIFICATION_COLS: &str = "SELECT id, github_id, repo_full_name, subject_title, \
   subject_type, subject_url, reason, is_read, updated_at, project_id, author, author_avatar, \
-  html_url, is_terminal FROM notifications";
+  html_url, is_terminal, comment_body, comment_author, comment_avatar, comment_at \
+  FROM notifications";
 
 #[tauri::command]
 pub fn get_notifications(
@@ -784,7 +790,15 @@ fn process_notifications(
          updated_at     = excluded.updated_at, \
          html_url       = excluded.html_url, \
          project_id     = COALESCE(notifications.project_id, excluded.project_id), \
-         is_terminal    = MAX(notifications.is_terminal, excluded.is_terminal)",
+         is_terminal    = MAX(notifications.is_terminal, excluded.is_terminal), \
+         comment_body   = CASE WHEN excluded.updated_at != notifications.updated_at \
+                               THEN NULL ELSE notifications.comment_body END, \
+         comment_author = CASE WHEN excluded.updated_at != notifications.updated_at \
+                               THEN NULL ELSE notifications.comment_author END, \
+         comment_avatar = CASE WHEN excluded.updated_at != notifications.updated_at \
+                               THEN NULL ELSE notifications.comment_avatar END, \
+         comment_at     = CASE WHEN excluded.updated_at != notifications.updated_at \
+                               THEN NULL ELSE notifications.comment_at END",
       params![
         n.id,
         n.repository.full_name,
@@ -894,6 +908,124 @@ pub fn sync_notifications(
   let api_notifications = github::fetch_notifications(&token, since.as_deref())?; // no DB lock held
   let db = state.0.lock().map_err(|e| e.to_string())?;
   process_notifications(&db, &api_notifications, &token)
+}
+
+// ---------------------------------------------------------------------------
+// Comment prefetch
+// ---------------------------------------------------------------------------
+
+/// Fetch the latest comment for every unread, non-terminal Issue/PR notification
+/// that doesn't already have prefetched comment data.  Runs synchronously on the
+/// calling thread — callers should always invoke this from a `spawn_blocking`
+/// context.  Results are written to the DB and each resolved notification is
+/// emitted as a `notification-comment-ready` event so the UI can update in place.
+pub fn do_prefetch_comments(
+  handle: &tauri::AppHandle,
+  db_state: &DbState,
+  token_cache: &TokenCache,
+) {
+  let token: String = {
+    let Ok(guard) = token_cache.0.lock() else {
+      return;
+    };
+    match (*guard).clone() {
+      Some(t) => t,
+      None => return,
+    }
+  };
+
+  // Collect the minimal set of fields needed to drive the fetch.
+  // We fully collect here (before releasing the lock) so no borrow escapes.
+  let to_fetch: Vec<(i64, String, String)> = {
+    let Ok(db) = db_state.0.lock() else {
+      return;
+    };
+    let Ok(mut stmt) = db.prepare(
+      "SELECT id, subject_url, subject_type FROM notifications \
+       WHERE is_read = 0 AND is_terminal = 0 AND comment_body IS NULL \
+         AND subject_url IS NOT NULL \
+         AND subject_type IN ('Issue', 'PullRequest')",
+    ) else {
+      return;
+    };
+    stmt
+      .query_map([], |row: &rusqlite::Row<'_>| {
+        Ok((
+          row.get::<_, i64>(0)?,
+          row.get::<_, String>(1)?,
+          row.get::<_, String>(2)?,
+        ))
+      })
+      .map(|rows| {
+        rows
+          .collect::<rusqlite::Result<Vec<_>>>()
+          .unwrap_or_default()
+      })
+      .unwrap_or_default()
+  };
+
+  if to_fetch.is_empty() {
+    return;
+  }
+
+  let Ok(client) = github::make_client_public(&token) else {
+    return;
+  };
+
+  for (id, subject_url, subject_type) in &to_fetch {
+    let Some(comment) = github::fetch_latest_comment(&client, subject_url, subject_type) else {
+      continue;
+    };
+
+    // Persist the comment.
+    if let Ok(db) = db_state.0.lock() {
+      let _ = db.execute(
+        "UPDATE notifications \
+         SET comment_body = ?1, comment_author = ?2, comment_avatar = ?3, comment_at = ?4 \
+         WHERE id = ?5",
+        params![
+          comment.body,
+          comment.author,
+          comment.avatar,
+          comment.created_at,
+          id
+        ],
+      );
+    }
+
+    // Read back the full notification and emit an update event.
+    let updated: Option<GithubNotification> = db_state.0.lock().ok().and_then(|db| {
+      db.query_row(
+        &format!("{NOTIFICATION_COLS} WHERE id = ?1"),
+        params![id],
+        notification_from_row,
+      )
+      .ok()
+    });
+
+    if let Some(notif) = updated {
+      let _ = handle.emit("notification-comment-ready", &notif);
+    }
+  }
+}
+
+/// Kick off comment prefetching for all eligible notifications in the background.
+/// Returns immediately — the actual fetches run on a `spawn_blocking` thread and
+/// emit `notification-comment-ready` events as each one resolves.
+#[tauri::command]
+pub async fn prefetch_notification_comments(app_handle: tauri::AppHandle) -> Result<(), String> {
+  tauri::async_runtime::spawn(async move {
+    if let Err(e) = tokio::task::spawn_blocking(move || {
+      let db_state = app_handle.state::<DbState>();
+      let token_cache = app_handle.state::<TokenCache>();
+      do_prefetch_comments(&app_handle, &db_state, &token_cache);
+    })
+    .await
+    {
+      eprintln!("[prefetch] task panicked: {e}");
+    }
+  });
+  Ok(())
 }
 
 // ---------------------------------------------------------------------------

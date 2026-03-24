@@ -92,6 +92,10 @@ export async function syncNotifications(): Promise<void> {
 	return invoke('sync_notifications');
 }
 
+export async function prefetchNotificationComments(): Promise<void> {
+	return invoke('prefetch_notification_comments');
+}
+
 export async function saveSettings(pollIntervalMinutes: number): Promise<void> {
 	return invoke('save_settings', { pollIntervalMinutes });
 }
