@@ -524,7 +524,12 @@
 						<span class="material-symbols-outlined text-base">filter_list</span>
 						FILTER
 					</button>
-				<button onclick={markAllRead} class="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
+					<button
+						onclick={markAllRead}
+						class="text-[11px] font-bold text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1"
+					>
+						<span class="material-symbols-outlined text-base">drafts</span>
+						MARK ALL READ
 					</button>
 				</div>
 			</div>

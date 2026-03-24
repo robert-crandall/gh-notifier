@@ -634,19 +634,13 @@ pub fn mark_all_notifications_read(
     }
   }
 
-  // Mark all as read in the database.
+  // Mark all as read in the database for the exact rows we fetched above.
   {
     let db = state.0.lock().map_err(|e| e.to_string())?;
-    if let Some(pid) = project_id {
+    for (id, _github_id) in &notifications {
       db.execute(
-        "UPDATE notifications SET is_read = 1 WHERE project_id = ?1 AND is_read = 0",
-        params![pid],
-      )
-      .map_err(|e| e.to_string())?;
-    } else {
-      db.execute(
-        "UPDATE notifications SET is_read = 1 WHERE project_id IS NULL AND is_read = 0",
-        [],
+        "UPDATE notifications SET is_read = 1 WHERE id = ?1 AND is_read = 0",
+        params![id],
       )
       .map_err(|e| e.to_string())?;
     }
