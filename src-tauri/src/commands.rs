@@ -859,7 +859,36 @@ fn process_notifications(
   // won't receive those notifications again once their `updated_at` is older
   // than `last_synced_at`, so this pass catches any that slipped through (e.g.
   // because `fetch_is_terminal` hit a rate-limit or timeout on a prior sync).
-  recheck_stale_nonterminal(db, &client)?;
+  //
+  // To avoid hammering the GitHub API on every sync (which may run as often as
+  // once per minute), gate this recheck so it runs at most once every 5 minutes.
+  let should_recheck: bool = db
+    .query_row(
+      "SELECT CASE \
+         WHEN EXISTS ( \
+           SELECT 1 FROM settings \
+           WHERE key = 'last_nonterminal_recheck_at' \
+             AND datetime(value) > datetime('now', '-5 minutes') \
+         ) THEN 0 \
+         ELSE 1 \
+       END",
+      [],
+      |row| {
+        let v: i64 = row.get(0)?;
+        Ok(v == 1)
+      },
+    )
+    .map_err(|e| e.to_string())?;
+
+  if should_recheck {
+    recheck_stale_nonterminal(db, &client)?;
+    db.execute(
+      "INSERT OR REPLACE INTO settings (key, value) \
+         VALUES ('last_nonterminal_recheck_at', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
+      [],
+    )
+    .map_err(|e| e.to_string())?;
+  }
 
   // Record when the last successful sync completed (ISO 8601, UTC).
   db.execute(
@@ -890,26 +919,38 @@ fn recheck_stale_nonterminal(
     subject_type: String,
   }
 
+  // Only recheck notifications that are older than `last_synced_at`.  Those
+  // are the ones GitHub silently excluded from the current sync batch; they
+  // were already checked in the main loop if they appeared in this batch.
+  let last_synced_at: Option<String> = db
+    .query_row(
+      "SELECT value FROM settings WHERE key = 'last_synced_at'",
+      [],
+      |row| row.get(0),
+    )
+    .optional()
+    .map_err(|e| e.to_string())?;
+
   let mut stmt = db
     .prepare(
       "SELECT id, subject_url, subject_type FROM notifications \
        WHERE is_terminal = 0 AND is_read = 0 \
          AND subject_type IN ('PullRequest', 'Issue') \
-         AND subject_url IS NOT NULL",
+         AND subject_url IS NOT NULL \
+         AND (?1 IS NULL OR datetime(updated_at) < datetime(?1))",
     )
     .map_err(|e| e.to_string())?;
 
   let pending: Vec<Pending> = stmt
-    .query_map([], |row| {
+    .query_map(params![last_synced_at], |row| {
       Ok(Pending {
         id: row.get(0)?,
         subject_url: row.get(1)?,
         subject_type: row.get(2)?,
       })
     })
-    .map_err(|e| e.to_string())?
-    .filter_map(Result::ok)
-    .collect();
+    .and_then(|rows| rows.collect())
+    .map_err(|e| e.to_string())?;
 
   for p in pending {
     if github::fetch_is_terminal(client, &p.subject_url, &p.subject_type) {
