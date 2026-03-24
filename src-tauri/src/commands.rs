@@ -854,6 +854,13 @@ fn process_notifications(
   )
   .map_err(|e| e.to_string())?;
 
+  // Re-examine any unread non-terminal PR/Issue notifications that may have
+  // become terminal since we last synced.  GitHub's `since` filter means we
+  // won't receive those notifications again once their `updated_at` is older
+  // than `last_synced_at`, so this pass catches any that slipped through (e.g.
+  // because `fetch_is_terminal` hit a rate-limit or timeout on a prior sync).
+  recheck_stale_nonterminal(db, &client)?;
+
   // Record when the last successful sync completed (ISO 8601, UTC).
   db.execute(
     "INSERT OR REPLACE INTO settings (key, value) \
@@ -861,6 +868,58 @@ fn process_notifications(
     [],
   )
   .map_err(|e| e.to_string())?;
+
+  Ok(())
+}
+
+/// Re-examine every unread, non-terminal PR/Issue notification already in the DB.
+///
+/// GitHub only resurfaces a notification when its `updated_at` changes since
+/// `last_synced_at`.  If `fetch_is_terminal` silently failed on a previous sync
+/// (rate-limit, transient network error, etc.) the notification stays stuck as
+/// non-terminal even though the underlying PR has since been merged or closed.
+/// This function catches that case by directly re-querying the GitHub subject URL
+/// for every notification that is still visible in Active Threads.
+fn recheck_stale_nonterminal(
+  db: &rusqlite::Connection,
+  client: &reqwest::blocking::Client,
+) -> Result<(), String> {
+  struct Pending {
+    id: i64,
+    subject_url: String,
+    subject_type: String,
+  }
+
+  let mut stmt = db
+    .prepare(
+      "SELECT id, subject_url, subject_type FROM notifications \
+       WHERE is_terminal = 0 AND is_read = 0 \
+         AND subject_type IN ('PullRequest', 'Issue') \
+         AND subject_url IS NOT NULL",
+    )
+    .map_err(|e| e.to_string())?;
+
+  let pending: Vec<Pending> = stmt
+    .query_map([], |row| {
+      Ok(Pending {
+        id: row.get(0)?,
+        subject_url: row.get(1)?,
+        subject_type: row.get(2)?,
+      })
+    })
+    .map_err(|e| e.to_string())?
+    .filter_map(Result::ok)
+    .collect();
+
+  for p in pending {
+    if github::fetch_is_terminal(client, &p.subject_url, &p.subject_type) {
+      db.execute(
+        "UPDATE notifications SET is_terminal = 1, is_read = 1 WHERE id = ?1",
+        params![p.id],
+      )
+      .map_err(|e| e.to_string())?;
+    }
+  }
 
   Ok(())
 }
