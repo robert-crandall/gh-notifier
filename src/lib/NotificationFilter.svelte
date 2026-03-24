@@ -12,9 +12,11 @@
 
 	let {
 		notifications,
+		filteredCount,
 		chips = $bindable<FilterChip[]>([]),
 	}: {
 		notifications: GithubNotification[];
+		filteredCount: number;
 		chips: FilterChip[];
 	} = $props();
 
@@ -23,8 +25,7 @@
 	let pendingValue = $state('');
 	let wrapperEl = $state<HTMLDivElement | null>(null);
 	let inputEl = $state<HTMLInputElement | null>(null);
-
-	let filteredCount = $derived(applyFilters(notifications, chips).length);
+	let triggerEl = $state<HTMLButtonElement | null>(null);
 
 	function selectDimension(dim: FilterDimension) {
 		pendingDimension = dim;
@@ -35,18 +36,20 @@
 		if (!pendingDimension || !pendingValue.trim()) return;
 		chips = [
 			...chips,
-			{ id: `${pendingDimension}-${Date.now()}`, dimension: pendingDimension, value: pendingValue.trim() },
+			{ id: crypto.randomUUID(), dimension: pendingDimension, value: pendingValue.trim() },
 		];
 		pendingDimension = null;
 		pendingValue = '';
 		dropdownOpen = false;
+		triggerEl?.focus();
 	}
 
 	function addSelectChip(dim: FilterDimension, value: string) {
-		chips = [...chips, { id: `${dim}-${Date.now()}`, dimension: dim, value }];
+		chips = [...chips, { id: crypto.randomUUID(), dimension: dim, value }];
 		pendingDimension = null;
 		pendingValue = '';
 		dropdownOpen = false;
+		triggerEl?.focus();
 	}
 
 	function removeChip(id: string) {
@@ -61,6 +64,13 @@
 		dropdownOpen = false;
 		pendingDimension = null;
 		pendingValue = '';
+		triggerEl?.focus();
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && dropdownOpen) {
+			closeDropdown();
+		}
 	}
 
 	function handleMousedown(event: MouseEvent) {
@@ -87,10 +97,13 @@
 	}
 </script>
 
+<svelte:window onkeydown={handleKeydown} />
+
 <div class="flex flex-wrap items-center gap-2" bind:this={wrapperEl}>
 	<!-- Trigger -->
 	<div class="relative">
 		<button
+			bind:this={triggerEl}
 			onclick={() => {
 				dropdownOpen = !dropdownOpen;
 				if (!dropdownOpen) {
@@ -98,6 +111,9 @@
 					pendingValue = '';
 				}
 			}}
+			aria-expanded={dropdownOpen}
+			aria-controls="filter-dropdown"
+			aria-haspopup="true"
 			class="px-4 py-2 text-xs font-semibold text-on-surface bg-surface-container-highest rounded-md hover:bg-surface-dim transition-all duration-200 flex items-center gap-2"
 		>
 			<span class="material-symbols-outlined text-[16px]">filter_list</span>
@@ -113,6 +129,9 @@
 
 		{#if dropdownOpen}
 			<div
+				id="filter-dropdown"
+				role="dialog"
+				aria-label="Filter options"
 				class="absolute left-0 top-full mt-2 bg-surface-container-lowest border border-outline-variant/20 shadow-2xl rounded-xl w-56 z-50 overflow-hidden"
 			>
 				{#if pendingDimension === null}
@@ -145,10 +164,7 @@
 							bind:value={pendingValue}
 							onkeydown={(e) => {
 								if (e.key === 'Enter') addChip();
-								if (e.key === 'Escape') {
-									pendingDimension = null;
-									pendingValue = '';
-								}
+								if (e.key === 'Escape') closeDropdown();
 							}}
 						/>
 						<div class="flex gap-2 mt-3">
