@@ -116,7 +116,7 @@ fn project_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Project> {
 
 // Columns: id, github_id, repo_full_name, subject_title, subject_type,
 //          subject_url, reason, is_read, updated_at, project_id, author, author_avatar, html_url,
-//          is_terminal, comment_body, comment_author, comment_avatar, comment_at
+//          is_terminal, comment_body, comment_author, comment_avatar, comment_at, action_needed
 fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNotification> {
   Ok(GithubNotification {
     id: row.get(0)?,
@@ -137,6 +137,7 @@ fn notification_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GithubNoti
     comment_author: row.get(15)?,
     comment_avatar: row.get(16)?,
     comment_at: row.get(17)?,
+    action_needed: row.get(18)?,
   })
 }
 
@@ -293,7 +294,7 @@ pub fn wake_project(id: i64, state: tauri::State<'_, DbState>) -> Result<(), Str
 
 const NOTIFICATION_COLS: &str = "SELECT id, github_id, repo_full_name, subject_title, \
   subject_type, subject_url, reason, is_read, updated_at, project_id, author, author_avatar, \
-  html_url, is_terminal, comment_body, comment_author, comment_avatar, comment_at \
+  html_url, is_terminal, comment_body, comment_author, comment_avatar, comment_at, action_needed \
   FROM notifications";
 
 #[tauri::command]
@@ -581,6 +582,21 @@ pub fn mark_notification_unread(id: i64, state: tauri::State<'_, DbState>) -> Re
   db.execute(
     "UPDATE notifications SET is_read = 0 WHERE id = ?1 AND is_terminal = 0",
     params![id],
+  )
+  .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+#[tauri::command]
+pub fn set_action_needed(
+  id: i64,
+  action_needed: bool,
+  state: tauri::State<'_, DbState>,
+) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "UPDATE notifications SET action_needed = ?1 WHERE id = ?2",
+    params![action_needed, id],
   )
   .map_err(|e| e.to_string())?;
   Ok(())
@@ -1042,7 +1058,7 @@ fn recheck_stale_nonterminal(
   let mut stmt = db
     .prepare(
       "SELECT id, subject_url, subject_type FROM notifications \
-       WHERE is_terminal = 0 AND is_read = 0 \
+       WHERE is_terminal = 0 AND (is_read = 0 OR action_needed = 1) \
          AND subject_type IN ('PullRequest', 'Issue') \
          AND subject_url IS NOT NULL \
          AND (?1 IS NULL OR datetime(updated_at) < datetime(?1))",
