@@ -160,6 +160,17 @@
 			console.error('Failed to unsubscribe:', e);
 		}
 	}
+
+	async function markAllRead() {
+		try {
+			await api.markAllNotificationsRead(null);
+			const unreadCount = notifications.filter((n) => !n.is_read).length;
+			decrementInboxCount(unreadCount);
+			notifications = [];
+		} catch (e) {
+			console.error('Failed to mark all read:', e);
+		}
+	}
 </script>
 
 <section class="flex-1 px-8 py-10 bg-surface">
@@ -174,7 +185,7 @@
 				</p>
 			</div>
 			<div class="flex gap-3">
-				<button class="px-4 py-2 text-xs font-semibold text-secondary hover:bg-surface-container-low rounded-md transition-all duration-200 flex items-center gap-2">
+			<button onclick={markAllRead} class="px-4 py-2 text-xs font-semibold text-secondary hover:bg-surface-container-low rounded-md transition-all duration-200 flex items-center gap-2">
 					<span class="material-symbols-outlined text-[16px]">done_all</span>
 					Mark all read
 				</button>

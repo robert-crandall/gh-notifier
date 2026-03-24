@@ -9,9 +9,10 @@ use commands::{
   delete_manual_task, delete_project, delete_repo_filter, delete_repo_rule, get_bookmarks,
   get_global_filters, get_manual_tasks, get_notifications, get_project, get_projects,
   get_repo_filters, get_repo_rules, get_settings, get_unmapped_notifications,
-  mark_notification_read, mark_notification_unread, prefetch_notification_comments,
-  save_github_token, save_settings, snooze_project, sync_notifications, toggle_manual_task,
-  unsubscribe_thread, update_project, update_repo_rule, wake_project,
+  mark_all_notifications_read, mark_notification_read, mark_notification_unread,
+  prefetch_notification_comments, save_github_token, save_settings, snooze_project,
+  sync_notifications, toggle_manual_task, unsubscribe_thread, update_project, update_repo_rule,
+  wake_project,
 };
 use std::time::Duration;
 use tauri::Manager;
@@ -64,6 +65,7 @@ pub fn run() {
       assign_notification_to_project,
       mark_notification_read,
       mark_notification_unread,
+      mark_all_notifications_read,
       unsubscribe_thread,
       get_settings,
       save_github_token,
