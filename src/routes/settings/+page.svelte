@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { AppSettings, RepoRule, Project, GlobalFilter, RepoFilter } from '$lib/types';
 	import * as api from '$lib/api';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 	let settings: AppSettings = $state({
 		github_token: null,
@@ -24,7 +25,7 @@
 	let addingGlobalFilter = $state(false);
 
 	// Per-repo configuration state
-	let expandedRepos = $state<Set<string>>(new Set());
+	let expandedRepos: SvelteSet<string> = new SvelteSet();
 	let editingRepoConfig = $state<string | null>(null);
 	let editingRepoProjectId = $state<number | null>(null);
 	let newRepoConfigName = $state('');
@@ -61,7 +62,7 @@
 	}
 
 	let repoConfigs = $derived.by(() => {
-		const configMap = new Map<string, RepoConfig>();
+		const configMap = new SvelteMap<string, RepoConfig>();
 		
 		// Add repos from routing rules
 		for (const rule of repoRules) {
@@ -160,10 +161,10 @@
 	function toggleRepoExpansion(repoName: string) {
 		if (expandedRepos.has(repoName)) {
 			expandedRepos.delete(repoName);
-			expandedRepos = new Set(expandedRepos); // Create new Set to trigger reactivity
+			expandedRepos = new SvelteSet(expandedRepos); // Create new Set to trigger reactivity
 		} else {
 			expandedRepos.add(repoName);
-			expandedRepos = new Set(expandedRepos); // Create new Set to trigger reactivity
+			expandedRepos = new SvelteSet(expandedRepos); // Create new Set to trigger reactivity
 		}
 	}
 
@@ -422,7 +423,7 @@
 				bind:value={newGlobalReason}
 			>
 				<option value="">Select reason...</option>
-				{#each availableGlobalReasons as reason}
+				{#each availableGlobalReasons as reason (reason)}
 					<option value={reason}>{reason}</option>
 				{/each}
 			</select>
@@ -546,7 +547,7 @@
 											}}
 										>
 											<option value="">Add filter...</option>
-											{#each availableReasons as reason}
+											{#each availableReasons as reason (reason)}
 												{#if !config.filters.some(f => f.reason === reason)}
 													<option value={reason}>{reason}</option>
 												{/if}
@@ -585,7 +586,7 @@
 					bind:value={newRepoConfigReason}
 				>
 					<option value="">No filter (optional)</option>
-					{#each availableReasons as reason}
+					{#each availableReasons as reason (reason)}
 						<option value={reason}>{reason}</option>
 					{/each}
 				</select>
