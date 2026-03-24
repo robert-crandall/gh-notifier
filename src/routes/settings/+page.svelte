@@ -387,8 +387,8 @@
 			</button>
 		</div>
 		<p class="text-xs text-on-surface-variant">
-			A Fine-Grained Personal Access Token with the
-			<code class="bg-surface-container-high px-1 rounded">GitHub Copilot</code> scope.
+			A Fine-Grained Token with read permissions on
+			<code class="bg-surface-container-high px-1 rounded">Copilot Requests</code> and <code class="bg-surface-container-high px-1 rounded">Models</code>.
 			Used by the AI Assistant panel. Separate from your notifications token.
 		</p>
 	</section>
