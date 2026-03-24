@@ -611,11 +611,11 @@
 				{/if}
 				{#each unreadActiveNotifications as notification (notification.id)}
 				<div class="relative group">
-					<div class="absolute -left-6 top-0 bottom-0 w-[3px] {notification.action_needed ? 'bg-amber-400' : 'bg-primary'} rounded-full transition-all group-hover:w-[5px]"></div>
+					<div class="absolute -left-6 top-0 bottom-0 w-[3px] {notification.action_needed ? 'bg-tertiary' : 'bg-primary'} rounded-full transition-all group-hover:w-[5px]"></div>
 					<div class="bg-surface-container-lowest shadow-sm hover:shadow-md border border-outline-variant/5 p-6 rounded-xl transition-shadow {notification.action_needed && notification.is_read ? 'opacity-80' : ''}">
 						<div class="flex justify-between items-start mb-4">
 							<div class="flex items-start gap-4">
-								<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center {notification.action_needed ? 'text-amber-400' : 'text-primary'}">
+								<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center {notification.action_needed ? 'text-tertiary' : 'text-primary'}">
 									<span class="material-symbols-outlined">
 										{notification.subject_type === 'PullRequest' ? 'rebase' : 'error'}
 									</span>
@@ -627,7 +627,7 @@
 										<span>{timeAgo(notification.updated_at)}</span>
 										{#if notification.action_needed}
 											<span>&bull;</span>
-											<span class="px-2 py-0.5 rounded font-bold bg-amber-400/20 text-amber-400 normal-case">Action needed</span>
+											<span class="px-2 py-0.5 rounded font-bold bg-tertiary-fixed text-on-tertiary-fixed-variant normal-case">Action needed</span>
 										{/if}
 									</div>
 									<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
@@ -657,7 +657,7 @@
 							</div>
 							<div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
 								<button
-									class="px-3 py-1.5 rounded text-[10px] font-black tracking-widest flex items-center gap-2 {notification.action_needed ? 'bg-amber-400/20 hover:bg-amber-400/30 text-amber-400' : 'bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant'}"
+									class="px-3 py-1.5 rounded text-[10px] font-black tracking-widest flex items-center gap-2 {notification.action_needed ? 'bg-tertiary-fixed hover:bg-tertiary-fixed-dim text-tertiary' : 'bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant'}"
 									onclick={() => toggleActionNeeded(notification)}
 									title={notification.action_needed ? 'Remove action needed flag' : 'Flag as action needed'}
 								>
