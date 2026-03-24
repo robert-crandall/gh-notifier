@@ -21,10 +21,16 @@
 	let globalFilters: GlobalFilter[] = $state([]);
 	let repoFilters: RepoFilter[] = $state([]);
 	let newGlobalReason = $state('');
-	let newRepoFilterRepo = $state('');
-	let newRepoFilterReason = $state('');
 	let addingGlobalFilter = $state(false);
-	let addingRepoFilter = $state(false);
+
+	// Per-repo configuration state
+	let expandedRepos = $state<Set<string>>(new Set());
+	let editingRepoConfig = $state<string | null>(null);
+	let editingRepoProjectId = $state<number | null>(null);
+	let newRepoConfigName = $state('');
+	let newRepoConfigProjectId = $state<number | null>(null);
+	let newRepoConfigReason = $state('');
+	let addingRepoConfig = $state(false);
 
 	// List of available GitHub notification reasons
 	const availableReasons = [
@@ -41,6 +47,45 @@
 		'subscribed',
 		'team_mention'
 	];
+
+	// Unified repo configuration: merge rules and filters by repo
+	interface RepoConfig {
+		repo_full_name: string;
+		rule: RepoRule | null;
+		filters: RepoFilter[];
+	}
+
+	let repoConfigs = $derived.by(() => {
+		const configMap = new Map<string, RepoConfig>();
+		
+		// Add repos from routing rules
+		for (const rule of repoRules) {
+			configMap.set(rule.repo_full_name, {
+				repo_full_name: rule.repo_full_name,
+				rule,
+				filters: []
+			});
+		}
+		
+		// Add/merge repos from filters
+		for (const filter of repoFilters) {
+			const existing = configMap.get(filter.repo_full_name);
+			if (existing) {
+				existing.filters.push(filter);
+			} else {
+				configMap.set(filter.repo_full_name, {
+					repo_full_name: filter.repo_full_name,
+					rule: null,
+					filters: [filter]
+				});
+			}
+		}
+		
+		// Sort by repo name
+		return Array.from(configMap.values()).sort((a, b) => 
+			a.repo_full_name.localeCompare(b.repo_full_name)
+		);
+	});
 
 	$effect(() => {
 		api.getSettings().then((s) => {
@@ -106,6 +151,85 @@
 		editingRuleId = null;
 	}
 
+	// Per-repo configuration functions
+	function toggleRepoExpansion(repoName: string) {
+		if (expandedRepos.has(repoName)) {
+			expandedRepos.delete(repoName);
+			expandedRepos = new Set(expandedRepos); // Create new Set to trigger reactivity
+		} else {
+			expandedRepos.add(repoName);
+			expandedRepos = new Set(expandedRepos); // Create new Set to trigger reactivity
+		}
+	}
+
+	async function updateRepoRouting(repoName: string, ruleId: number | null, newProjectId: number | null) {
+		try {
+			if (ruleId === null && newProjectId !== null) {
+				// Create new rule
+				await api.createRepoRule(repoName, newProjectId, false);
+				// Refresh rules
+				repoRules = await api.getRepoRules();
+			} else if (ruleId !== null && newProjectId !== null) {
+				// Update existing rule
+				await api.updateRepoRule(ruleId, newProjectId);
+				repoRules = repoRules.map((r) =>
+					r.id === ruleId
+						? { ...r, project_id: newProjectId, project_name: projects.find((p) => p.id === newProjectId)?.name ?? r.project_name }
+						: r
+				);
+			} else if (ruleId !== null && newProjectId === null) {
+				// Delete rule
+				await api.deleteRepoRule(ruleId);
+				repoRules = repoRules.filter((r) => r.id !== ruleId);
+			}
+			editingRepoConfig = null;
+		} catch (e) {
+			console.error('Failed to update repo routing:', e);
+		}
+	}
+
+	async function addFilterToRepo(repoName: string, reason: string) {
+		try {
+			const filter = await api.createRepoFilter(repoName, reason);
+			repoFilters = [...repoFilters, filter];
+		} catch (e) {
+			console.error('Failed to add repo filter:', e);
+		}
+	}
+
+	async function removeRepoFilter(id: number) {
+		try {
+			await api.deleteRepoFilter(id);
+			repoFilters = repoFilters.filter((f) => f.id !== id);
+		} catch (e) {
+			console.error('Failed to delete repo filter:', e);
+		}
+	}
+
+	async function addRepoConfig() {
+		if (!newRepoConfigName.trim()) return;
+		addingRepoConfig = true;
+		try {
+			// Create rule if project selected
+			if (newRepoConfigProjectId !== null) {
+				await api.createRepoRule(newRepoConfigName, newRepoConfigProjectId, false);
+				repoRules = await api.getRepoRules();
+			}
+			// Create filter if reason selected
+			if (newRepoConfigReason) {
+				const filter = await api.createRepoFilter(newRepoConfigName, newRepoConfigReason);
+				repoFilters = [...repoFilters, filter];
+			}
+			// Reset form
+			newRepoConfigName = '';
+			newRepoConfigProjectId = null;
+			newRepoConfigReason = '';
+		} catch (e) {
+			console.error('Failed to add repo config:', e);
+		}
+		addingRepoConfig = false;
+	}
+
 	async function saveToken() {
 		if (!tokenInput.trim() || tokenInput === '••••••••') return;
 		saving = true;
@@ -154,29 +278,6 @@
 			globalFilters = globalFilters.filter((f) => f.id !== id);
 		} catch (e) {
 			console.error('Failed to delete global filter:', e);
-		}
-	}
-
-	async function addRepoFilter() {
-		if (!newRepoFilterRepo.trim() || !newRepoFilterReason.trim()) return;
-		addingRepoFilter = true;
-		try {
-			const filter = await api.createRepoFilter(newRepoFilterRepo, newRepoFilterReason);
-			repoFilters = [...repoFilters, filter];
-			newRepoFilterRepo = '';
-			newRepoFilterReason = '';
-		} catch (e) {
-			console.error('Failed to create repo filter:', e);
-		}
-		addingRepoFilter = false;
-	}
-
-	async function removeRepoFilter(id: number) {
-		try {
-			await api.deleteRepoFilter(id);
-			repoFilters = repoFilters.filter((f) => f.id !== id);
-		} catch (e) {
-			console.error('Failed to delete repo filter:', e);
 		}
 	}
 
@@ -280,62 +381,6 @@
 		<div class="bg-primary/10 text-primary text-sm px-4 py-3 rounded-lg">{message}</div>
 	{/if}
 
-	<!-- Repo Routing Rules -->
-	<section class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm space-y-4">
-		<div class="flex items-center gap-2">
-			<span class="material-symbols-outlined text-primary">route</span>
-			<h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Repo Routing Rules</h2>
-		</div>
-		{#if repoRules.length === 0}
-			<p class="text-sm text-on-surface-variant">No rules yet. Assign a notification in the Inbox to create one.</p>
-		{:else}
-			<ul class="divide-y divide-outline-variant/10">
-				{#each repoRules as rule (rule.id)}
-					<li class="flex items-center gap-3 py-3">
-						<span class="font-mono text-xs text-on-surface flex-1 truncate">{rule.repo_full_name}</span>
-						{#if editingRuleId === rule.id}
-							<select
-								class="bg-surface-container-high border border-outline-variant/20 rounded-lg py-1 px-2 text-sm focus:ring-2 focus:ring-primary/40"
-								bind:value={editingProjectId}
-							>
-								{#each projects as project (project.id)}
-									<option value={project.id}>{project.name}</option>
-								{/each}
-							</select>
-							<button
-								class="px-3 py-1 bg-primary text-on-primary text-xs font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all"
-								onclick={() => saveEdit(rule.id)}
-							>Save</button>
-							<button
-								class="px-3 py-1 text-xs text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded-lg transition-all"
-								onclick={() => { editingRuleId = null; }}
-							>Cancel</button>
-						{:else}
-							<span class="text-sm text-on-surface-variant">→</span>
-							<span class="text-sm font-medium text-on-surface">{rule.project_name}</span>
-							<button
-								class="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container rounded transition-all"
-								title="Change project"
-								aria-label="Change project for {rule.repo_full_name}"
-								onclick={() => startEdit(rule)}
-							>
-								<span class="material-symbols-outlined text-[18px]">edit</span>
-							</button>
-							<button
-								class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-all"
-								title="Delete rule"
-								aria-label="Delete rule for {rule.repo_full_name}"
-								onclick={() => deleteRule(rule.id)}
-							>
-								<span class="material-symbols-outlined text-[18px]">delete</span>
-							</button>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</section>
-
 	<!-- Global Filters -->
 	<section class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm space-y-4">
 		<div class="flex items-center gap-2">
@@ -384,59 +429,167 @@
 		</div>
 	</section>
 
-	<!-- Repo Filters -->
+	<!-- Per-Repo Configuration -->
 	<section class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm space-y-4">
 		<div class="flex items-center gap-2">
-			<span class="material-symbols-outlined text-primary">filter_alt</span>
-			<h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Per-Repo Filters</h2>
+			<span class="material-symbols-outlined text-primary">tune</span>
+			<h2 class="text-sm font-black uppercase tracking-widest text-on-surface">Per-Repo Configuration</h2>
 		</div>
 		<p class="text-xs text-on-surface-variant">
-			Suppress specific notification types for individual repos. These are in addition to global filters.
+			Configure routing and filters for individual repos. Click a repo to expand its settings.
 		</p>
-		{#if repoFilters.length === 0}
-			<p class="text-sm text-on-surface-variant italic">No per-repo filters.</p>
+		{#if repoConfigs.length === 0}
+			<p class="text-sm text-on-surface-variant italic">No repo configurations yet. Assign a notification in the Inbox to create one.</p>
 		{:else}
-			<ul class="divide-y divide-outline-variant/10">
-				{#each repoFilters as filter (filter.id)}
-					<li class="flex items-center gap-3 py-2">
-						<code class="font-mono text-xs text-on-surface flex-1">{filter.repo_full_name}</code>
-						<span class="text-sm text-on-surface-variant">→</span>
-						<code class="font-mono text-xs text-on-surface">{filter.reason}</code>
+			<div class="space-y-2">
+				{#each repoConfigs as config (config.repo_full_name)}
+					<div class="border border-outline-variant/10 rounded-lg overflow-hidden">
+						<!-- Collapsed header -->
 						<button
-							class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded transition-all"
-							title="Remove filter"
-							aria-label="Remove filter for {filter.repo_full_name} / {filter.reason}"
-							onclick={() => removeRepoFilter(filter.id)}
+							class="w-full flex items-center gap-3 p-3 hover:bg-surface-container-high transition-colors text-left"
+							onclick={() => toggleRepoExpansion(config.repo_full_name)}
 						>
-							<span class="material-symbols-outlined text-[18px]">delete</span>
+							<span class="material-symbols-outlined text-[18px] text-on-surface-variant transition-transform {expandedRepos.has(config.repo_full_name) ? 'rotate-90' : ''}">
+								chevron_right
+							</span>
+							<code class="font-mono text-xs text-on-surface flex-1 truncate">{config.repo_full_name}</code>
+							<div class="flex items-center gap-2 text-xs text-on-surface-variant">
+								{#if config.rule}
+									<span class="px-2 py-0.5 rounded bg-primary/10 text-primary">→ {config.rule.project_name}</span>
+								{/if}
+								{#if config.filters.length > 0}
+									<span class="px-2 py-0.5 rounded bg-surface-container-high">{config.filters.length} filter{config.filters.length === 1 ? '' : 's'}</span>
+								{/if}
+							</div>
 						</button>
-					</li>
+
+						<!-- Expanded content -->
+						{#if expandedRepos.has(config.repo_full_name)}
+							<div class="p-4 bg-surface-container border-t border-outline-variant/10 space-y-4">
+								<!-- Routing -->
+								<div>
+									<div class="flex items-center justify-between mb-2">
+										<p class="text-xs font-semibold text-on-surface uppercase tracking-wider">Routing</p>
+										{#if editingRepoConfig === config.repo_full_name}
+											<div class="flex gap-2">
+												<button
+													class="px-2 py-1 text-xs bg-primary text-on-primary rounded hover:opacity-90"
+													onclick={() => updateRepoRouting(config.repo_full_name, config.rule?.id ?? null, editingRepoProjectId)}
+												>Save</button>
+												<button
+													class="px-2 py-1 text-xs text-on-surface-variant hover:bg-surface-container-high rounded"
+													onclick={() => { editingRepoConfig = null; editingRepoProjectId = null; }}
+												>Cancel</button>
+											</div>
+										{:else}
+											<button
+												class="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded"
+												onclick={() => { editingRepoConfig = config.repo_full_name; editingRepoProjectId = config.rule?.project_id ?? null; }}
+											>
+												<span class="material-symbols-outlined text-[16px]">edit</span>
+											</button>
+										{/if}
+									</div>
+									{#if editingRepoConfig === config.repo_full_name}
+										<select
+											class="w-full bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm"
+											bind:value={editingRepoProjectId}
+										>
+											<option value={null}>Inbox (no routing)</option>
+											{#each projects as project (project.id)}
+												<option value={project.id}>{project.name}</option>
+											{/each}
+										</select>
+									{:else}
+										<p class="text-sm text-on-surface">
+											{config.rule ? `Routes to: ${config.rule.project_name}` : 'No routing rule (goes to Inbox)'}
+										</p>
+									{/if}
+								</div>
+
+								<!-- Filters -->
+								<div>
+									<p class="text-xs font-semibold text-on-surface uppercase tracking-wider mb-2">Filters</p>
+									{#if config.filters.length === 0}
+										<p class="text-sm text-on-surface-variant italic mb-2">No filters</p>
+									{:else}
+										<ul class="space-y-1 mb-2">
+											{#each config.filters as filter (filter.id)}
+												<li class="flex items-center gap-2">
+													<code class="text-xs text-on-surface bg-surface-container-highest px-2 py-1 rounded flex-1">{filter.reason}</code>
+													<button
+														class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container/20 rounded"
+														onclick={() => removeRepoFilter(filter.id)}
+													>
+														<span class="material-symbols-outlined text-[16px]">delete</span>
+													</button>
+												</li>
+											{/each}
+										</ul>
+									{/if}
+									<div class="flex gap-2">
+										<select
+											class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-1.5 px-2 text-xs"
+											onchange={(e) => {
+												const reason = (e.target as HTMLSelectElement).value;
+												if (reason) {
+													addFilterToRepo(config.repo_full_name, reason);
+													(e.target as HTMLSelectElement).value = '';
+												}
+											}}
+										>
+											<option value="">Add filter...</option>
+											{#each availableReasons as reason}
+												{#if !config.filters.some(f => f.reason === reason)}
+													<option value={reason}>{reason}</option>
+												{/if}
+											{/each}
+										</select>
+									</div>
+								</div>
+							</div>
+						{/if}
+					</div>
 				{/each}
-			</ul>
+			</div>
 		{/if}
-		<div class="flex gap-2 pt-2 border-t border-outline-variant/10">
-			<input
-				type="text"
-				bind:value={newRepoFilterRepo}
-				placeholder="owner/repo"
-				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40"
-			/>
-			<select
-				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-primary/40"
-				bind:value={newRepoFilterReason}
-			>
-				<option value="">Select reason...</option>
-				{#each availableReasons as reason}
-					<option value={reason}>{reason}</option>
-				{/each}
-			</select>
-			<button
-				class="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-				onclick={addRepoFilter}
-				disabled={addingRepoFilter || !newRepoFilterRepo || !newRepoFilterReason}
-			>
-				Add
-			</button>
+
+		<!-- Add new repo configuration -->
+		<div class="pt-4 border-t border-outline-variant/10 space-y-2">
+			<p class="text-xs font-semibold text-on-surface uppercase tracking-wider">Add Repository</p>
+			<div class="flex flex-col gap-2">
+				<input
+					type="text"
+					bind:value={newRepoConfigName}
+					placeholder="owner/repo"
+					class="bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm"
+				/>
+				<select
+					class="bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm"
+					bind:value={newRepoConfigProjectId}
+				>
+					<option value={null}>No routing (optional)</option>
+					{#each projects as project (project.id)}
+						<option value={project.id}>{project.name}</option>
+					{/each}
+				</select>
+				<select
+					class="bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-3 text-sm"
+					bind:value={newRepoConfigReason}
+				>
+					<option value="">No filter (optional)</option>
+					{#each availableReasons as reason}
+						<option value={reason}>{reason}</option>
+					{/each}
+				</select>
+				<button
+					class="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+					onclick={addRepoConfig}
+					disabled={addingRepoConfig || !newRepoConfigName.trim()}
+				>
+					Add Repository
+				</button>
+			</div>
 		</div>
 	</section>
 </div>

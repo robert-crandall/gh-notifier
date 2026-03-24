@@ -93,7 +93,6 @@ pub fn validate_token(token: &str) -> Result<(), String> {
 /// When `since` is `Some(ts)`, only notifications updated after that timestamp are
 /// returned — GitHub will serve a 304 (empty body) when nothing changed, which we
 /// transparently normalise to an empty `Vec`.
-/// Returns `team_mention` notifications as well — callers are responsible for filtering.
 pub fn fetch_notifications(
   token: &str,
   since: Option<&str>,
