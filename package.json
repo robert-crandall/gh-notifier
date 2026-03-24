@@ -10,7 +10,8 @@
     "lint": "eslint src",
     "ci": "cd src-tauri && cargo fmt --check && cargo clippy -- -D warnings && cd .. && bun run check && bun run lint",
     "tauri": "tauri",
-    "install-app": "bash scripts/install.sh"
+    "install-app": "bash scripts/install.sh",
+    "db:backup": "cp ~/Library/Application\\ Support/com.precision-architect.gh-notifier/gh-notifier.db backups/gh-notifier-backup.db"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.0",
