@@ -176,5 +176,17 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
   }
 
+  if version < 6 {
+    // Add prefetched latest-comment fields.  These are cleared when the
+    // notification's updated_at changes (new activity on the thread).
+    conn.execute_batch(
+      "ALTER TABLE notifications ADD COLUMN comment_body   TEXT;
+       ALTER TABLE notifications ADD COLUMN comment_author TEXT;
+       ALTER TABLE notifications ADD COLUMN comment_avatar TEXT;
+       ALTER TABLE notifications ADD COLUMN comment_at     TEXT;
+       PRAGMA user_version = 6;",
+    )?;
+  }
+
   Ok(())
 }

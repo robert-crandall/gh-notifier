@@ -8,8 +8,9 @@ use commands::{
   create_repo_rule, delete_bookmark, delete_manual_task, delete_project, delete_repo_rule,
   get_bookmarks, get_manual_tasks, get_notifications, get_project, get_projects, get_repo_rules,
   get_settings, get_unmapped_notifications, mark_notification_read, mark_notification_unread,
-  save_github_token, save_settings, snooze_project, sync_notifications, toggle_manual_task,
-  unsubscribe_thread, update_project, update_repo_rule, wake_project,
+  prefetch_notification_comments, save_github_token, save_settings, snooze_project,
+  sync_notifications, toggle_manual_task, unsubscribe_thread, update_project, update_repo_rule,
+  wake_project,
 };
 use std::time::Duration;
 use tauri::Manager;
@@ -78,6 +79,7 @@ pub fn run() {
       get_bookmarks,
       create_bookmark,
       delete_bookmark,
+      prefetch_notification_comments,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
@@ -118,7 +120,24 @@ async fn poll_loop(handle: tauri::AppHandle) {
     .await;
 
     match result {
-      Ok(Ok(())) => {}
+      Ok(Ok(())) => {
+        // After a successful sync, prefetch latest comments for unread threads
+        // that don't have cached content yet. Fire-and-forget — failures in
+        // do_prefetch_comments don't surface to the user, and only panics in this
+        // background task are logged here.
+        let handle3 = handle.clone();
+        tauri::async_runtime::spawn(async move {
+          if let Err(e) = tokio::task::spawn_blocking(move || {
+            let db_state = handle3.state::<db::DbState>();
+            let token_cache = handle3.state::<db::TokenCache>();
+            commands::do_prefetch_comments(&handle3, &db_state, &token_cache);
+          })
+          .await
+          {
+            eprintln!("[prefetch] task panicked: {e}");
+          }
+        });
+      }
       Ok(Err(e)) => eprintln!("[poll] sync error: {e}"),
       Err(e) => eprintln!("[poll] task panicked: {e}"),
     }

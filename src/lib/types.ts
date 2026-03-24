@@ -27,6 +27,11 @@ export interface GithubNotification {
 	html_url: string | null;
 	/** true when the underlying thread is closed/merged — auto-marked read and shown in a collapsed "Closed" section */
 	is_terminal: boolean;
+	/** Latest comment prefetched in the background. Null until fetched, or after new activity on the thread. */
+	comment_body: string | null;
+	comment_author: string | null;
+	comment_avatar: string | null;
+	comment_at: string | null;
 }
 
 export interface ManualTask {

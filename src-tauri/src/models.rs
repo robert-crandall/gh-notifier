@@ -32,6 +32,12 @@ pub struct GithubNotification {
   /// `true` when the underlying thread is closed/merged — auto-marked read
   /// and shown in a collapsed "Closed" section rather than active threads.
   pub is_terminal: bool,
+  /// Latest comment prefetched in the background after sync.
+  /// Cleared when `updated_at` changes (new activity on the thread).
+  pub comment_body: Option<String>,
+  pub comment_author: Option<String>,
+  pub comment_avatar: Option<String>,
+  pub comment_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
