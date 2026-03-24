@@ -173,3 +173,11 @@ export async function createRepoFilter(repoFullName: string, reason: string): Pr
 export async function deleteRepoFilter(id: number): Promise<void> {
 	return invoke('delete_repo_filter', { id });
 }
+
+export async function queryCopilot(queryType: 'quick_wins' | 'waiting_on_me'): Promise<string> {
+	return invoke('query_copilot', { queryType });
+}
+
+export async function saveCopilotToken(token: string): Promise<void> {
+	return invoke('save_copilot_token', { token });
+}

@@ -2,7 +2,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 use crate::{
-  db::{DbState, EncKey, TokenCache},
+  db::{CopilotTokenCache, DbState, EncKey, TokenCache},
   github,
   models::{
     AppSettings, Bookmark, GithubNotification, GlobalFilter, ManualTask, Project, RepoFilter,
@@ -89,6 +89,33 @@ pub(crate) fn load_token_for_cache(conn: &rusqlite::Connection, key: &[u8; 32]) 
   encrypted.and_then(|enc| {
     decrypt_token(&enc, key)
       .map_err(|e| eprintln!("Failed to decrypt GitHub token: {e}"))
+      .ok()
+  })
+}
+
+/// Load the Copilot token from `SQLite` (AES-256-GCM encrypted) — used only once at startup.
+pub(crate) fn load_copilot_token_for_cache(
+  conn: &rusqlite::Connection,
+  key: &[u8; 32],
+) -> Option<String> {
+  let encrypted: Option<String> = match conn
+    .query_row(
+      "SELECT value FROM settings WHERE key = 'copilot_token_enc'",
+      [],
+      |row| row.get(0),
+    )
+    .optional()
+  {
+    Ok(row_opt) => row_opt,
+    Err(e) => {
+      eprintln!("Failed to load encrypted Copilot token from SQLite: {e}");
+      None
+    }
+  };
+
+  encrypted.and_then(|enc| {
+    decrypt_token(&enc, key)
+      .map_err(|e| eprintln!("Failed to decrypt Copilot token: {e}"))
       .ok()
   })
 }
@@ -671,12 +698,14 @@ pub fn mark_all_notifications_read(
 #[tauri::command]
 pub fn get_settings(
   token_cache: tauri::State<'_, TokenCache>,
+  copilot_cache: tauri::State<'_, CopilotTokenCache>,
   state: tauri::State<'_, DbState>,
 ) -> Result<AppSettings, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
 
   // Read the PAT from the in-memory cache — never from Keychain at runtime.
   let github_token = token_cache.0.lock().map_err(|e| e.to_string())?.clone();
+  let copilot_token = copilot_cache.0.lock().map_err(|e| e.to_string())?.clone();
 
   let poll_interval_minutes = db
     .query_row(
@@ -710,6 +739,7 @@ pub fn get_settings(
 
   Ok(AppSettings {
     github_token,
+    copilot_token,
     poll_interval_minutes,
     is_setup_complete,
     last_synced_at,
@@ -727,6 +757,26 @@ pub fn save_settings(
     params![poll_interval_minutes.to_string()],
   )
   .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+#[tauri::command]
+pub fn save_copilot_token(
+  token: String,
+  copilot_cache: tauri::State<'_, CopilotTokenCache>,
+  state: tauri::State<'_, DbState>,
+  enc_key: tauri::State<'_, EncKey>,
+) -> Result<(), String> {
+  let encrypted = encrypt_token(&token, &enc_key.0)?;
+  {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    db.execute(
+      "INSERT OR REPLACE INTO settings (key, value) VALUES ('copilot_token_enc', ?1)",
+      params![encrypted],
+    )
+    .map_err(|e| e.to_string())?;
+  }
+  *copilot_cache.0.lock().map_err(|e| e.to_string())? = Some(token);
   Ok(())
 }
 
@@ -1556,6 +1606,175 @@ pub fn delete_repo_rule(id: i64, state: tauri::State<'_, DbState>) -> Result<(),
   db.execute("DELETE FROM repo_rules WHERE id = ?1", params![id])
     .map_err(|e| e.to_string())?;
   Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// GitHub Copilot AI assistant command
+// ---------------------------------------------------------------------------
+
+/// Structs for the Copilot chat completions request / response.
+#[derive(serde::Serialize)]
+struct ChatMessage {
+  role: String,
+  content: String,
+}
+
+#[derive(serde::Serialize)]
+struct ChatRequest {
+  model: String,
+  messages: Vec<ChatMessage>,
+  stream: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct ChatChoice {
+  message: ChatChoiceMessage,
+}
+
+#[derive(serde::Deserialize)]
+struct ChatChoiceMessage {
+  content: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ChatResponse {
+  choices: Vec<ChatChoice>,
+}
+
+/// Build a human-readable summary of notifications for the LLM prompt.
+fn format_notifications_for_prompt(notifications: &[crate::models::GithubNotification]) -> String {
+  use std::fmt::Write as _;
+  if notifications.is_empty() {
+    return "No active notifications found.".into();
+  }
+  notifications
+    .iter()
+    .enumerate()
+    .map(|(i, n)| {
+      let mut line = format!(
+        "{}. [{}] {} — {} ({})",
+        i + 1,
+        n.subject_type,
+        n.subject_title,
+        n.repo_full_name,
+        n.reason,
+      );
+      if let Some(url) = &n.html_url {
+        let _ = write!(line, " <{url}>");
+      }
+      if n.action_needed {
+        line.push_str(" [ACTION NEEDED]");
+      }
+      if let Some(body) = &n.comment_body {
+        let preview: String = body.chars().take(120).collect();
+        let _ = write!(line, "\n   Latest comment: {preview}");
+      }
+      line
+    })
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+/// Build the system + user prompt for the requested query type.
+fn build_messages(query_type: &str, notification_text: &str) -> Vec<ChatMessage> {
+  let system = ChatMessage {
+    role: "system".into(),
+    content: "You are a GitHub notification assistant. \
+      Reply with ONLY a markdown checklist — no preamble, no explanation, no trailing text. \
+      Each item must start with `- [ ] `. \
+      If a GitHub URL is available for the item, append it in parentheses e.g. \
+      `- [ ] Review PR #42 (https://github.com/org/repo/pull/42)`. \
+      Limit your response to 5 items maximum."
+      .into(),
+  };
+  let user_content = match query_type {
+    "waiting_on_me" => format!(
+      "From the notifications below, identify threads where someone is \
+       explicitly waiting on me to respond or take action.\n\n{notification_text}"
+    ),
+    _ => format!(
+      "From the notifications below, identify 3–5 short, low-effort items \
+       I can close out quickly (quick wins).\n\n{notification_text}"
+    ),
+  };
+  vec![
+    system,
+    ChatMessage {
+      role: "user".into(),
+      content: user_content,
+    },
+  ]
+}
+
+#[tauri::command]
+pub fn query_copilot(
+  query_type: String,
+  copilot_cache: tauri::State<'_, CopilotTokenCache>,
+  state: tauri::State<'_, DbState>,
+) -> Result<String, String> {
+  // Retrieve the stored Copilot Fine-Grained PAT.
+  let copilot_token: String = copilot_cache
+    .0
+    .lock()
+    .map_err(|e| e.to_string())?
+    .clone()
+    .ok_or("No Copilot token configured. Add a Fine-Grained PAT with Copilot scope in Settings.")?;
+
+  // Fetch active notifications (unread OR action_needed, non-terminal).
+  let notifications: Vec<crate::models::GithubNotification> = {
+    let db = state.0.lock().map_err(|e| e.to_string())?;
+    let sql = format!(
+      "{NOTIFICATION_COLS} \
+       WHERE is_terminal = 0 AND (is_read = 0 OR action_needed = 1) \
+       ORDER BY updated_at DESC LIMIT 50"
+    );
+    let mut stmt = db.prepare(&sql).map_err(|e| e.to_string())?;
+    let result = stmt
+      .query_map([], notification_from_row)
+      .map_err(|e| e.to_string())?
+      .collect::<rusqlite::Result<Vec<_>>>()
+      .map_err(|e| e.to_string())?;
+    result
+  };
+
+  let notification_text = format_notifications_for_prompt(&notifications);
+
+  // Call the Copilot chat completions endpoint directly with the Fine-Grained PAT.
+  let client = reqwest::blocking::Client::builder()
+    .build()
+    .map_err(|e| e.to_string())?;
+
+  let messages = build_messages(&query_type, &notification_text);
+  let request_body = ChatRequest {
+    model: "gpt-4o".into(),
+    messages,
+    stream: false,
+  };
+
+  let resp = client
+    .post("https://api.githubcopilot.com/chat/completions")
+    .header("Authorization", format!("Bearer {copilot_token}"))
+    .header("Content-Type", "application/json")
+    .header("User-Agent", "gh-notifier/0.1")
+    .json(&request_body)
+    .send()
+    .map_err(|e| format!("Failed to reach GitHub Copilot API: {e}"))?;
+
+  if !resp.status().is_success() {
+    let status = resp.status().as_u16();
+    return Err(format!("Copilot API returned HTTP {status}"));
+  }
+
+  let chat: ChatResponse = resp
+    .json()
+    .map_err(|e| format!("Invalid Copilot API response: {e}"))?;
+
+  chat
+    .choices
+    .into_iter()
+    .next()
+    .map(|c| c.message.content)
+    .ok_or_else(|| "Copilot returned no choices".into())
 }
 
 // ---------------------------------------------------------------------------

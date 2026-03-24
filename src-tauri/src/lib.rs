@@ -10,9 +10,9 @@ use commands::{
   get_global_filters, get_manual_tasks, get_notifications, get_project, get_projects,
   get_repo_filters, get_repo_rules, get_settings, get_unmapped_notifications,
   mark_all_notifications_read, mark_notification_read, mark_notification_unread,
-  prefetch_notification_comments, save_github_token, save_settings, set_action_needed,
-  snooze_project, sync_notifications, toggle_manual_task, unsubscribe_thread, update_project,
-  update_repo_rule, wake_project,
+  prefetch_notification_comments, query_copilot, save_copilot_token, save_github_token,
+  save_settings, set_action_needed, snooze_project, sync_notifications, toggle_manual_task,
+  unsubscribe_thread, update_project, update_repo_rule, wake_project,
 };
 use std::time::Duration;
 use tauri::Manager;
@@ -40,9 +40,11 @@ pub fn run() {
       // the PAT from SQLite into the in-memory cache — no user prompt needed.
       let enc_key = db::load_or_create_key(&app_data_dir).map_err(std::io::Error::other)?;
       let cached_token = commands::load_token_for_cache(&conn, &enc_key);
+      let cached_copilot = commands::load_copilot_token_for_cache(&conn, &enc_key);
       app.manage(db::DbState(std::sync::Mutex::new(conn)));
       app.manage(db::EncKey(enc_key));
       app.manage(db::TokenCache(std::sync::Mutex::new(cached_token)));
+      app.manage(db::CopilotTokenCache(std::sync::Mutex::new(cached_copilot)));
 
       // Spawn the background notification polling loop.
       let handle = app.handle().clone();
@@ -90,6 +92,8 @@ pub fn run() {
       get_repo_filters,
       create_repo_filter,
       delete_repo_filter,
+      query_copilot,
+      save_copilot_token,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

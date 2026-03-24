@@ -10,6 +10,9 @@ pub struct DbState(pub Mutex<Connection>);
 /// per app launch.
 pub struct TokenCache(pub Mutex<Option<String>>);
 
+/// In-memory Copilot token cache — separate Fine-Grained PAT with Copilot scope.
+pub struct CopilotTokenCache(pub Mutex<Option<String>>);
+
 /// The 256-bit AES-GCM key used to encrypt the GitHub PAT at rest in `SQLite`.
 /// Loaded once at startup from `<app_data_dir>/key.bin`.
 pub struct EncKey(pub [u8; 32]);

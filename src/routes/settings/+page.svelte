@@ -5,11 +5,14 @@
 
 	let settings: AppSettings = $state({
 		github_token: null,
+		copilot_token: null,
 		poll_interval_minutes: 5,
 		is_setup_complete: false,
 		last_synced_at: null
 	});
 	let tokenInput = $state('');
+	let copilotTokenInput = $state('');
+	let savingCopilot = $state(false);
 	let saving = $state(false);
 	let syncing = $state(false);
 	let message = $state('');
@@ -97,6 +100,7 @@
 		api.getSettings().then((s) => {
 			settings = s;
 			tokenInput = s.github_token ? '••••••••' : '';
+			copilotTokenInput = s.copilot_token ? '••••••••' : '';
 		}).catch((e) => {
 			console.error('Failed to load settings:', e);
 			message = 'Failed to load settings. Please try again.';
@@ -250,6 +254,20 @@
 		saving = false;
 	}
 
+	async function saveCopilotToken() {
+		if (!copilotTokenInput.trim() || copilotTokenInput === '••••••••') return;
+		savingCopilot = true;
+		message = '';
+		try {
+			await api.saveCopilotToken(copilotTokenInput);
+			message = 'Copilot token saved successfully.';
+			copilotTokenInput = '••••••••';
+		} catch (e) {
+			message = `Error saving Copilot token: ${e}`;
+		}
+		savingCopilot = false;
+	}
+
 	async function triggerSync() {
 		syncing = true;
 		message = '';
@@ -344,6 +362,34 @@
 		</div>
 		<p class="text-xs text-on-surface-variant">
 			Required scope: <code class="bg-surface-container-high px-1 rounded">notifications</code>
+		</p>
+	</section>
+
+	<!-- Copilot Token -->
+	<section class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/15 shadow-sm space-y-4">
+		<div class="flex items-center gap-2">
+			<span class="material-symbols-outlined text-primary">auto_awesome</span>
+			<h2 class="text-sm font-black uppercase tracking-widest text-on-surface">GitHub Copilot Token</h2>
+		</div>
+		<div class="flex gap-3">
+			<input
+				type="password"
+				bind:value={copilotTokenInput}
+				placeholder="github_pat_xxxxxxxxxxxx"
+				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-4 text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+			/>
+			<button
+				class="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+				onclick={saveCopilotToken}
+				disabled={savingCopilot}
+			>
+				{savingCopilot ? 'Saving...' : 'Save'}
+			</button>
+		</div>
+		<p class="text-xs text-on-surface-variant">
+			A Fine-Grained Personal Access Token with the
+			<code class="bg-surface-container-high px-1 rounded">GitHub Copilot</code> scope.
+			Used by the AI Assistant panel. Separate from your notifications token.
 		</p>
 	</section>
 

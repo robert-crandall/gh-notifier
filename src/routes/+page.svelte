@@ -8,6 +8,50 @@
 	let loading = $state(true);
 	let snoozedExpanded = $state(false);
 
+	// AI assistant panel state
+	let aiResult = $state<string | null>(null);
+	let aiLastRun = $state<Date | null>(null);
+	let aiLoading = $state(false);
+	let aiError = $state<string | null>(null);
+
+	// Parse `- [ ] Item text (url)` checklist lines into structured items.
+	interface ChecklistItem {
+		text: string;
+		url: string | null;
+		checked: boolean;
+	}
+
+	function parseChecklist(markdown: string): ChecklistItem[] {
+		return markdown
+			.split('\n')
+			.map((line) => line.trim())
+			.filter((line) => line.startsWith('- [ ] ') || line.startsWith('- [x] '))
+			.map((line) => {
+				const checked = line.startsWith('- [x] ');
+				const content = line.replace(/^- \[[ x]\] /, '');
+				// Extract trailing URL in parentheses: `Item text (https://...)`
+				const urlMatch = content.match(/\(([^)]+)\)$/);
+				const url = urlMatch ? urlMatch[1] : null;
+				const text = url ? content.slice(0, content.lastIndexOf(`(${url})`)).trim() : content;
+				return { text, url, checked };
+			});
+	}
+
+	let checklistItems = $derived(aiResult ? parseChecklist(aiResult) : []);
+
+	async function runQuery(queryType: 'quick_wins' | 'waiting_on_me') {
+		aiLoading = true;
+		aiError = null;
+		try {
+			aiResult = await api.queryCopilot(queryType);
+			aiLastRun = new Date();
+		} catch (e) {
+			aiError = e instanceof Error ? e.message : String(e);
+		} finally {
+			aiLoading = false;
+		}
+	}
+
 	$effect(() => {
 		api.getProjects().then((projects) => {
 			activeProjects = projects.filter((p) => p.status === 'active');
@@ -178,52 +222,84 @@
 		{/if}
 	</section>
 
-	<!-- Bottom Insight -->
-	<section class="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6">
-		<div class="bg-primary-fixed/20 p-6 rounded-3xl border border-primary/10">
-			<h3 class="text-sm font-black uppercase tracking-tighter text-primary mb-4">
-				Architect Insight
-			</h3>
-			<p class="text-sm text-on-surface leading-relaxed mb-4">
-				You have <span class="font-bold">4 stale pull requests</span> across active projects.
-				Resolving these now will reduce your context-switching debt by 15% before the weekend.
-			</p>
-			<button class="text-xs font-bold text-primary flex items-center gap-1 group/link">
-				Auto-Schedule Reviews
-				<span
-					class="material-symbols-outlined text-sm group-hover/link:translate-x-1 transition-transform"
-					>arrow_forward</span
-				>
+	<!-- AI Assistant Panel -->
+	<section class="bg-surface-container-lowest border border-outline-variant/15 rounded-3xl p-8 shadow-[0_12px_40px_rgba(26,28,29,0.04)]">
+		<div class="flex items-center justify-between mb-6">
+			<div class="flex items-center gap-3">
+				<span class="material-symbols-outlined text-primary text-2xl">auto_awesome</span>
+				<h2 class="text-xl font-bold tracking-tight text-on-surface">AI Assistant</h2>
+			</div>
+			{#if aiLastRun}
+				<span class="text-[10px] font-medium text-on-surface-variant/60 uppercase tracking-wider">
+					Last run {aiLastRun.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+				</span>
+			{/if}
+		</div>
+
+		<!-- Query buttons -->
+		<div class="flex gap-3 mb-6">
+			<button
+				class="flex items-center gap-2 px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+				onclick={() => runQuery('quick_wins')}
+				disabled={aiLoading}
+			>
+				<span class="material-symbols-outlined text-[18px]">bolt</span>
+				Quick Wins
+			</button>
+			<button
+				class="flex items-center gap-2 px-4 py-2.5 bg-tertiary-container/30 hover:bg-tertiary-container/50 text-tertiary rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+				onclick={() => runQuery('waiting_on_me')}
+				disabled={aiLoading}
+			>
+				<span class="material-symbols-outlined text-[18px]">schedule</span>
+				Waiting on Me
 			</button>
 		</div>
-		<div class="p-6">
-			<h3 class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4">
-				Recent Commits (Global)
-			</h3>
-			<div class="space-y-4">
-				<div class="flex items-start gap-3">
-					<div class="w-2 h-2 rounded-full bg-primary mt-1.5"></div>
-					<div>
-						<p class="text-xs font-semibold text-on-surface">
-							feat(mesh): improve load balancer weights
-						</p>
-						<p class="text-[10px] text-on-surface-variant">
-							Precision-Architect/Infra &bull; 12m ago
-						</p>
-					</div>
-				</div>
-				<div class="flex items-start gap-3">
-					<div class="w-2 h-2 rounded-full bg-secondary-fixed mt-1.5"></div>
-					<div>
-						<p class="text-xs font-semibold text-on-surface">
-							docs: update readme with setup instructions
-						</p>
-						<p class="text-[10px] text-on-surface-variant">
-							Precision-Architect/Core &bull; 1h ago
-						</p>
-					</div>
-				</div>
+
+		<!-- Panel content -->
+		{#if aiLoading}
+			<div class="flex items-center gap-3 py-8 text-on-surface-variant/60">
+				<span class="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+				<span class="text-sm">Asking Copilot…</span>
 			</div>
-		</div>
+		{:else if aiError}
+			<div class="flex items-start gap-3 p-4 bg-error/10 rounded-xl border border-error/20">
+				<span class="material-symbols-outlined text-error text-xl shrink-0">error</span>
+				<p class="text-sm text-error leading-relaxed">{aiError}</p>
+			</div>
+		{:else if checklistItems.length > 0}
+			<ul class="space-y-3">
+				{#each checklistItems as item, i (i)}
+					<li class="flex items-start gap-3 group">
+						<input
+							type="checkbox"
+							class="mt-0.5 h-4 w-4 rounded border-outline-variant accent-primary shrink-0 cursor-pointer"
+							checked={item.checked}
+						/>
+						<span class="text-sm text-on-surface leading-relaxed">
+							{item.text}
+							{#if item.url}
+								<a
+									href={item.url}
+									target="_blank"
+									rel="noreferrer"
+									class="ml-1 text-primary hover:underline text-[11px] font-medium"
+								>
+									↗ Open
+								</a>
+							{/if}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{:else if aiResult !== null}
+			<p class="text-sm text-on-surface-variant py-4">No items returned. Try a different query.</p>
+		{:else}
+			<div class="flex flex-col items-center justify-center py-10 text-center">
+				<span class="material-symbols-outlined text-5xl text-on-surface-variant/20 mb-3">psychology</span>
+				<p class="text-sm font-semibold text-on-surface-variant">Run a query to get started</p>
+				<p class="text-xs text-on-surface-variant/60 mt-1">Copilot will analyse your active notifications and surface what matters.</p>
+			</div>
+		{/if}
 	</section>
 </div>
