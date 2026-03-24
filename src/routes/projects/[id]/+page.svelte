@@ -77,15 +77,24 @@
 		// Subscribe to comment-ready events so each card updates as soon as its
 		// comment resolves, without requiring a full page reload.
 		let unlisten: (() => void) | null = null;
+		let disposed = false;
 		listen<GithubNotification>('notification-comment-ready', (event) => {
 			const updated = event.payload;
 			notifications = notifications.map((n) => (n.id === updated.id ? updated : n));
 		}).then((fn) => {
-			unlisten = fn;
+			if (disposed) {
+				fn();
+			} else {
+				unlisten = fn;
+			}
 		});
 
 		return () => {
-			unlisten?.();
+			disposed = true;
+			if (unlisten) {
+				unlisten();
+				unlisten = null;
+			}
 		};
 	});
 
