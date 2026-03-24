@@ -74,3 +74,16 @@ export interface RepoRoutingHint {
 	/** Unmapped inbox notifications from this repo auto-routed when the rule is created. */
 	inbox_notification_count: number;
 }
+
+export interface GlobalFilter {
+	id: number;
+	reason: string;
+	created_at: string;
+}
+
+export interface RepoFilter {
+	id: number;
+	repo_full_name: string;
+	reason: string;
+	created_at: string;
+}

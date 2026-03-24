@@ -666,6 +666,10 @@
 															<span>{notification.repo_full_name}</span>
 															<span>&bull;</span>
 															<span>{timeAgo(notification.updated_at)}</span>
+															<span>&bull;</span>
+															<span class="px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary normal-case">
+																{notification.reason}
+															</span>
 														</div>
 														<h3 class="font-bold text-on-surface">{notification.subject_title}</h3>
 													</div>

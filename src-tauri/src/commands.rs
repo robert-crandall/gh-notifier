@@ -5,8 +5,8 @@ use crate::{
   db::{DbState, EncKey, TokenCache},
   github,
   models::{
-    AppSettings, Bookmark, GithubNotification, ManualTask, Project, RepoRoutingHint,
-    RepoRoutingKind, RepoRule,
+    AppSettings, Bookmark, GithubNotification, GlobalFilter, ManualTask, Project, RepoFilter,
+    RepoRoutingHint, RepoRoutingKind, RepoRule,
   },
 };
 use aes_gcm::{
@@ -715,9 +715,55 @@ fn process_notifications(
   // Build HTTP client once for all terminal-state checks.
   let client = github::make_client_public(token)?;
 
+  // Load all global filters into a HashSet for fast lookups
+  let global_filters: std::collections::HashSet<String> = {
+    let mut stmt = db
+      .prepare("SELECT reason FROM global_filters")
+      .map_err(|e| e.to_string())?;
+    let rows = stmt
+      .query_map([], |row| row.get::<_, String>(0))
+      .map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+  };
+
+  // Load all repo filters into a map: repo_full_name -> set of reasons
+  let repo_filters: std::collections::HashMap<String, std::collections::HashSet<String>> = {
+    let mut stmt = db
+      .prepare("SELECT repo_full_name, reason FROM repo_filters")
+      .map_err(|e| e.to_string())?;
+    let rows = stmt
+      .query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+      })
+      .map_err(|e| e.to_string())?;
+
+    let mut map: std::collections::HashMap<String, std::collections::HashSet<String>> =
+      std::collections::HashMap::new();
+    for row_result in rows {
+      let (repo, reason) = row_result.map_err(|e| e.to_string())?;
+      map.entry(repo).or_default().insert(reason);
+    }
+    map
+  };
+
   for n in api_notifications {
-    // Filter out team_mention noise per the PRD.
-    if n.reason == "team_mention" {
+    // Check if this notification should be filtered using in-memory lookups
+    let is_globally_filtered = global_filters.contains(&n.reason);
+    let is_repo_filtered = repo_filters
+      .get(&n.repository.full_name)
+      .is_some_and(|reasons| reasons.contains(&n.reason));
+
+    // FIXME: Current implementation skips filtered notifications entirely (continue
+    // before INSERT). Because GitHub API sync uses `since=last_synced_at`, a
+    // notification filtered once may never be re-fetched unless it gets new activity.
+    // This means removing a filter won't reliably resurface previously filtered
+    // notifications. To make filtering non-destructive, we should:
+    // 1. Add `is_filtered BOOLEAN DEFAULT 0` column to notifications table
+    // 2. INSERT all notifications and set is_filtered=1 for matched filters
+    // 3. Update all SELECT queries to filter out `WHERE is_filtered = 0` by default
+    // 4. Add UI to view/unfilter hidden notifications
+    // This requires schema migration + changes across multiple files.
+    if is_globally_filtered || is_repo_filtered {
       continue;
     }
 
@@ -1263,6 +1309,119 @@ pub fn create_bookmark(
 pub fn delete_bookmark(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
   db.execute("DELETE FROM bookmarks WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Global filter commands
+// ---------------------------------------------------------------------------
+
+fn global_filter_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GlobalFilter> {
+  Ok(GlobalFilter {
+    id: row.get(0)?,
+    reason: row.get(1)?,
+    created_at: row.get(2)?,
+  })
+}
+
+#[tauri::command]
+pub fn get_global_filters(state: tauri::State<'_, DbState>) -> Result<Vec<GlobalFilter>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare("SELECT id, reason, created_at FROM global_filters ORDER BY reason ASC")
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map([], global_filter_from_row)
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn create_global_filter(
+  reason: String,
+  state: tauri::State<'_, DbState>,
+) -> Result<GlobalFilter, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT INTO global_filters (reason) VALUES (?1)",
+    params![reason],
+  )
+  .map_err(|e| e.to_string())?;
+  let id = db.last_insert_rowid();
+  db.query_row(
+    "SELECT id, reason, created_at FROM global_filters WHERE id = ?1",
+    params![id],
+    global_filter_from_row,
+  )
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_global_filter(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM global_filters WHERE id = ?1", params![id])
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Repo filter commands
+// ---------------------------------------------------------------------------
+
+fn repo_filter_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RepoFilter> {
+  Ok(RepoFilter {
+    id: row.get(0)?,
+    repo_full_name: row.get(1)?,
+    reason: row.get(2)?,
+    created_at: row.get(3)?,
+  })
+}
+
+#[tauri::command]
+pub fn get_repo_filters(state: tauri::State<'_, DbState>) -> Result<Vec<RepoFilter>, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  let mut stmt = db
+    .prepare(
+      "SELECT id, repo_full_name, reason, created_at FROM repo_filters \
+       ORDER BY repo_full_name ASC, reason ASC",
+    )
+    .map_err(|e| e.to_string())?;
+  let rows = stmt
+    .query_map([], repo_filter_from_row)
+    .map_err(|e| e.to_string())?
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .map_err(|e| e.to_string())?;
+  Ok(rows)
+}
+
+#[tauri::command]
+pub fn create_repo_filter(
+  repo_full_name: String,
+  reason: String,
+  state: tauri::State<'_, DbState>,
+) -> Result<RepoFilter, String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute(
+    "INSERT INTO repo_filters (repo_full_name, reason) VALUES (?1, ?2)",
+    params![repo_full_name, reason],
+  )
+  .map_err(|e| e.to_string())?;
+  let id = db.last_insert_rowid();
+  db.query_row(
+    "SELECT id, repo_full_name, reason, created_at FROM repo_filters WHERE id = ?1",
+    params![id],
+    repo_filter_from_row,
+  )
+  .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_repo_filter(id: i64, state: tauri::State<'_, DbState>) -> Result<(), String> {
+  let db = state.0.lock().map_err(|e| e.to_string())?;
+  db.execute("DELETE FROM repo_filters WHERE id = ?1", params![id])
     .map_err(|e| e.to_string())?;
   Ok(())
 }

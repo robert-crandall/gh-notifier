@@ -72,6 +72,11 @@ pub fn init_db(app_data_dir: &Path) -> Result<Connection, String> {
   Ok(conn)
 }
 
+// NOTE: This migration function is intentionally linear and append-only so all
+// schema evolution lives in one place. As new versions are added, keep each
+// version's steps small by extracting helpers for complex logic, but allow the
+// overall function to exceed the `too_many_lines` heuristic.
+#[allow(clippy::too_many_lines)]
 fn migrate(conn: &Connection) -> rusqlite::Result<()> {
   // Read the current schema version (0 = fresh database).
   let version: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
@@ -185,6 +190,25 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
        ALTER TABLE notifications ADD COLUMN comment_avatar TEXT;
        ALTER TABLE notifications ADD COLUMN comment_at     TEXT;
        PRAGMA user_version = 6;",
+    )?;
+  }
+
+  if version < 7 {
+    // Add global_filters and repo_filters tables for two-tier notification filtering.
+    conn.execute_batch(
+      "CREATE TABLE IF NOT EXISTS global_filters (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        reason     TEXT    NOT NULL UNIQUE,
+        created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS repo_filters (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_full_name TEXT    NOT NULL,
+        reason         TEXT    NOT NULL,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(repo_full_name, reason)
+      );
+      PRAGMA user_version = 7;",
     )?;
   }
 

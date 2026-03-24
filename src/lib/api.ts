@@ -1,5 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Project, GithubNotification, ManualTask, AppSettings, Bookmark, RepoRoutingHint, RepoRule } from './types';
+import type {
+	Project,
+	GithubNotification,
+	ManualTask,
+	AppSettings,
+	Bookmark,
+	RepoRoutingHint,
+	RepoRule,
+	GlobalFilter,
+	RepoFilter
+} from './types';
 
 export async function getProjects(): Promise<Project[]> {
 	return invoke('get_projects');
@@ -126,4 +136,32 @@ export async function createBookmark(projectId: number, name: string, url: strin
 
 export async function deleteBookmark(id: number): Promise<void> {
 	return invoke('delete_bookmark', { id });
+}
+
+// ----- Global Filter API -----
+
+export async function getGlobalFilters(): Promise<GlobalFilter[]> {
+	return invoke('get_global_filters');
+}
+
+export async function createGlobalFilter(reason: string): Promise<GlobalFilter> {
+	return invoke('create_global_filter', { reason });
+}
+
+export async function deleteGlobalFilter(id: number): Promise<void> {
+	return invoke('delete_global_filter', { id });
+}
+
+// ----- Repo Filter API -----
+
+export async function getRepoFilters(): Promise<RepoFilter[]> {
+	return invoke('get_repo_filters');
+}
+
+export async function createRepoFilter(repoFullName: string, reason: string): Promise<RepoFilter> {
+	return invoke('create_repo_filter', { repoFullName, reason });
+}
+
+export async function deleteRepoFilter(id: number): Promise<void> {
+	return invoke('delete_repo_filter', { id });
 }
