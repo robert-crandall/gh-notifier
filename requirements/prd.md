@@ -34,7 +34,7 @@ The user receives ~80% of their actionable work through GitHub notifications but
 - Multi-user or team features
 - Mobile app
 - Integrations beyond GitHub
-- Advanced filtering beyond team mentions
+- Advanced filtering (content-based rules, label filters, etc. — filtering is limited to notification types/reasons)
 - Automated "next action" detection
 
 ---
@@ -92,7 +92,11 @@ The user receives ~80% of their actionable work through GitHub notifications but
 ### 2. GitHub Integration
 - **Authentication:** OAuth connection to GitHub
 - **Notification Sync:** Poll GitHub API for notifications (configurable interval)
-- **Filtering:** Automatically hide `team_mention` type notifications
+- **Filtering:** Two-tier notification filtering system:
+  - **Global filters:** Suppress notification types (e.g., `team_mention`, `review_requested`) across all repos with no exceptions
+  - **Per-repo filters:** Suppress additional notification types for specific repos (strictly additive to global filters)
+  - User configures filters from Settings; filtering is non-destructive (removing a rule resurfaces notifications)
+  - Notification reason displayed as a pill badge on each notification card
 - **Terminal State Detection:** When a notification is synced, check the subject URL to determine if the underlying issue or PR is closed/merged. Terminal notifications are automatically marked read, excluded from unread counts, and shown in a collapsed "Closed" section in the project detail view rather than the active thread list.
 - **Thread Mapping:** Remember which repo/issue/PR belongs to which project
 - **Repo-Level Routing Rules:** Declare that all notifications from a given repo go to a specific project. Thread-level mappings take precedence when both exist. Rules can be created from the Inbox after assigning a notification, and managed (edited or deleted) from Settings.
@@ -140,7 +144,7 @@ Three snooze modes:
 
 **MVP is shippable when:**
 1. User can authenticate with GitHub and pull notifications
-2. Team mentions are filtered out automatically  
+2. User can configure global and per-repo notification filters from Settings
 3. User can create projects and assign notifications to them
 4. Subsequent notifications from same thread auto-route to correct project
 5. Dashboard shows active vs snoozed projects
