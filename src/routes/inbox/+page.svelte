@@ -3,10 +3,14 @@
 	import type { GithubNotification, Project, RepoRoutingHint } from '$lib/types';
 	import * as api from '$lib/api';
 	import { setInboxCount, decrementInboxCount } from '$lib/inbox-state.svelte';
+	import NotificationFilter from '$lib/NotificationFilter.svelte';
+	import { applyFilters, type FilterChip } from '$lib/notification-filter';
 
 	let notifications: GithubNotification[] = $state([]);
 	let projects: Project[] = $state([]);
 	let loading = $state(true);
+	let filterChips = $state<FilterChip[]>([]);
+	let filtered = $derived(applyFilters(notifications, filterChips));
 	let showProjectPicker = $state<number | null>(null);
 	let routingHint = $state<RepoRoutingHint | null>(null);
 	let pendingAssignmentId = $state<number | null>(null);
@@ -175,7 +179,7 @@
 
 <section class="flex-1 px-8 py-10 bg-surface">
 	<div class="max-w-5xl mx-auto">
-		<div class="mb-10 flex justify-between items-end">
+		<div class="mb-6 flex justify-between items-center">
 			<div>
 				<h1 class="text-3xl font-bold tracking-tight text-on-surface mb-2">Unmapped Inbox</h1>
 				<p class="text-on-surface-variant text-sm flex items-center gap-2">
@@ -184,16 +188,13 @@
 					<span class="font-mono text-xs bg-surface-container-high px-1.5 py-0.5 rounded">github.com</span>
 				</p>
 			</div>
-			<div class="flex gap-3">
 			<button onclick={markAllRead} class="px-4 py-2 text-xs font-semibold text-secondary hover:bg-surface-container-low rounded-md transition-all duration-200 flex items-center gap-2">
-					<span class="material-symbols-outlined text-[16px]">done_all</span>
-					Mark all read
-				</button>
-				<button class="px-4 py-2 text-xs font-semibold text-on-surface bg-surface-container-highest rounded-md hover:bg-surface-dim transition-all duration-200 flex items-center gap-2">
-					<span class="material-symbols-outlined text-[16px]">filter_list</span>
-					Filter
-				</button>
-			</div>
+				<span class="material-symbols-outlined text-[16px]">done_all</span>
+				Mark all read
+			</button>
+		</div>
+		<div class="mb-8">
+			<NotificationFilter {notifications} bind:chips={filterChips} />
 		</div>
 
 		<div class="space-y-4">
@@ -282,8 +283,14 @@
 					<p class="text-xl font-semibold text-on-surface-variant">Inbox Zero</p>
 					<p class="text-sm text-on-surface-variant/60 mt-2">All notifications have been assigned or archived.</p>
 				</div>
+			{:else if filtered.length === 0}
+				<div class="flex flex-col items-center justify-center py-24 text-center">
+					<span class="material-symbols-outlined text-6xl text-on-surface-variant/20 mb-4">filter_list_off</span>
+					<p class="text-xl font-semibold text-on-surface-variant">No matches</p>
+					<p class="text-sm text-on-surface-variant/60 mt-2">No notifications match the active filters.</p>
+				</div>
 			{:else}
-				{#each notifications as notification (notification.id)}
+				{#each filtered as notification (notification.id)}
 				{@const badge = typeLabel(notification.subject_type)}
 				<div
 					class="group relative {showProjectPicker === notification.id ? 'z-20' : ''} {notification.is_read
