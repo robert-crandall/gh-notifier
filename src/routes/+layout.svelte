@@ -87,7 +87,7 @@
 				<div class="w-2 h-8 bg-primary block rounded-full"></div>
 				<div>
 					<h2 class="text-sm font-black tracking-tighter text-on-surface uppercase">
-						Precision Architect
+						gh-notifier
 					</h2>
 					<p class="text-[10px] text-on-surface-variant/70 tracking-wide uppercase font-medium">
 						GitHub Sync Active

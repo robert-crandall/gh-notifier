@@ -1,4 +1,4 @@
-# Design System Specification: The Precision Architect
+# Design System Specification: gh-notifier
 
 ## 1. Overview & Creative North Star: "The Digital Lithograph"
 This design system is a high-performance framework crafted for the modern developer. It moves away from the "web-app-in-a-box" aesthetic, leaning into a **"Digital Lithograph"** philosophy: where every pixel feels etched into the macOS interface with surgical precision. 
