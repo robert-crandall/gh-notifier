@@ -37,6 +37,15 @@
 			});
 	}
 
+	function isValidHttpsUrl(url: string): boolean {
+		try {
+			const parsed = new URL(url);
+			return parsed.protocol === 'https:';
+		} catch {
+			return false;
+		}
+	}
+
 	let checklistItems = $derived(aiResult ? parseChecklist(aiResult) : []);
 
 	async function runQuery(queryType: 'quick_wins' | 'waiting_on_me') {
@@ -273,12 +282,15 @@
 					<li class="flex items-start gap-3 group">
 						<input
 							type="checkbox"
-							class="mt-0.5 h-4 w-4 rounded border-outline-variant accent-primary shrink-0 cursor-pointer"
+							class="mt-0.5 h-4 w-4 rounded border-outline-variant accent-primary shrink-0"
 							checked={item.checked}
+							disabled
+							aria-disabled="true"
+							aria-label={item.text}
 						/>
 						<span class="text-sm text-on-surface leading-relaxed">
 							{item.text}
-							{#if item.url}
+							{#if item.url && isValidHttpsUrl(item.url)}
 								<a
 									href={item.url}
 									target="_blank"
