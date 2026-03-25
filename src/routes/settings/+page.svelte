@@ -2,6 +2,7 @@
 	import type { AppSettings, RepoRule, Project, GlobalFilter, RepoFilter } from '$lib/types';
 	import * as api from '$lib/api';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { listen } from '@tauri-apps/api/event';
 
 	let settings: AppSettings = $state({
 		github_token: null,
@@ -94,6 +95,22 @@
 		return Array.from(configMap.values()).sort((a, b) => 
 			a.repo_full_name.localeCompare(b.repo_full_name)
 		);
+	});
+
+	// Listen for background sync completion so the spinner clears and the
+	// last-synced timestamp updates without blocking the UI thread.
+	$effect(() => {
+		let unlisten: (() => void) | null = null;
+		listen<{ ok: boolean; error?: string }>('sync-complete', (event) => {
+			syncing = false;
+			if (event.payload.ok) {
+				message = 'Sync complete!';
+				api.getSettings().then((s) => { settings = s; }).catch(() => {});
+			} else {
+				message = `Sync failed: ${event.payload.error ?? 'Unknown error'}`;
+			}
+		}).then((fn) => { unlisten = fn; }).catch(() => {});
+		return () => { unlisten?.(); };
 	});
 
 	$effect(() => {
@@ -272,15 +289,13 @@
 	async function triggerSync() {
 		syncing = true;
 		message = '';
-		try {
-			await api.syncNotifications();
-			const s = await api.getSettings();
-			settings = s;
-			message = 'Sync complete!';
-		} catch (e) {
+		// syncNotifications returns immediately — the sync-complete event
+		// listener above clears the spinner and refreshes settings when done.
+		api.syncNotifications().catch((e: unknown) => {
+			// Only fails synchronously if no token is configured.
 			message = `Sync failed: ${e}`;
-		}
-		syncing = false;
+			syncing = false;
+		});
 	}
 
 	// Filter management functions

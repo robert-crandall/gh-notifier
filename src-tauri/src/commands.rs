@@ -1184,25 +1184,57 @@ pub(crate) fn background_sync(
 }
 
 #[tauri::command]
-pub fn sync_notifications(
-  token_cache: tauri::State<'_, TokenCache>,
-  state: tauri::State<'_, DbState>,
-) -> Result<(), String> {
-  let token = get_cached_token(&token_cache)?;
-  // Read last_synced_at before releasing the lock so the fetch has no DB contention.
-  let since = {
-    let db = state.0.lock().map_err(|e| e.to_string())?;
-    db.query_row(
-      "SELECT value FROM settings WHERE key = 'last_synced_at'",
-      [],
-      |row| row.get::<_, String>(0),
-    )
-    .optional()
-    .map_err(|e| e.to_string())?
-  };
-  let api_notifications = github::fetch_notifications(&token, since.as_deref())?; // no DB lock held
-  let db = state.0.lock().map_err(|e| e.to_string())?;
-  process_notifications(&db, &api_notifications, &token)
+pub async fn sync_notifications(app_handle: tauri::AppHandle) -> Result<(), String> {
+  // Fail fast before spawning if there is no token configured.
+  {
+    let token_cache = app_handle.state::<TokenCache>();
+    get_cached_token(&token_cache)?;
+  }
+
+  // Spawn the blocking network + DB work on a thread-pool thread so the
+  // IPC call returns immediately and the UI never freezes.
+  tauri::async_runtime::spawn(async move {
+    let result = tokio::task::spawn_blocking({
+      let handle = app_handle.clone();
+      move || {
+        let db_state = handle.state::<DbState>();
+        let token_cache = handle.state::<TokenCache>();
+        background_sync(&db_state, &token_cache)
+      }
+    })
+    .await;
+
+    match result {
+      Ok(Ok(())) => {
+        let _ = app_handle.emit("sync-complete", serde_json::json!({ "ok": true }));
+        // Kick off comment prefetch now that fresh notifications are in the DB.
+        let handle2 = app_handle.clone();
+        if let Err(e) = tokio::task::spawn_blocking(move || {
+          let db_state = handle2.state::<DbState>();
+          let token_cache = handle2.state::<TokenCache>();
+          do_prefetch_comments(&handle2, &db_state, &token_cache);
+        })
+        .await
+        {
+          eprintln!("[sync] prefetch panicked: {e}");
+        }
+      }
+      Ok(Err(e)) => {
+        let _ = app_handle.emit(
+          "sync-complete",
+          serde_json::json!({ "ok": false, "error": e }),
+        );
+      }
+      Err(e) => {
+        let _ = app_handle.emit(
+          "sync-complete",
+          serde_json::json!({ "ok": false, "error": e.to_string() }),
+        );
+      }
+    }
+  });
+
+  Ok(())
 }
 
 // ---------------------------------------------------------------------------
