@@ -1,6 +1,7 @@
 use rand::{rngs::OsRng, RngCore};
 use rusqlite::Connection;
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
 #[allow(clippy::module_name_repetitions)]
@@ -16,6 +17,9 @@ pub struct CopilotTokenCache(pub Mutex<Option<String>>);
 /// The 256-bit AES-GCM key used to encrypt the GitHub PAT at rest in `SQLite`.
 /// Loaded once at startup from `<app_data_dir>/key.bin`.
 pub struct EncKey(pub [u8; 32]);
+
+/// Tracks whether a sync operation is currently in progress to prevent concurrent syncs.
+pub struct SyncState(pub AtomicBool);
 
 /// Load the encryption key from `<app_data_dir>/key.bin`, generating and
 /// persisting a fresh random key on first launch.  The file is created with

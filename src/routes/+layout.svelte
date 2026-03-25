@@ -5,6 +5,7 @@
 	import * as api from '$lib/api';
 	import { restoreStateCurrent, StateFlags } from '@tauri-apps/plugin-window-state';
 	import { getInboxCount, setInboxCount } from '$lib/inbox-state.svelte';
+	import { listen } from '@tauri-apps/api/event';
 
 	let { children } = $props();
 
@@ -14,12 +15,10 @@
 
 	$effect(() => {
 		restoreStateCurrent(StateFlags.ALL).catch(() => {});
+
+		// Load initial data.
 		api.getUnmappedNotifications().then((notifs) => {
 			setInboxCount(notifs.filter((n) => !n.is_read).length);
-		}).catch(() => {});
-
-		api.getSettings().then((s) => {
-			lastSynced = s.last_synced_at;
 		}).catch(() => {});
 
 		api.getProjects().then((projects) => {
@@ -27,14 +26,56 @@
 			snoozedCount = projects.filter((p) => p.status === 'snoozed').length;
 		}).catch(() => {});
 
-		// Refresh last-synced timestamp every 30 s so the top bar stays current.
-		const interval = setInterval(async () => {
+		// Trigger a startup sync if the data is stale; sync runs in the background
+		// and results arrive via the sync-complete event below.
+		api.getSettings().then((s) => {
+			lastSynced = s.last_synced_at;
+			if (!s.is_setup_complete) return;
+			const intervalMs = (s.poll_interval_minutes ?? 5) * 60_000;
+			const lastMs = s.last_synced_at
+				? new Date(
+						s.last_synced_at.includes('T')
+							? s.last_synced_at
+							: `${s.last_synced_at.replace(' ', 'T')}Z`
+					).getTime()
+				: 0;
+			if (Date.now() - lastMs < intervalMs) return;
+			api.syncNotifications().catch(() => {});
+		}).catch(() => {});
+
+		// Listen for sync-complete events (triggered by manual sync or startup sync)
+		// and refresh all sidebar data so counts and the timestamp stay current.
+		let unlisten: (() => void) | null = null;
+		let cancelled = false;
+
+		(async () => {
 			try {
-				const s = await api.getSettings();
-				lastSynced = s.last_synced_at;
-			} catch { /* ignore */ }
-		}, 30_000);
-		return () => clearInterval(interval);
+				const fn = await listen<{ ok: boolean; error?: string }>('sync-complete', () => {
+					Promise.all([
+						api.getSettings(),
+						api.getUnmappedNotifications(),
+						api.getProjects()
+					]).then(([s, notifs, projects]) => {
+						lastSynced = s.last_synced_at;
+						setInboxCount(notifs.filter((n) => !n.is_read).length);
+						activeCount = projects.filter((p) => p.status === 'active').length;
+						snoozedCount = projects.filter((p) => p.status === 'snoozed').length;
+					}).catch(() => {});
+				});
+
+				if (cancelled) {
+					fn();
+					return;
+				}
+
+				unlisten = fn;
+			} catch {}
+		})();
+
+		return () => {
+			cancelled = true;
+			unlisten?.();
+		};
 	});
 
 	$effect(() => {
