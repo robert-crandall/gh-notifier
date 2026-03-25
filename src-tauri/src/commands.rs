@@ -2,7 +2,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 use crate::{
-  db::{CopilotTokenCache, DbState, EncKey, TokenCache},
+  db::{CopilotTokenCache, DbState, EncKey, SyncState, TokenCache},
   github,
   models::{
     AppSettings, Bookmark, GithubNotification, GlobalFilter, ManualTask, Project, RepoFilter,
@@ -1191,6 +1191,21 @@ pub async fn sync_notifications(app_handle: tauri::AppHandle) -> Result<(), Stri
     get_cached_token(&token_cache)?;
   }
 
+  // Check if a sync is already in progress and prevent concurrent syncs.
+  let sync_state = app_handle.state::<SyncState>();
+  if sync_state
+    .0
+    .compare_exchange(
+      false,
+      true,
+      std::sync::atomic::Ordering::SeqCst,
+      std::sync::atomic::Ordering::SeqCst,
+    )
+    .is_err()
+  {
+    return Err("Sync already in progress".to_string());
+  }
+
   // Spawn the blocking network + DB work on a thread-pool thread so the
   // IPC call returns immediately and the UI never freezes.
   tauri::async_runtime::spawn(async move {
@@ -1203,6 +1218,12 @@ pub async fn sync_notifications(app_handle: tauri::AppHandle) -> Result<(), Stri
       }
     })
     .await;
+
+    // Clear the sync-in-progress flag before emitting the event.
+    let sync_state = app_handle.state::<SyncState>();
+    sync_state
+      .0
+      .store(false, std::sync::atomic::Ordering::SeqCst);
 
     match result {
       Ok(Ok(())) => {

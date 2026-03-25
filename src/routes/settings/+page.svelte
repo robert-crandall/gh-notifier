@@ -101,16 +101,33 @@
 	// last-synced timestamp updates without blocking the UI thread.
 	$effect(() => {
 		let unlisten: (() => void) | null = null;
-		listen<{ ok: boolean; error?: string }>('sync-complete', (event) => {
-			syncing = false;
-			if (event.payload.ok) {
-				message = 'Sync complete!';
-				api.getSettings().then((s) => { settings = s; }).catch(() => {});
-			} else {
-				message = `Sync failed: ${event.payload.error ?? 'Unknown error'}`;
-			}
-		}).then((fn) => { unlisten = fn; }).catch(() => {});
-		return () => { unlisten?.(); };
+		let cancelled = false;
+
+		(async () => {
+			try {
+				const fn = await listen<{ ok: boolean; error?: string }>('sync-complete', (event) => {
+					syncing = false;
+					if (event.payload.ok) {
+						message = 'Sync complete!';
+						api.getSettings().then((s) => { settings = s; }).catch(() => {});
+					} else {
+						message = `Sync failed: ${event.payload.error ?? 'Unknown error'}`;
+					}
+				});
+
+				if (cancelled) {
+					fn();
+					return;
+				}
+
+				unlisten = fn;
+			} catch {}
+		})();
+
+		return () => {
+			cancelled = true;
+			unlisten?.();
+		};
 	});
 
 	$effect(() => {
@@ -293,7 +310,8 @@
 		// listener above clears the spinner and refreshes settings when done.
 		api.syncNotifications().catch((e: unknown) => {
 			// Only fails synchronously if no token is configured.
-			message = `Sync failed: ${e}`;
+			const errorMessage = e instanceof Error ? e.message : String(e);
+			message = `Sync failed: ${errorMessage}`;
 			syncing = false;
 		});
 	}

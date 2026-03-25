@@ -45,6 +45,7 @@ pub fn run() {
       app.manage(db::EncKey(enc_key));
       app.manage(db::TokenCache(std::sync::Mutex::new(cached_token)));
       app.manage(db::CopilotTokenCache(std::sync::Mutex::new(cached_copilot)));
+      app.manage(db::SyncState(std::sync::atomic::AtomicBool::new(false)));
 
       // Spawn the background notification polling loop.
       let handle = app.handle().clone();
@@ -123,6 +124,21 @@ async fn poll_loop(handle: tauri::AppHandle) {
     let secs = u64::try_from(interval_mins.max(1)).unwrap_or(5) * 60;
     tokio::time::sleep(Duration::from_secs(secs)).await;
 
+    // Skip this iteration if a sync is already in progress.
+    let sync_state = handle.state::<db::SyncState>();
+    if sync_state
+      .0
+      .compare_exchange(
+        false,
+        true,
+        std::sync::atomic::Ordering::SeqCst,
+        std::sync::atomic::Ordering::SeqCst,
+      )
+      .is_err()
+    {
+      continue;
+    }
+
     // Run the blocking sync work on a thread-pool thread so we don't stall
     // the async executor.
     let handle2 = handle.clone();
@@ -132,6 +148,11 @@ async fn poll_loop(handle: tauri::AppHandle) {
       commands::background_sync(&db_state, &token_cache)
     })
     .await;
+
+    // Clear the sync-in-progress flag before handling the result.
+    sync_state
+      .0
+      .store(false, std::sync::atomic::Ordering::SeqCst);
 
     match result {
       Ok(Ok(())) => {

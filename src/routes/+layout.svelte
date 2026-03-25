@@ -46,20 +46,36 @@
 		// Listen for sync-complete events (triggered by manual sync or startup sync)
 		// and refresh all sidebar data so counts and the timestamp stay current.
 		let unlisten: (() => void) | null = null;
-		listen<{ ok: boolean; error?: string }>('sync-complete', () => {
-			Promise.all([
-				api.getSettings(),
-				api.getUnmappedNotifications(),
-				api.getProjects()
-			]).then(([s, notifs, projects]) => {
-				lastSynced = s.last_synced_at;
-				setInboxCount(notifs.filter((n) => !n.is_read).length);
-				activeCount = projects.filter((p) => p.status === 'active').length;
-				snoozedCount = projects.filter((p) => p.status === 'snoozed').length;
-			}).catch(() => {});
-		}).then((fn) => { unlisten = fn; }).catch(() => {});
+		let cancelled = false;
 
-		return () => { unlisten?.(); };
+		(async () => {
+			try {
+				const fn = await listen<{ ok: boolean; error?: string }>('sync-complete', () => {
+					Promise.all([
+						api.getSettings(),
+						api.getUnmappedNotifications(),
+						api.getProjects()
+					]).then(([s, notifs, projects]) => {
+						lastSynced = s.last_synced_at;
+						setInboxCount(notifs.filter((n) => !n.is_read).length);
+						activeCount = projects.filter((p) => p.status === 'active').length;
+						snoozedCount = projects.filter((p) => p.status === 'snoozed').length;
+					}).catch(() => {});
+				});
+
+				if (cancelled) {
+					fn();
+					return;
+				}
+
+				unlisten = fn;
+			} catch {}
+		})();
+
+		return () => {
+			cancelled = true;
+			unlisten?.();
+		};
 	});
 
 	$effect(() => {
