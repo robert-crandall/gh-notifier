@@ -263,7 +263,8 @@
 			message = 'Copilot token saved successfully.';
 			copilotTokenInput = '••••••••';
 		} catch (e) {
-			message = `Error saving Copilot token: ${e}`;
+			const errorMessage = e instanceof Error ? e.message : String(e);
+			message = `Error saving Copilot token: ${errorMessage}`;
 		}
 		savingCopilot = false;
 	}
@@ -377,6 +378,8 @@
 				bind:value={copilotTokenInput}
 				placeholder="github_pat_xxxxxxxxxxxx"
 				class="flex-1 bg-surface-container-high border border-outline-variant/20 rounded-lg py-2 px-4 text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent"
+				autocomplete="off"
+				spellcheck={false}
 			/>
 			<button
 				class="px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"

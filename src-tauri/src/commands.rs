@@ -68,6 +68,26 @@ fn decrypt_token(stored: &str, key: &[u8; 32]) -> Result<String, String> {
   String::from_utf8(plaintext).map_err(|e| e.to_string())
 }
 
+fn validate_copilot_token(token: &str) -> Result<(), String> {
+  let client = reqwest::blocking::Client::builder()
+    .build()
+    .map_err(|e| e.to_string())?;
+  let resp = client
+    .get("https://models.github.ai/inference/models")
+    .header("Authorization", format!("Bearer {token}"))
+    .header("User-Agent", "gh-notifier/0.1")
+    .send()
+    .map_err(|e| format!("Network error validating Copilot token: {e}"))?;
+
+  if resp.status().is_success() {
+    Ok(())
+  } else if resp.status().as_u16() == 401 {
+    Err("Invalid Copilot token: GitHub Models returned 401 Unauthorized. Check the PAT and its scopes.".into())
+  } else {
+    Err(format!("GitHub Models returned status {}", resp.status()))
+  }
+}
+
 /// Load the PAT from `SQLite` (AES-256-GCM encrypted) — used only once at startup.
 /// All runtime code reads from `TokenCache` instead.
 pub(crate) fn load_token_for_cache(conn: &rusqlite::Connection, key: &[u8; 32]) -> Option<String> {
@@ -767,6 +787,7 @@ pub fn save_copilot_token(
   state: tauri::State<'_, DbState>,
   enc_key: tauri::State<'_, EncKey>,
 ) -> Result<(), String> {
+  validate_copilot_token(&token)?;
   let encrypted = encrypt_token(&token, &enc_key.0)?;
   {
     let db = state.0.lock().map_err(|e| e.to_string())?;
@@ -1676,7 +1697,7 @@ fn format_notifications_for_prompt(notifications: &[crate::models::GithubNotific
 }
 
 /// Build the system + user prompt for the requested query type.
-fn build_messages(query_type: &str, notification_text: &str) -> Vec<ChatMessage> {
+fn build_messages(query_type: &str, notification_text: &str) -> Result<Vec<ChatMessage>, String> {
   let system = ChatMessage {
     role: "system".into(),
     content: "You are a GitHub notification assistant. \
@@ -1692,18 +1713,23 @@ fn build_messages(query_type: &str, notification_text: &str) -> Vec<ChatMessage>
       "From the notifications below, identify threads where someone is \
        explicitly waiting on me to respond or take action.\n\n{notification_text}"
     ),
-    _ => format!(
+    "quick_wins" => format!(
       "From the notifications below, identify 3–5 short, low-effort items \
        I can close out quickly (quick wins).\n\n{notification_text}"
     ),
+    _ => {
+      return Err(format!(
+        "Invalid query_type: '{query_type}'. Expected 'waiting_on_me' or 'quick_wins'."
+      ))
+    }
   };
-  vec![
+  Ok(vec![
     system,
     ChatMessage {
       role: "user".into(),
       content: user_content,
     },
-  ]
+  ])
 }
 
 #[tauri::command]
@@ -1753,7 +1779,7 @@ pub fn query_copilot(
     .build()
     .map_err(|e| e.to_string())?;
 
-  let messages = build_messages(&query_type, &notification_text);
+  let messages = build_messages(&query_type, &notification_text)?;
   let request_body = ChatRequest {
     model: "openai/gpt-5-mini".into(),
     messages,
@@ -1772,7 +1798,11 @@ pub fn query_copilot(
   if !resp.status().is_success() {
     let status = resp.status().as_u16();
     let body = resp.text().unwrap_or_default();
-    return Err(format!("GitHub Models API returned HTTP {status}: {body}"));
+    let truncated_body: String = body.chars().take(200).collect();
+    let suffix = if body.len() > 200 { "..." } else { "" };
+    return Err(format!(
+      "GitHub Models API returned HTTP {status}: {truncated_body}{suffix}"
+    ));
   }
 
   let chat: ChatResponse = resp
