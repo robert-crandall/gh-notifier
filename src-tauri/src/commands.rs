@@ -377,7 +377,7 @@ pub fn get_unmapped_notifications(
 ) -> Result<Vec<GithubNotification>, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
   let sql = format!(
-    "{NOTIFICATION_COLS} WHERE project_id IS NULL AND is_read = 0 ORDER BY updated_at DESC"
+    "{NOTIFICATION_COLS} WHERE project_id IS NULL AND is_read = 0 AND is_terminal = 0 ORDER BY updated_at DESC"
   );
   let mut stmt = db.prepare(&sql).map_err(|e| e.to_string())?;
   let result = stmt
