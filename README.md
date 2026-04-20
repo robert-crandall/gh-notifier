@@ -1,3 +1,12 @@
+### Prerequisites
+
+**macOS only.** This app currently targets macOS, and the setup steps below assume a macOS development environment.
+- **Xcode Command Line Tools** (macOS C toolchain): `xcode-select --install`
+- **Rust** (via rustup): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Bun** (JS runtime/package manager): `curl -fsSL https://bun.sh/install | bash`
+
+After installing, run `bun install` to fetch JS/TS dependencies.
+
 ### Launching app
 
 ```
