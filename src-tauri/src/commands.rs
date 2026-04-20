@@ -377,7 +377,8 @@ pub fn get_unmapped_notifications(
 ) -> Result<Vec<GithubNotification>, String> {
   let db = state.0.lock().map_err(|e| e.to_string())?;
   let sql = format!(
-    "{NOTIFICATION_COLS} WHERE project_id IS NULL AND is_read = 0 AND is_terminal = 0 ORDER BY updated_at DESC"
+    "{NOTIFICATION_COLS} WHERE project_id IS NULL \
+     AND is_read = 0 AND is_terminal = 0 ORDER BY updated_at DESC"
   );
   let mut stmt = db.prepare(&sql).map_err(|e| e.to_string())?;
   let result = stmt
@@ -1910,7 +1911,8 @@ mod tests {
           project_id     INTEGER REFERENCES projects(id) ON DELETE SET NULL,
           author         TEXT    NOT NULL DEFAULT '',
           author_avatar  TEXT,
-          html_url       TEXT
+          html_url       TEXT,
+          is_terminal    INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE thread_mappings (
           repo_full_name TEXT    NOT NULL,
@@ -2165,6 +2167,39 @@ mod tests {
       )
       .unwrap();
     assert_eq!(status, "snoozed");
+  }
+
+  #[test]
+  fn unmapped_excludes_terminal_notifications() {
+    let db = test_db();
+
+    // Unread, non-terminal, no project — should appear in the unmapped list.
+    insert_notification(&db, "thread-visible", "org/repo");
+
+    // Unread, terminal, no project — must be excluded.
+    db.execute(
+      "INSERT INTO notifications \
+       (github_id, repo_full_name, subject_title, subject_type, reason, \
+        is_read, is_terminal, updated_at) \
+       VALUES ('thread-terminal', 'org/repo', 'Closed PR', 'PullRequest', \
+               'mention', 0, 1, '2024-01-01T00:00:00Z')",
+      [],
+    )
+    .unwrap();
+
+    let ids: Vec<String> = db
+      .prepare(
+        "SELECT github_id FROM notifications \
+         WHERE project_id IS NULL AND is_read = 0 AND is_terminal = 0 \
+         ORDER BY updated_at DESC",
+      )
+      .unwrap()
+      .query_map([], |row| row.get(0))
+      .unwrap()
+      .collect::<rusqlite::Result<Vec<_>>>()
+      .unwrap();
+
+    assert_eq!(ids, vec!["thread-visible"]);
   }
 
   // ---------------------------------------------------------------------------
