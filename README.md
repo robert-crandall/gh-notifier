@@ -1,3 +1,11 @@
+### Prerequisites
+
+- **Xcode Command Line Tools** (macOS C toolchain): `xcode-select --install`
+- **Rust** (via rustup): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Bun** (JS runtime/package manager): `curl -fsSL https://bun.sh/install | bash`
+
+After installing, run `bun install` to fetch JS/TS dependencies.
+
 ### Launching app
 
 ```
