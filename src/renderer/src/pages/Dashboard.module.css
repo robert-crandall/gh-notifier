@@ -1,0 +1,161 @@
+.root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* Toolbar */
+.toolbar {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  -webkit-app-region: drag;
+}
+
+.toolbarTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  -webkit-app-region: no-drag;
+}
+
+.newButton {
+  padding: 5px 12px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.newButton:hover {
+  opacity: 0.88;
+}
+
+/* Content area */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Empty state */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 100%;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+/* Focus Banner */
+.focusBanner {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 10px;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  background:
+    radial-gradient(ellipse at 10% 30%, oklch(35% 0.09 255), transparent 60%),
+    var(--blue-dark);
+  margin-bottom: 4px;
+}
+
+.focusBanner:hover {
+  opacity: 0.95;
+}
+
+.focusLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 6px;
+}
+
+.focusAction {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+/* Project rows */
+.projectRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--font);
+  text-align: left;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.projectRow:hover {
+  background: var(--bg-2);
+  border-color: var(--border);
+}
+
+.projectInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.projectName {
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.nextAction {
+  font-size: 13px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+/* Snoozed footer */
+.snoozedFooter {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-3);
+}

@@ -1,0 +1,469 @@
+.root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* Toolbar */
+.toolbar {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  -webkit-app-region: drag;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.backLink {
+  font-size: 13px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 0;
+}
+
+.backLink:hover {
+  color: var(--text-2);
+}
+
+.breadcrumbSep {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.projectTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.projectTitle:hover {
+  background: var(--border);
+}
+
+.nameInput {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--blue);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: var(--font);
+  outline: none;
+  min-width: 120px;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.toolbarBtn {
+  padding: 4px 12px;
+  background: transparent;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.toolbarBtn:hover {
+  background: var(--bg-2);
+}
+
+.toolbarBtnActive {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+/* Content */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Next Action Banner */
+.nextActionBanner {
+  padding: 16px 22px;
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at 10% 30%, oklch(35% 0.09 255), transparent 60%),
+    var(--blue-dark);
+}
+
+.focusLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 6px;
+}
+
+.nextActionText {
+  display: block;
+  width: 100%;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: text;
+  font-family: var(--font);
+}
+
+.nextActionInput {
+  width: 100%;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: var(--font);
+  outline: none;
+  resize: none;
+}
+
+.placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
+.nextActionActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.nextActionActions button {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.nextActionActions button:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Links Strip */
+.linksStrip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.linksLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  padding-top: 3px;
+  flex-shrink: 0;
+}
+
+.linksList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.linkPillWrapper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.linkPill {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blue);
+  background: rgba(82, 130, 255, 0.07);
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.linkPill:hover {
+  background: rgba(82, 130, 255, 0.14);
+}
+
+.linkDelete {
+  font-size: 14px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0;
+}
+
+.linkPillWrapper:hover .linkDelete {
+  opacity: 1;
+}
+
+.addLinkForm {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.addLinkInput {
+  font-size: 13px;
+  font-family: var(--font);
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  padding: 3px 8px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  width: 100px;
+}
+
+.addLinkInput:focus {
+  border-color: var(--blue);
+}
+
+.addLinkConfirm {
+  font-size: 12px;
+  font-family: var(--font);
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.addLinkCancel {
+  font-size: 12px;
+  font-family: var(--font);
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.addLinkBtn {
+  font-size: 13px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 2px 4px;
+}
+
+.addLinkBtn:hover {
+  color: var(--text-2);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin: 0 -20px;
+  padding: 0 20px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  margin-right: 20px;
+  font-size: 14px;
+  font-family: var(--font);
+  color: var(--text-3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--text-2);
+}
+
+.tabActive {
+  font-weight: 600;
+  color: var(--text);
+  border-bottom-color: var(--blue-dark);
+}
+
+.tabBadge {
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--orange);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+
+/* Tab content */
+.tabContent {
+  flex: 1;
+}
+
+/* Todos */
+.todoList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.todoRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 7px;
+}
+
+.todoRow:hover {
+  background: var(--bg-2);
+}
+
+.todoRow:hover .todoDelete {
+  opacity: 1;
+}
+
+.todoDone {
+  opacity: 0.55;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-2);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+
+.checkboxDone {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.todoTitle {
+  flex: 1;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.todoDone .todoTitle {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+
+.todoDelete {
+  font-size: 16px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  opacity: 0;
+}
+
+.addTodoRow {
+  padding: 6px 12px;
+}
+
+.addTodoInput {
+  width: 100%;
+  font-size: 15px;
+  font-family: var(--font);
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 3px 0;
+}
+
+.addTodoInput::placeholder {
+  color: var(--text-3);
+}
+
+/* Notes */
+.notesArea {
+  width: 100%;
+  min-height: 200px;
+  font-size: 14px;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  outline: none;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.notesArea::placeholder {
+  color: var(--text-3);
+}
+
+.notesArea:focus {
+  border-color: var(--blue);
+}

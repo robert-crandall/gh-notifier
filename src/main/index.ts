@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { initDb } from './db'
+import { registerProjectHandlers } from './projects'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -31,6 +32,8 @@ app.whenReady().then(() => {
 
   // M1 health-check handler — returns 'pong'
   ipcMain.handle('app:ping', () => 'pong')
+
+  registerProjectHandlers()
 
   createWindow()
 

@@ -1,20 +1,13 @@
-.container {
+.layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
-}
-
-.title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.subtitle {
-  font-size: 1rem;
-  margin-top: 0.5rem;
-  opacity: 0.6;
+  overflow: hidden;
+  min-width: 0;
 }

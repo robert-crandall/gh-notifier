@@ -8,11 +8,58 @@
 
 :root {
   color-scheme: light dark;
+
+  /* Backgrounds */
+  --bg:             oklch(98.5% 0.008 75);
+  --bg-2:           oklch(97% 0.010 75);
+  --sidebar:        oklch(93.5% 0.018 75);
+
+  /* Borders */
+  --border:         oklch(91% 0.012 75);
+  --border-2:       oklch(86% 0.014 75);
+  --sidebar-border: oklch(87% 0.020 75);
+
+  /* Text */
+  --text:           oklch(16% 0.010 75);
+  --text-2:         oklch(40% 0.010 75);
+  --text-3:         oklch(62% 0.008 75);
+
+  /* Accents */
+  --blue:           oklch(53% 0.185 255);
+  --blue-dark:      oklch(28% 0.09 255);
+  --blue-mid:       oklch(40% 0.12 255);
+  --orange:         oklch(61% 0.21 35);
+  --green:          oklch(58% 0.18 145);
+
+  /* Typography */
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:             oklch(14% 0.008 75);
+    --bg-2:           oklch(17% 0.010 75);
+    --sidebar:        oklch(12% 0.018 75);
+    --border:         oklch(22% 0.012 75);
+    --border-2:       oklch(28% 0.014 75);
+    --sidebar-border: oklch(20% 0.020 75);
+    --text:           oklch(93% 0.010 75);
+    --text-2:         oklch(72% 0.010 75);
+    --text-3:         oklch(52% 0.008 75);
+  }
 }
 
 body {
-  background-color: Canvas;
-  color: CanvasText;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
