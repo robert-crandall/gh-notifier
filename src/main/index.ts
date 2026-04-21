@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { initDb } from './db'
+import { initAuth, getAuthStatus, savePat, logout } from './auth'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -26,11 +27,17 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   initDb()
+  await initAuth()
 
-  // M1 health-check handler — returns 'pong'
+  // M1 health-check handler
   ipcMain.handle('app:ping', () => 'pong')
+
+  // Auth handlers
+  ipcMain.handle('auth:status', () => getAuthStatus())
+  ipcMain.handle('auth:save-token', (_event, token: string) => savePat(token))
+  ipcMain.handle('auth:logout', () => { logout() })
 
   createWindow()
 
