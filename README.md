@@ -10,13 +10,14 @@ macOS only.
 
 - [Bun](https://bun.sh) — the only supported package manager/runtime (`npm`/`node` are not required)
 - Xcode Command Line Tools — required to compile `better-sqlite3` (`xcode-select --install`)
+- A GitHub Personal Access Token — create one at https://github.com/settings/tokens/new with `notifications` and `read:user` scopes. The token is stored locally using Electron's safeStorage (OS-level encryption).
 
 ---
 
 ## Setup
 
 ```bash
-# First-time setup: installs deps and rebuilds better-sqlite3 for Electron's ABI
+# Install deps and rebuild better-sqlite3 for Electron's ABI
 bun run setup
 ```
 

@@ -1,0 +1,91 @@
+.panel {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 480px;
+}
+
+.instruction {
+  font-size: 0.9rem;
+}
+
+.link {
+  color: var(--color-accent, #0969da);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.inputRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  background: transparent;
+  color: inherit;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 0.875rem;
+}
+
+.input:focus {
+  outline: 2px solid #0969da;
+  outline-offset: 1px;
+}
+
+.avatar {
+  border-radius: 50%;
+}
+
+.login {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.muted {
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+.error {
+  font-size: 0.85rem;
+  color: #cf222e;
+}
+
+.primaryButton {
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: #0969da;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  cursor: pointer;
+  font-size: 0.875rem;
+  background: transparent;
+  color: inherit;
+}
