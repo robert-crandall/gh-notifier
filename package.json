@@ -1,0 +1,53 @@
+{
+  "name": "focus",
+  "version": "0.1.0",
+  "description": "Personal project management tool for developers",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "dist": "npm run build && electron-builder",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "setup": "bun install --ignore-scripts && bun run rebuild"
+  },
+  "keywords": [],
+  "author": "robert-crandall",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.0"
+  },
+  "build": {
+    "appId": "com.robertcrandall.focus",
+    "productName": "Focus",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    },
+    "extraResources": [
+      {
+        "from": "db/migrations",
+        "to": "db/migrations"
+      }
+    ],
+    "files": [
+      "out/**"
+    ]
+  }
+}

@@ -38,21 +38,25 @@ requirements/    # PRD and design docs — not shipped in the app bundle
 
 ## Build & Dev
 
+> **Package manager:** `bun` is the only available runtime — use `bun run <script>` instead of `npm run <script>`.
+> `better-sqlite3` is a native module and must be compiled against Electron's ABI. Use the setup command below on first install.
+
 ```bash
-# Install dependencies
-npm install
+# First-time setup (installs deps + rebuilds native module for Electron)
+bun run setup
 
 # Start dev server (Electron + Vite hot reload)
-npm run dev
+bun run dev
 
 # Build the macOS app bundle
-npm run build
+bun run build
 
 # Package as a distributable .dmg
-npm run dist
-```
+bun run dist
 
-> These commands will be accurate once the project scaffold is in place. Update this section when the build setup is finalized.
+# Re-run native module rebuild after Electron version changes
+bun run rebuild
+```
 
 ---
 

@@ -1,0 +1,2 @@
+-- Migration: 001_initial.sql
+-- Placeholder for M1. Schema tables are added in later milestones (M3+).
