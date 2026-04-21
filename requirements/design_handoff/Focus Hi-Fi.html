@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus — Hi-Fi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="macos-window.jsx"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', -apple-system, sans-serif; }
+
+:root {
+  --bg:           oklch(98.5% 0.008 75);
+  --bg-2:         oklch(97% 0.010 75);
+  --sidebar:      oklch(93.5% 0.018 75);
+  --sidebar-border: oklch(87% 0.020 75);
+  --border:       oklch(91% 0.012 75);
+  --border-2:     oklch(86% 0.014 75);
+  --text:         oklch(16% 0.010 75);
+  --text-2:       oklch(40% 0.010 75);
+  --text-3:       oklch(62% 0.008 75);
+  --blue:         oklch(53% 0.185 255);
+  --blue-dark:    oklch(28% 0.09 255);
+  --blue-mid:     oklch(40% 0.12 255);
+  --orange:       oklch(61% 0.21 35);
+  --orange-soft:  oklch(92% 0.05 55);
+  --selected-bg:  oklch(32% 0.09 255);
+  --green:        oklch(58% 0.18 145);
+}
+
+.f { font-family: 'DM Sans', -apple-system, sans-serif; }
+</style>
+</head>
+<body>
+<script type="text/babel">
+
+// ─────────────────────────────────────────────────────────────
+// Shared design tokens & primitives
+// ─────────────────────────────────────────────────────────────
+
+function TrafficLights() {
+  return (
+    <div style={{display:'flex',gap:8,alignItems:'center'}}>
+      {['#FF6159','#FFBD2E','#28C840'].map((c,i) => (
+        <div key={i} style={{
+          width:12, height:12, borderRadius:'50%', background:c,
+          boxShadow:`inset 0 0 0 0.5px rgba(0,0,0,0.12)`,
+        }}/>
+      ))}
+    </div>
+  );
+}
+
+function Badge({ count, muted }) {
+  if (!count) return null;
+  return (
+    <div style={{
+      background: muted ? 'var(--border-2)' : 'var(--orange)',
+      color: muted ? 'var(--text-3)' : '#fff',
+      borderRadius: 10, fontSize: 11, fontWeight: 600,
+      padding: '1px 7px', lineHeight: '18px', minWidth: 20,
+      textAlign: 'center', flexShrink: 0,
+    }}>{count}</div>
+  );
+}
+
+function UnreadDot({ read }) {
+  return (
+    <div style={{
+      width: 7, height: 7, borderRadius: '50%',
+      background: read ? 'var(--border-2)' : 'var(--orange)',
+      flexShrink: 0, marginTop: 5,
+    }}/>
+  );
+}
+
+function Checkbox({ checked }) {
+  return (
+    <div style={{
+      width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+      border: checked ? 'none' : '1.5px solid var(--border-2)',
+      background: checked ? 'var(--green)' : 'transparent',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      marginTop: 1,
+    }}>
+      {checked && (
+        <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
+          <path d="M1 3l2 2 4-4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// App Window shell
+// ─────────────────────────────────────────────────────────────
+function AppWindow({ width=1100, height=700, children }) {
+  return (
+    <div style={{
+      width, height,
+      borderRadius: 12, overflow: 'hidden',
+      background: 'var(--bg)',
+      boxShadow: '0 0 0 0.5px rgba(0,0,0,0.22), 0 22px 70px rgba(0,0,0,0.32)',
+      display: 'flex',
+      fontFamily: "'DM Sans', -apple-system, sans-serif",
+      fontSize: 14,
+      color: 'var(--text)',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sidebar
+// ─────────────────────────────────────────────────────────────
+
+const PROJECTS = [
+  { name: 'API client v2',   unread: 3 },
+  { name: 'Focus app',       unread: 0 },
+  { name: 'Blog redesign',   unread: 0 },
+  { name: 'OSS tooling',     unread: 1 },
+];
+
+function Sidebar({ active }) {
+  return (
+    <div style={{
+      width: 220, height: '100%', flexShrink: 0,
+      background: 'var(--sidebar)',
+      borderRight: '1px solid var(--sidebar-border)',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Title bar area with traffic lights */}
+      <div style={{
+        height: 52, display: 'flex', alignItems: 'center',
+        padding: '0 18px',
+        borderBottom: '1px solid var(--sidebar-border)',
+      }}>
+        <TrafficLights />
+      </div>
+
+      {/* Nav items */}
+      <div style={{padding: '10px 8px 0'}}>
+        <SidebarItem label="Inbox" icon={<InboxIcon/>} badge={5} active={active==='Inbox'}/>
+        <div style={{height:16}}/>
+        <div style={{
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
+          color: 'var(--text-3)', padding: '0 10px', marginBottom: 4,
+        }}>PROJECTS</div>
+        {PROJECTS.map(p => (
+          <SidebarItem key={p.name} label={p.name} badge={p.unread}
+            active={active===p.name} />
+        ))}
+      </div>
+
+      <div style={{marginTop:'auto', padding:'8px 8px 16px', borderTop:'1px solid var(--sidebar-border)'}}>
+        <div style={{
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.06em',
+          color: 'var(--text-3)', padding: '8px 10px 4px',
+        }}>SNOOZED</div>
+        <SidebarItem label="Portfolio site" icon={<span style={{opacity:0.4,fontSize:11}}>💤</span>}/>
+      </div>
+    </div>
+  );
+}
+
+function SidebarItem({ label, icon, badge, active }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '6px 10px',
+      borderRadius: 7,
+      background: active ? 'var(--selected-bg)' : 'transparent',
+      color: active ? '#fff' : 'var(--text)',
+      marginBottom: 1, cursor: 'default',
+    }}>
+      {icon && <div style={{flexShrink:0,display:'flex',alignItems:'center'}}>{icon}</div>}
+      <span style={{flex:1, fontSize:14, fontWeight: active||badge?500:400}}>{label}</span>
+      {badge > 0 && <Badge count={badge} muted={!active && false}/>}
+    </div>
+  );
+}
+
+function InboxIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="1" width="12" height="12" rx="2"/>
+      <path d="M1 8h3l1.5 2h3L10 8h3"/>
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shared toolbar strip
+// ─────────────────────────────────────────────────────────────
+function TopBar({ title, subtitle, actions }) {
+  return (
+    <div style={{
+      height: 52,
+      borderBottom: '1px solid var(--border)',
+      display: 'flex', alignItems: 'center',
+      padding: '0 20px', gap: 12,
+      background: 'var(--bg)',
+      flexShrink: 0,
+    }}>
+      {subtitle && (
+        <span style={{fontSize:13, color:'var(--text-3)'}}>
+          {subtitle} <span style={{margin:'0 4px',opacity:0.4}}>/</span>
+        </span>
+      )}
+      <span style={{fontSize:15, fontWeight:600}}>{title}</span>
+      {actions && <div style={{marginLeft:'auto',display:'flex',gap:8}}>{actions}</div>}
+    </div>
+  );
+}
+
+function TBtn({ children, primary }) {
+  return (
+    <button style={{
+      border: primary ? 'none' : '1px solid var(--border-2)',
+      borderRadius: 6, padding: '5px 12px', fontSize: 13, fontWeight: 500,
+      background: primary ? 'var(--blue)' : 'var(--bg)',
+      color: primary ? '#fff' : 'var(--text-2)',
+      cursor: 'default', fontFamily: 'inherit',
+    }}>{children}</button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Next Action banner — the centrepiece
+// ─────────────────────────────────────────────────────────────
+function NextActionBanner({ project, action, dashboard }) {
+  return (
+    <div style={{
+      background: 'var(--blue-dark)',
+      borderRadius: 10,
+      padding: dashboard ? '14px 20px' : '16px 22px',
+      marginBottom: dashboard ? 0 : 12,
+      position: 'relative', overflow: 'hidden',
+      // subtle texture: faint radial highlight top-left
+      backgroundImage: 'radial-gradient(ellipse at 10% 30%, oklch(35% 0.09 255) 0%, transparent 60%)',
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+        color: 'rgba(255,255,255,0.35)', marginBottom: dashboard ? 4 : 6,
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <svg width="8" height="9" viewBox="0 0 8 9" fill="rgba(255,255,255,0.4)">
+          <path d="M1 1.5l6 3-6 3V1.5z"/>
+        </svg>
+        {dashboard ? `FOCUS NOW · ${project?.toUpperCase()}` : 'NEXT ACTION'}
+      </div>
+      <div style={{
+        fontSize: dashboard ? 20 : 22, fontWeight: 700,
+        color: '#fff', lineHeight: 1.25, letterSpacing: '-0.01em',
+      }}>{action}</div>
+      {!dashboard && (
+        <div style={{marginTop:8,fontSize:12,color:'rgba(255,255,255,0.3)',display:'flex',gap:12}}>
+          <span style={{cursor:'default',color:'rgba(255,255,255,0.45)'}}>Edit</span>
+          <span style={{cursor:'default',color:'rgba(255,255,255,0.45)'}}>Mark done</span>
+          <span style={{cursor:'default',color:'rgba(255,255,255,0.45)'}}>Remind me</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCREEN 1 — Dashboard B (Focus Banner)
+// ─────────────────────────────────────────────────────────────
+function DashboardScreen() {
+  const projects = [
+    { name:'API client v2',  next:'Finish pagination spec', unread:3 },
+    { name:'OSS tooling',    next:'Triage open issues',     unread:1 },
+    { name:'Blog redesign',  next:'Review Figma handoff',   unread:0 },
+    { name:'Focus app',      next:'Spec out detail screen', unread:0 },
+  ];
+
+  return (
+    <AppWindow>
+      <Sidebar active="API client v2"/>
+      <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
+        <TopBar
+          title="Projects"
+          actions={<TBtn primary>+ New project</TBtn>}
+        />
+        <div style={{flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:16}}>
+
+          {/* Focus banner — top, full width */}
+          <NextActionBanner
+            dashboard
+            project="API client v2"
+            action="Finish pagination spec"
+          />
+
+          {/* Project rows */}
+          <div style={{display:'flex', flexDirection:'column', gap:2}}>
+            {projects.map((p, i) => (
+              <ProjectRow key={p.name} project={p} focused={i===0}/>
+            ))}
+          </div>
+
+          {/* Snoozed */}
+          <div style={{
+            borderTop:'1px solid var(--border)', paddingTop:14, marginTop:4,
+            display:'flex', alignItems:'center', gap:8,
+          }}>
+            <span style={{fontSize:13,color:'var(--text-3)'}}>💤</span>
+            <span style={{fontSize:13,color:'var(--text-3)'}}>2 snoozed projects</span>
+            <span style={{
+              marginLeft:'auto',fontSize:13,color:'var(--blue)',cursor:'default',
+            }}>Show</span>
+          </div>
+        </div>
+      </div>
+    </AppWindow>
+  );
+}
+
+function ProjectRow({ project, focused }) {
+  return (
+    <div style={{
+      display:'flex', alignItems:'center', gap:12,
+      padding:'11px 14px', borderRadius:8, cursor:'default',
+      background: focused ? 'oklch(96.5% 0.012 255)' : 'transparent',
+      border: focused ? '1px solid oklch(90% 0.025 255)' : '1px solid transparent',
+    }}>
+      <div style={{flex:1, minWidth:0}}>
+        <div style={{
+          fontSize:15, fontWeight: project.unread>0 ? 600 : 400,
+          color:'var(--text)', marginBottom:2,
+        }}>{project.name}</div>
+        <div style={{
+          fontSize:13, color:'var(--text-3)',
+          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+        }}>{project.next}</div>
+      </div>
+      {project.unread > 0 && <Badge count={project.unread}/>}
+      <svg width="6" height="10" viewBox="0 0 6 10" fill="none" stroke="var(--border-2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 1l4 4-4 4"/>
+      </svg>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCREEN 2 — Project Detail B (Focus + Tabs + Links)
+// ─────────────────────────────────────────────────────────────
+function DetailScreen() {
+  const [tab, setTab] = React.useState('todos');
+  const todos = [
+    { text:'Write OpenAPI yaml',         done:true  },
+    { text:'Add auth headers test',      done:false },
+    { text:'Update README',              done:false },
+    { text:'Performance test suite',     done:false },
+  ];
+  const links = [
+    { label:'Staging', url:true },
+    { label:'Figma',   url:true },
+    { label:'Linear',  url:true },
+    { label:'API docs',url:true },
+  ];
+  const notifs = [
+    { title:'Add retry logic on 429s',           repo:'PR #88',    read:false, type:'PR'    },
+    { title:'Pagination returns wrong cursor',   repo:'Issue #91', read:false, type:'Issue' },
+    { title:'v1.3 released',                     repo:'Release',   read:true,  type:'Release'},
+  ];
+
+  const tabs = [
+    { id:'todos',         label:'Todos',         badge:null },
+    { id:'notes',         label:'Notes',         badge:null },
+    { id:'notifications', label:'Notifications', badge:3    },
+  ];
+
+  return (
+    <AppWindow>
+      <Sidebar active="API client v2"/>
+      <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
+        <TopBar
+          title="API client v2"
+          subtitle="Projects"
+          actions={
+            <>
+              <TBtn>Snooze</TBtn>
+              <TBtn>···</TBtn>
+            </>
+          }
+        />
+        <div style={{flex:1, overflowY:'auto', padding:'20px 24px', display:'flex', flexDirection:'column', gap:0}}>
+
+          {/* Next Action */}
+          <NextActionBanner action="Finish pagination spec"/>
+
+          {/* Links strip */}
+          <div style={{
+            display:'flex', alignItems:'center', gap:0,
+            padding:'10px 14px',
+            background:'var(--sidebar)',
+            border:'1px solid var(--border)',
+            borderRadius:8, marginBottom:20,
+          }}>
+            <span style={{
+              fontSize:10, fontWeight:700, letterSpacing:'0.08em',
+              color:'var(--text-3)', marginRight:14, flexShrink:0,
+            }}>LINKS</span>
+            <div style={{display:'flex', gap:6, flexWrap:'wrap', flex:1}}>
+              {links.map(l => (
+                <div key={l.label} style={{
+                  fontSize:13, color:'var(--blue)', cursor:'default',
+                  padding:'2px 8px', borderRadius:4,
+                  background:'rgba(82,130,255,0.07)',
+                  fontWeight:500,
+                }}>{l.label}</div>
+              ))}
+              <div style={{
+                fontSize:13, color:'var(--text-3)', cursor:'default',
+                padding:'2px 8px',
+              }}>+ Add</div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{
+            display:'flex', gap:0,
+            borderBottom:'1px solid var(--border)',
+            marginBottom:20,
+          }}>
+            {tabs.map(t => (
+              <div key={t.id} onClick={()=>setTab(t.id)} style={{
+                padding:'8px 16px',
+                fontSize:14, fontWeight: tab===t.id ? 600 : 400,
+                color: tab===t.id ? 'var(--text)' : 'var(--text-3)',
+                borderBottom: tab===t.id ? '2px solid var(--blue-dark)' : '2px solid transparent',
+                marginBottom:-1, cursor:'default',
+                display:'flex', alignItems:'center', gap:6,
+              }}>
+                {t.label}
+                {t.badge && <Badge count={t.badge}/>}
+              </div>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          {tab==='todos' && (
+            <div style={{display:'flex',flexDirection:'column',gap:2}}>
+              {todos.map((item,i) => (
+                <div key={i} style={{
+                  display:'flex', alignItems:'flex-start', gap:10,
+                  padding:'9px 12px', borderRadius:7, cursor:'default',
+                  background: i===1 ? 'oklch(97.5% 0.008 75)' : 'transparent',
+                }}>
+                  <Checkbox checked={item.done}/>
+                  <span style={{
+                    fontSize:15,
+                    color: item.done ? 'var(--text-3)' : 'var(--text)',
+                    textDecoration: item.done ? 'line-through' : 'none',
+                    textDecorationColor: 'var(--border-2)',
+                  }}>{item.text}</span>
+                </div>
+              ))}
+              <div style={{
+                padding:'9px 12px', fontSize:14, color:'var(--text-3)',
+                cursor:'default', paddingLeft:34,
+              }}>+ Add task</div>
+            </div>
+          )}
+
+          {tab==='notes' && (
+            <div style={{
+              padding:'14px 16px', borderRadius:8,
+              border:'1px solid var(--border)', background:'var(--bg-2)',
+              fontSize:15, color:'var(--text-2)', lineHeight:1.7, minHeight:120,
+            }}>
+              <div style={{height:14,background:'var(--border)',borderRadius:3,width:'80%',marginBottom:10,opacity:0.5}}/>
+              <div style={{height:14,background:'var(--border)',borderRadius:3,width:'65%',marginBottom:10,opacity:0.5}}/>
+              <div style={{height:14,background:'var(--border)',borderRadius:3,width:'45%',opacity:0.5}}/>
+            </div>
+          )}
+
+          {tab==='notifications' && (
+            <div style={{display:'flex',flexDirection:'column'}}>
+              <div style={{
+                fontSize:11,fontWeight:600,letterSpacing:'0.06em',
+                color:'var(--text-3)',marginBottom:10,
+                display:'flex',alignItems:'center',gap:8,
+              }}>
+                <span>acme/api-client</span>
+                <div style={{flex:1,height:1,background:'var(--border)'}}/>
+              </div>
+              {notifs.map((n,i) => (
+                <div key={i} style={{
+                  display:'flex', alignItems:'flex-start', gap:10,
+                  padding:'10px 0',
+                  borderBottom: i<notifs.length-1 ? '1px solid var(--border)' : 'none',
+                }}>
+                  <UnreadDot read={n.read}/>
+                  <div style={{flex:1}}>
+                    <div style={{
+                      fontSize:14, fontWeight: n.read?400:500,
+                      color: n.read ? 'var(--text-2)' : 'var(--text)',
+                      marginBottom:3,
+                    }}>{n.title}</div>
+                    <div style={{fontSize:12,color:'var(--text-3)',display:'flex',gap:8}}>
+                      <span>{n.repo}</span>
+                      <TypeTag type={n.type}/>
+                    </div>
+                  </div>
+                  <div style={{fontSize:12,color:'var(--text-3)',cursor:'default'}}>Unsubscribe</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </AppWindow>
+  );
+}
+
+function TypeTag({ type }) {
+  const colors = {
+    PR:      { bg:'oklch(92% 0.06 255)', color:'var(--blue-mid)' },
+    Issue:   { bg:'oklch(92% 0.06 35)',  color:'var(--orange)'   },
+    Release: { bg:'oklch(93% 0.06 145)', color:'var(--green)'    },
+  };
+  const c = colors[type] || colors.PR;
+  return (
+    <span style={{
+      fontSize:11, fontWeight:600, padding:'1px 6px', borderRadius:4,
+      background:c.bg, color:c.color,
+    }}>{type}</span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tweaks
+// ─────────────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentColor": "blue",
+  "density": "comfortable"
+}/*EDITMODE-END*/;
+
+function TweakPanel() {
+  const [vis, setVis] = React.useState(false);
+  React.useEffect(() => {
+    const h = e => {
+      if (e.data?.type==='__activate_edit_mode') setVis(true);
+      if (e.data?.type==='__deactivate_edit_mode') setVis(false);
+    };
+    window.addEventListener('message', h);
+    window.parent.postMessage({type:'__edit_mode_available'},'*');
+    return () => window.removeEventListener('message', h);
+  }, []);
+  if (!vis) return null;
+  return (
+    <div style={{
+      position:'fixed',bottom:20,right:20,zIndex:9999,
+      background:'var(--bg)',border:'1px solid var(--border-2)',
+      borderRadius:10,padding:'14px 16px',
+      fontFamily:"'DM Sans',-apple-system,sans-serif",fontSize:13,
+      boxShadow:'0 4px 24px rgba(0,0,0,0.12)',width:200,
+    }}>
+      <div style={{fontWeight:600,marginBottom:12,fontSize:14}}>Tweaks</div>
+      <div style={{marginBottom:10}}>
+        <div style={{color:'var(--text-3)',marginBottom:4,fontSize:12}}>Next Action color</div>
+        <div style={{display:'flex',gap:6}}>
+          {[['blue','var(--blue-dark)'],['slate','oklch(22% 0.01 240)'],['warm','oklch(22% 0.04 50)']].map(([name,color])=>(
+            <div key={name} onClick={()=>{
+              document.documentElement.style.setProperty('--blue-dark',color);
+              window.parent.postMessage({type:'__edit_mode_set_keys',edits:{accentColor:name}},'*');
+            }} style={{
+              width:28,height:28,borderRadius:'50%',background:color,cursor:'default',
+              boxShadow:'0 1px 3px rgba(0,0,0,0.2)',
+            }} title={name}/>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div style={{color:'var(--text-3)',marginBottom:4,fontSize:12}}>Density</div>
+        {['compact','comfortable'].map(d=>(
+          <div key={d} onClick={()=>{
+            window.parent.postMessage({type:'__edit_mode_set_keys',edits:{density:d}},'*');
+          }} style={{
+            padding:'4px 8px',borderRadius:5,cursor:'default',marginBottom:2,
+            background:d==='comfortable'?'var(--border)':'transparent',fontSize:13,
+          }}>{d.charAt(0).toUpperCase()+d.slice(1)}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main
+// ─────────────────────────────────────────────────────────────
+function App() {
+  return (
+    <>
+    <DesignCanvas>
+      <DCSection id="hifi" title="Focus — Hi-Fi Screens" subtitle="Option B · Dashboard + Project Detail">
+        <DCArtboard id="dash" label="Dashboard" width={1120} height={740}>
+          <div style={{padding:30,background:'#e8e4df',height:'100%',display:'flex',flexDirection:'column',gap:20}}>
+            <DashboardScreen/>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="detail" label="Project Detail" width={1120} height={740}>
+          <div style={{padding:30,background:'#e8e4df',height:'100%',display:'flex',flexDirection:'column',gap:20}}>
+            <DetailScreen/>
+          </div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+    <TweakPanel/>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+<div id="root"></div>
+</body>
+</html>
