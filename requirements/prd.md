@@ -1,4 +1,4 @@
-# Product Requirements Document: Focus (Working Title)
+# Product Requirements Document: GH Projects (Working Title)
 
 **Target User:** Solo developer with ADHD, managing personal projects with heavy GitHub involvement  
 **Platform:** macOS desktop app (Electron + React, SQLite)
