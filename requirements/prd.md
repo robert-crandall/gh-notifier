@@ -1,169 +1,177 @@
-# Product Requirements Document: GitHub Task Manager
+# Product Requirements Document: Focus (Working Title)
 
-**Target User:** Solo INTJ developer with ADHD, managing work across multiple GitHub repos  
-**Platform:** macOS desktop app (Tauri + Svelte)
-
----
-
-## Problem Statement
-
-The user receives ~80% of their actionable work through GitHub notifications but cannot effectively triage, organize, or defer them. Current email-based workflow is broken due to enforced client changes. Existing task managers require too much manual work to integrate with GitHub.
-
-**Core pain points:**
-- Too many notifications, can't filter signal from noise
-- Lose track of which issues belong to which project
-- No way to defer/hide work until ready to tackle it
-- Team mentions create noise without value
+**Target User:** Solo developer with ADHD, managing personal projects with heavy GitHub involvement  
+**Platform:** macOS desktop app (Electron + React, SQLite)
 
 ---
 
-## Goals
+## What This App Is
 
-1. Pull GitHub notifications automatically and group them by project
-2. Allow user to hide projects until a specific trigger (date, new notification, manual)
-3. Surface "what needs attention now" on a clean dashboard
-4. Support ~20% of tasks that originate outside GitHub
-5. Reduce cognitive load by remembering notification→project mappings
+A personal project management tool for developers. It answers the question "what am I working on and what do I need to do next?" — and, as a second-order capability, it surfaces GitHub notifications in the context of the projects they belong to.
+
+This is not a GitHub notification manager. GitHub notifications are one input into a project-centric view of your work.
 
 ---
 
-## Non-Goals (Explicitly Out of Scope)
+## Design Principles
 
-- GitHub write-back (except unsubscribe)
-- LLM-based prioritization or suggestion
-- Multi-user or team features
-- Mobile app
-- Integrations beyond GitHub
-- Advanced filtering (content-based rules, label filters, etc. — filtering is limited to notification types/reasons)
-- Automated "next action" detection
+- **Project-first.** The app opens to your projects, not your notifications.
+- **Aesthetically considered.** Native dark/light mode, theme support, and a UI that feels crafted — not utilitarian. The visual quality of the app is a feature.
+- **Non-blocking.** All network I/O (GitHub sync, notification fetch, content prefetch) is async and happens behind the scenes. The UI is never waiting on the network.
+- **Low friction.** State management is simple. Features that require ongoing manual upkeep are a red flag.
 
 ---
 
-## User Flow
+## Core Concepts
 
-### First-Time Setup
-1. User launches app
-2. Connects GitHub account (OAuth)
-3. App pulls all current notifications
+### Projects
+The primary unit of the app. A project is a container for your work context and anything related to it.
 
-### Daily Workflow
-1. User opens app to dashboard
-2. Sees **Active Projects** section with unread counts
-3. Clicks project to view:
-   - Context document
-   - Next action (manually maintained)
-   - GitHub notifications grouped by thread
-4. Takes action:
-   - Updates "next action" field
-   - Marks notifications as read
-   - Unsubscribes from threads
-   - Snoozes project until later
+Each project has:
+- **Name**
+- **Notes** — free-form text for context, requirements, links to docs, etc.
+- **Next action** — a short text field; single most important next step
+- **Todo list** — a lightweight ordered task list scoped to this project
+- **Links** — a labeled URL list (e.g., "Staging", "Figma", "Linear board")
+- **GitHub notifications** — threaded notifications routed to this project
+- **Status** — Active or Snoozed
 
-### First-Time Notification Mapping
-1. New notification arrives from unmapped repo/issue
-2. Appears in "Inbox" (unmapped area)
-3. User assigns it to a project (or creates new project)
-4. System remembers: future notifications from that thread → same project
-5. After assigning, the system checks whether a repo-level rule should be offered:
-   - **No other mapped threads from that repo:** Offer an opt-in checkbox — "Always route [repo] to [project]?"
-   - **All other threads already go to the same project:** Offer an opt-out checkbox (pre-checked) — pattern is already established
-   - **Threads are split across multiple projects:** No offer — thread-level mapping is correct
-6. If the user creates a repo rule, all unmapped inbox notifications from that repo are routed automatically. An optional checkbox lets the user also migrate already-mapped threads to the rule.
+### Inbox
+Notifications that have arrived but haven't been assigned to a project yet. The inbox is a first-class view, not a fallback bucket.
 
-### Snoozing
-- User can snooze a project:
-  - Until specific date
-  - Until next notification arrives
-  - Manually (un-hide when ready)
-- Snoozed projects appear in collapsed "Snoozed" section
+### Notification Threads
+The app tracks GitHub notifications at the thread level. Each thread belongs to at most one project (or sits in the inbox if unmapped).
+
+### Routing Rules
+Two-tier system for routing incoming notifications to projects:
+- **Thread-level mapping** — explicit: this thread goes to this project
+- **Repo-level rule** — implicit: all notifications from this repo go to this project (unless a thread-level mapping overrides it)
+
+Precedence: thread-level > repo-level > inbox.
 
 ---
 
-## Core Features
+## Features
 
-### 1. Projects
-- User can create/edit/delete projects
-- Each project has:
-  - Name (editable)
-  - Context document (free-form text field for notes, requirements, etc.)
-  - Next action (short text field, manually maintained)
-  - Status: Active or Snoozed
+### 1. Project Management
+
+Users can create, edit, and delete projects. Within a project, they can:
+- Edit the name, notes, next action, and links at any time
+- Manage a todo list (add, check off, reorder, delete tasks)
+- View all GitHub notification threads routed to this project
+- Snooze the project
+
+The dashboard shows all active projects with their next action and unread notification count. Snoozed projects are visible in a collapsed section.
 
 ### 2. GitHub Integration
-- **Authentication:** OAuth connection to GitHub
-- **Notification Sync:** Poll GitHub API for notifications (configurable interval)
-- **Filtering:** Two-tier notification filtering system:
-  - **Global filters:** Suppress notification types (e.g., `team_mention`, `review_requested`) across all repos with no exceptions
-  - **Per-repo filters:** Suppress additional notification types for specific repos (strictly additive to global filters)
-  - User configures filters from Settings; filtering is non-destructive (removing a rule resurfaces notifications)
-  - Notification reason displayed as a pill badge on each notification card
-- **Terminal State Detection:** When a notification is synced, check the subject URL to determine if the underlying issue or PR is closed/merged. Terminal notifications are automatically marked read, excluded from unread counts, and shown in a collapsed "Closed" section in the project detail view rather than the active thread list.
-- **Thread Mapping:** Remember which repo/issue/PR belongs to which project
-- **Repo-Level Routing Rules:** Declare that all notifications from a given repo go to a specific project. Thread-level mappings take precedence when both exist. Rules can be created from the Inbox after assigning a notification, and managed (edited or deleted) from Settings.
-- **Unsubscribe:** Call GitHub API to unsubscribe from specific threads
-- **Read Status:** Track read/unread state locally
 
-**Routing precedence:** thread-level mapping > repo-level rule > inbox
+**Authentication:** GitHub OAuth.
 
-### 3. Dashboard
-**Active Projects Section:**
-- List of active projects
-- Show per project:
-  - Project name
-  - Next action text
-  - Count of unread notifications
+**Notification sync:** Polls the GitHub Notifications API on a configurable interval. Sync is fully async — the app never blocks on it.
 
-**Snoozed Projects Section:**
-- Collapsed by default
-- List of snoozed projects with resume criteria (date or "next notification")
+**Async content prefetch:** After the notification list syncs, notification content (thread details) is fetched in the background. The list renders immediately from local data; fetched content populates in place. Content is considered stale only when a new notification arrives on that thread.
 
-### 4. Project Detail View
-- Context document (editable)
-- Next action (editable)
-- GitHub notifications grouped by thread
-- Actions per notification:
-  - Mark read/unread
-  - Unsubscribe from thread
-  - Open in GitHub (external link)
-- **Closed section** (collapsed by default): terminal threads (merged PRs, closed issues) shown with MERGED/CLOSED badge; excluded from unread count; accessible as a record without cluttering the active thread list
+**Thread closure:** When GitHub signals that a thread is resolved — PR merged, issue closed, etc. — the thread is automatically removed from view globally. No acknowledgment, no archive step, just gone. Unsubscribe (write-back to GitHub API) is the manual equivalent.
 
-### 5. Manual Tasks
-- User can add tasks unrelated to GitHub
-- Can attach to a project or keep standalone
-- Same read/unread paradigm
+**Read state:** Tracked locally. Marking a notification read does not write back to GitHub.
 
-### 6. Snooze System
-Three snooze modes:
-- **Manual:** Hide until user manually un-hides
-- **Date-based:** Hide until specific date, then auto-resurface
-- **Notification-based:** Hide until next GitHub notification for this project arrives
+**Unsubscribe:** Calls the GitHub API to unsubscribe from a thread, which also closes it locally.
 
----
+### 3. Inbox and Routing
 
-## Success Criteria
+When a notification arrives from an unmapped thread:
+- It appears in the Inbox
+- The user assigns it to a project (or creates a new one)
+- The app records the thread → project mapping for future notifications on that thread
 
-**MVP is shippable when:**
-1. User can authenticate with GitHub and pull notifications
-2. User can configure global and per-repo notification filters from Settings
-3. User can create projects and assign notifications to them
-4. Subsequent notifications from same thread auto-route to correct project
-5. Dashboard shows active vs snoozed projects
-6. User can edit "next action" and context doc per project
-7. User can snooze projects with all three modes
-8. User can unsubscribe from GitHub threads
-9. User can add 1-2 manual tasks
+After assigning a thread, the app evaluates whether to offer a repo-level rule:
+- **No other mapped threads from that repo:** Offer an opt-in — "Always route [repo] to [project]?"
+- **All other threads from that repo already go to the same project:** Offer an opt-out (pre-checked) — pattern is already established
+- **Threads from that repo are split across projects:** No offer — thread-level mapping is appropriate
 
-**Success looks like:**
-- User stops checking email/GitHub UI for notifications
-- User can answer "what should I work on now?" by opening the app
-- Snoozed work stays out of mind until it matters
+If a repo rule is created, the user can optionally migrate already-mapped threads from that repo to the new rule.
+
+Repo-level rules can be edited and deleted from Settings.
+
+### 4. Notification Filtering
+
+Filters suppress notifications from appearing anywhere in the app. Filtering operates on multiple dimensions:
+
+| Dimension | Match type |
+|-----------|-----------|
+| Author | Substring (case-insensitive) |
+| Org | Substring |
+| Repo | Substring |
+| Reason | Select (enum) |
+| State | Select (enum) |
+| Type | Select (enum) |
+
+Multiple filters combine with AND logic. Active filters are displayed as removable chips.
+
+**Two-tier type filtering:**
+- **Global rules** are a non-overridable floor. A notification type suppressed globally is suppressed everywhere.
+- **Per-repo rules** are strictly additive. A repo rule can suppress additional types beyond the global set; it cannot un-suppress a globally suppressed type.
+
+The UI makes this hierarchy visually explicit.
+
+Filters are session-scoped in v1.
+
+### 5. Snooze
+
+Projects can be snoozed in three modes:
+- **Manual** — hidden until the user manually un-snoozes
+- **Date-based** — hidden until a specific date, then auto-surfaced
+- **Notification-triggered** — hidden until a new GitHub notification arrives for this project
+
+Snoozed projects appear in a collapsed section of the dashboard.
+
+### 6. Appearance
+
+- Native macOS dark/light mode support
+- Theme support (multiple built-in themes, at minimum)
+- UI is visually distinctive — not a default Electron app
 
 ---
 
 ## Technical Constraints
 
-- **Platform:** macOS only (Tauri app bundle)
-- **Frontend:** Svelte
-- **Backend:** Tauri (Rust, minimal custom code)
-- **Data:** SQLite (local storage)
+- **Platform:** macOS only (Electron app bundle)
+- **Frontend:** React
+- **Backend:** Node.js (Electron main process)
+- **Data:** SQLite (local, no server)
 - **API:** GitHub REST API v3
+
+All GitHub API calls and DB writes happen off the render thread. The UI never blocks on I/O.
+
+---
+
+## Out of Scope
+
+- GitHub write-back beyond unsubscribe
+- Multi-user or team features
+- Mobile
+- Integrations beyond GitHub
+- Gantt charts, sprints, velocity, or any "enterprise PM" concepts
+
+---
+
+## Success Criteria
+
+The app is shippable when:
+
+1. User can authenticate with GitHub and pull notifications
+2. Notifications are routed to projects via thread and repo rules
+3. Unmapped notifications surface in the Inbox
+4. Projects display name, notes, next action, todo list, links, and notifications
+5. Closed/merged threads disappear automatically
+6. Unsubscribe works
+7. Filtering works across all specified dimensions with global/per-repo type hierarchy
+8. Snooze works in all three modes
+9. Dark/light mode and at least one theme variant work correctly
+10. No UI lockup — all network I/O is async
+
+**Success looks like:**
+- Opening the app tells you what you're working on and what to do next
+- GitHub notifications appear where they're relevant, not as a firehose
+- Snoozed work stays invisible until it matters
+- The app feels good to use
