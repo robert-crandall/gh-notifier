@@ -39,16 +39,16 @@ export function AuthPanel({ status, isLoading, error, onSavePat, onLogout }: Pro
     <div className={styles.form}>
       <p className={styles.instruction}>
         Paste a GitHub{' '}
-        <a
+        <button
           className={styles.link}
           onClick={() =>
-            window.open(
+            window.electron.openExternal(
               'https://github.com/settings/tokens/new?scopes=notifications,read:user&description=Focus'
             )
           }
         >
           Personal Access Token
-        </a>{' '}
+        </button>{' '}
         with <code>notifications</code> and <code>read:user</code> scopes.
       </p>
       <div className={styles.inputRow}>

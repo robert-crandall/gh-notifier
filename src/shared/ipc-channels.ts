@@ -40,6 +40,12 @@ export type IpcChannels = {
     args: []
     result: void
   }
+
+  /** Opens a URL in the user's default browser via shell.openExternal. */
+  'app:open-external': {
+    args: [url: string]
+    result: void
+  }
 }
 
 export type IpcChannelName = keyof IpcChannels
@@ -54,6 +60,7 @@ export interface ElectronApi {
       ...args: IpcChannels[C]['args']
     ): Promise<IpcChannels[C]['result']>
   }
+  openExternal: (url: string) => Promise<void>
 }
 
 declare global {

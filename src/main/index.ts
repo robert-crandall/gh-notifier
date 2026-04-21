@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { initDb } from './db'
 import { initAuth, getAuthStatus, savePat, logout } from './auth'
@@ -14,6 +14,11 @@ function createWindow(): void {
     },
     titleBarStyle: 'hiddenInset',
     show: false
+  })
+
+  // Security: deny all renderer-initiated window.open attempts
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' }
   })
 
   mainWindow.once('ready-to-show', () => {
@@ -38,6 +43,11 @@ app.whenReady().then(async () => {
   ipcMain.handle('auth:status', () => getAuthStatus())
   ipcMain.handle('auth:save-token', (_event, token: string) => savePat(token))
   ipcMain.handle('auth:logout', () => { logout() })
+
+  // External URL handler (security: controlled via main process)
+  ipcMain.handle('app:open-external', async (_event, url: string) => {
+    await shell.openExternal(url)
+  })
 
   createWindow()
 

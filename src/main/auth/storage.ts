@@ -15,11 +15,14 @@ function tokenPath(): string {
   return join(app.getPath('userData'), 'auth.enc')
 }
 
-export function saveToken(token: string): void {
+function assertEncryptionAvailable(): void {
   if (!safeStorage.isEncryptionAvailable()) {
-    console.warn('[auth] safeStorage encryption unavailable — token will not be persisted')
-    return
+    throw new Error('[auth] safeStorage encryption unavailable — token cannot be persisted')
   }
+}
+
+export function saveToken(token: string): void {
+  assertEncryptionAvailable()
   const encrypted = safeStorage.encryptString(token)
   writeFileSync(tokenPath(), encrypted)
 }

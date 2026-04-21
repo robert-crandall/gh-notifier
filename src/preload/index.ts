@@ -9,7 +9,8 @@ const api: ElectronApi = {
     ): Promise<IpcChannels[C]['result']> {
       return ipcRenderer.invoke(channel, ...args) as Promise<IpcChannels[C]['result']>
     }
-  }
+  },
+  openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url)
 }
 
 contextBridge.exposeInMainWorld('electron', api)

@@ -10,18 +10,14 @@ macOS only.
 
 - [Bun](https://bun.sh) — the only supported package manager/runtime (`npm`/`node` are not required)
 - Xcode Command Line Tools — required to compile `better-sqlite3` (`xcode-select --install`)
-- A GitHub OAuth App — create one at https://github.com/settings/developers. The callback URL can be anything (e.g. `http://localhost`) since this app uses the Device Flow.
+- A GitHub Personal Access Token — create one at https://github.com/settings/tokens/new with `notifications` and `read:user` scopes. The token is stored locally using Electron's safeStorage (OS-level encryption).
 
 ---
 
 ## Setup
 
 ```bash
-# 1. Copy the env template and fill in your GitHub OAuth App client ID
-cp .env.example .env
-# edit .env and set VITE_GITHUB_CLIENT_ID=your_client_id_here
-
-# 2. Install deps and rebuild better-sqlite3 for Electron's ABI
+# Install deps and rebuild better-sqlite3 for Electron's ABI
 bun run setup
 ```
 
