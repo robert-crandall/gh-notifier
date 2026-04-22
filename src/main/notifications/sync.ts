@@ -8,7 +8,7 @@
 
 import { BrowserWindow } from 'electron'
 import { getOctokit, isOctokitReady } from '../auth/octokit'
-import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread, deleteReadThreads, invalidateOpenThreadPrefetch } from '../db/notifications'
+import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
 import { getDb } from '../db'
 import type { NotificationType } from '../../shared/ipc-channels'
 
@@ -92,10 +92,6 @@ export async function syncOnce(): Promise<void> {
     }))
 
     upsertThreads(threads)
-
-    // Remove threads the user marked as read that haven't received new activity.
-    // If GitHub sent new activity, the upsert above would already have set unread=1.
-    deleteReadThreads()
     
     // Update last sync timestamp
     const now = new Date().toISOString()
@@ -172,9 +168,12 @@ export async function prefetchThreadContent(): Promise<void> {
             state: string
             html_url: string
             merged?: boolean
+            merged_at?: string | null
           }
 
-          const isMerged = candidate.type === 'PullRequest' && data.merged === true
+          const isMerged =
+            candidate.type === 'PullRequest' &&
+            (data.merged_at != null || data.merged === true)
           const subjectState = isMerged ? 'merged' : (data.state ?? 'open')
           const htmlUrl: string = data.html_url
 

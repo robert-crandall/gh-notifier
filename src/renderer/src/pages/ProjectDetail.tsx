@@ -424,30 +424,33 @@ function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: Notifica
                 </div>
               </div>
               <div className={styles.notificationIconGroup}>
-                {n.htmlUrl && (
-                  <button
-                    className={styles.notificationIconBtn}
-                    title="Open in GitHub"
-                    onClick={() => window.electron.openExternal(n.htmlUrl!)}
-                  >
-                    <ExternalLinkIcon />
-                  </button>
-                )}
-                <button
-                  className={styles.notificationIconBtn}
-                  title="Mark as read"
-                  disabled={!n.unread}
-                  onClick={() => void onMarkRead(n.id)}
-                >
-                  <MarkReadIcon />
-                </button>
-                <button
-                  className={styles.notificationIconBtn}
-                  title="Unsubscribe"
-                  onClick={() => void onUnsubscribe(n.id)}
-                >
-                  <UnsubscribeIcon />
-                </button>
+                    {n.htmlUrl && (
+                      <button
+                        className={styles.notificationIconBtn}
+                        title="Open in GitHub"
+                        aria-label="Open in GitHub"
+                        onClick={() => window.electron.openExternal(n.htmlUrl!)}
+                      >
+                        <ExternalLinkIcon />
+                      </button>
+                    )}
+                    <button
+                      className={styles.notificationIconBtn}
+                      title="Mark as read"
+                      aria-label="Mark as read"
+                      disabled={!n.unread}
+                      onClick={() => void onMarkRead(n.id)}
+                    >
+                      <MarkReadIcon />
+                    </button>
+                    <button
+                      className={styles.notificationIconBtn}
+                      title="Unsubscribe"
+                      aria-label="Unsubscribe"
+                      onClick={() => void onUnsubscribe(n.id)}
+                    >
+                      <UnsubscribeIcon />
+                    </button>
               </div>
             </div>
           ))}

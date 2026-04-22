@@ -205,6 +205,7 @@ export function Inbox({ onAssigned }: Props) {
                       <button
                         className={styles.iconBtn}
                         title="Open in GitHub"
+                        aria-label="Open in GitHub"
                         onClick={() => window.electron.openExternal(thread.htmlUrl!)}
                       >
                         <ExternalLinkIcon />
@@ -213,6 +214,7 @@ export function Inbox({ onAssigned }: Props) {
                     <button
                       className={styles.iconBtn}
                       title="Mark as read"
+                      aria-label="Mark as read"
                       disabled={!thread.unread}
                       onClick={() => void handleMarkRead(thread.id)}
                     >
@@ -221,6 +223,7 @@ export function Inbox({ onAssigned }: Props) {
                     <button
                       className={styles.iconBtn}
                       title="Unsubscribe"
+                      aria-label="Unsubscribe"
                       onClick={() => void handleUnsubscribe(thread.id)}
                     >
                       <UnsubscribeIcon />

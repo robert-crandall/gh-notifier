@@ -1,6 +1,7 @@
 import type {
   NotificationThread,
   NotificationType,
+  SubjectState,
   RepoRule,
   RepoRuleSuggestion,
   UnreadCount,
@@ -52,7 +53,7 @@ function toThread(row: ThreadRow): NotificationThread {
     lastReadAt: row.last_read_at,
     apiUrl: row.api_url,
     subjectUrl: row.subject_url,
-    subjectState: row.subject_state,
+    subjectState: row.subject_state as SubjectState | null,
     htmlUrl: row.html_url,
   }
 }
@@ -355,11 +356,12 @@ export function updateThreadContent(
   subjectState: string,
   htmlUrl: string
 ): void {
+  const now = new Date().toISOString()
   getDb()
     .prepare(
       `UPDATE notification_threads
-       SET subject_state = ?, html_url = ?, content_fetched_at = datetime('now')
+       SET subject_state = ?, html_url = ?, content_fetched_at = ?
        WHERE id = ?`
     )
-    .run(subjectState, htmlUrl, threadId)
+    .run(subjectState, htmlUrl, now, threadId)
 }
