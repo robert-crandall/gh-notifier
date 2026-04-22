@@ -17,8 +17,9 @@ import {
   listRepoRules,
   createRepoRule,
   deleteRepoRule,
+  invalidateOpenThreadPrefetch,
 } from './db/notifications'
-import { startNotificationSync, syncOnce } from './notifications/sync'
+import { startNotificationSync, syncOnce, prefetchThreadContent } from './notifications/sync'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch } from '../shared/ipc-channels'
 
 function createWindow(): void {
@@ -122,7 +123,14 @@ app.whenReady().then(async () => {
       win.webContents.send('notifications:updated')
     })
   })
-  ipcMain.handle('notifications:sync', async () => { await syncOnce() })
+  ipcMain.handle('notifications:sync', async () => {
+    // Reset content_fetched_at for open/unfetched threads so prefetch re-verifies
+    // their current state. This handles threads that were already closed/merged
+    // before they appeared in an incremental sync window.
+    invalidateOpenThreadPrefetch()
+    await syncOnce()
+    try { await prefetchThreadContent() } catch (err) { console.error('[notifications] Prefetch after manual sync failed:', err) }
+  })
 
   // Repo rule handlers
   ipcMain.handle('repo-rules:list', () => listRepoRules())
