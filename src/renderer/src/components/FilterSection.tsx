@@ -23,26 +23,48 @@ const DIMENSION_OPTIONS: Record<string, string[]> = {
 
 interface ChipProps {
   filter: NotificationFilter
-  onRemove: (id: number) => void
+  onRemove: (id: number) => void | Promise<void>
 }
 
 function FilterChip({ filter, onRemove }: ChipProps) {
+  const [isRemoving, setIsRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+
   const label =
     filter.scope === 'repo'
       ? `${filter.scopeOwner}/${filter.scopeRepo} · ${filter.dimension}: ${filter.value}`
       : `${filter.dimension}: ${filter.value}`
+
+  const handleRemove = async () => {
+    setRemoveError(null)
+    setIsRemoving(true)
+
+    try {
+      await onRemove(filter.id)
+    } catch {
+      setRemoveError('Could not remove filter.')
+    } finally {
+      setIsRemoving(false)
+    }
+  }
 
   return (
     <span className={`${styles.chip} ${filter.scope === 'repo' ? styles.chipRepo : ''}`}>
       <span className={styles.chipLabel}>{label}</span>
       <button
         className={styles.chipRemove}
-        onClick={() => onRemove(filter.id)}
+        onClick={() => void handleRemove()}
         aria-label={`Remove filter ${label}`}
         type="button"
+        disabled={isRemoving}
       >
         ×
       </button>
+      {removeError ? (
+        <span role="status" aria-live="polite">
+          {removeError}
+        </span>
+      ) : null}
     </span>
   )
 }
@@ -62,7 +84,7 @@ interface AddFormProps {
 
 function AddFilterForm({ onAdd, onCancel }: AddFormProps) {
   const [dimension, setDimension] = useState<FilterDimension>('type')
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState(DIMENSION_OPTIONS.type[0] ?? '')
   const [scope, setScope] = useState<FilterScope>('global')
   const [scopeOwner, setScopeOwner] = useState('')
   const [scopeRepo, setScopeRepo] = useState('')
@@ -149,8 +171,9 @@ function AddFilterForm({ onAdd, onCancel }: AddFormProps) {
         )}
       </div>
 
-      {/* Per-repo scope toggle */}
-      <div className={styles.scopeRow}>
+      {/* Per-repo scope toggle (only for 'type' dimension) */}
+      {dimension === 'type' && (
+        <div className={styles.scopeRow}>
           <label className={styles.scopeLabel}>
             <input
               type="checkbox"
@@ -179,6 +202,7 @@ function AddFilterForm({ onAdd, onCancel }: AddFormProps) {
             </div>
           )}
         </div>
+      )}
 
       {error && <p className={styles.errorText}>{error}</p>}
 
@@ -205,10 +229,11 @@ interface Props {
     scopeOwner?: string,
     scopeRepo?: string,
   ) => Promise<void>
-  onRemove: (id: number) => void
+  onRemove: (id: number) => void | Promise<void>
+  isLoading?: boolean
 }
 
-export function FilterSection({ filters, onAdd, onRemove }: Props) {
+export function FilterSection({ filters, onAdd, onRemove, isLoading }: Props) {
   const [showForm, setShowForm] = useState(false)
 
   const globalFilters = filters.filter((f) => f.scope === 'global')
@@ -218,7 +243,9 @@ export function FilterSection({ filters, onAdd, onRemove }: Props) {
     <div className={styles.root}>
       {/* Active filters */}
       {filters.length === 0 && !showForm ? (
-        <p className={styles.emptyText}>No active filters. All notifications will be shown.</p>
+        <p className={styles.emptyText}>
+          {isLoading ? 'Loading filters…' : 'No active filters. All notifications will be shown.'}
+        </p>
       ) : (
         <>
           {globalFilters.length > 0 && (

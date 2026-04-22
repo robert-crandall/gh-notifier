@@ -92,14 +92,19 @@ export async function syncOnce(): Promise<void> {
       subjectUrl: n.subject.url ?? null,
     }))
 
-    // M7: Apply notification filters before storing. Threads matching an active
-    // filter are discarded from this sync batch and never written to the DB.
+    // M7: Apply notification filters before storing on a best-effort basis.
+    // At this stage we only have fields from the notifications list response,
+    // so filters that depend on prefetched subject details (for example
+    // subject state or true author) cannot be evaluated yet and may still be
+    // applied later when richer thread data is available.
     const activeFilters = listFilters()
     const filteredThreads =
       activeFilters.length === 0
         ? threads
         : threads.filter((t) => {
-            // shouldSuppress needs a NotificationThread shape; subjectState is null pre-prefetch
+            // shouldSuppress needs a NotificationThread shape; subjectState and
+            // author-derived fields are unavailable before prefetch, so this is
+            // only an early suppression pass for the dimensions we can evaluate.
             return !shouldSuppress(
               { ...t, projectId: null, subjectState: null, htmlUrl: null, lastReadAt: t.lastReadAt },
               activeFilters,

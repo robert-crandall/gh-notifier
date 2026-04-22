@@ -10,7 +10,15 @@ CREATE TABLE filters (
   scope_repo  TEXT,            -- non-null when scope = 'repo'
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   -- Per-repo scope only valid for the 'type' dimension
-  CHECK (scope = 'global' OR (scope = 'repo' AND scope_owner IS NOT NULL AND scope_repo IS NOT NULL))
+  CHECK (
+    scope = 'global'
+    OR (
+      scope = 'repo'
+      AND dimension = 'type'
+      AND scope_owner IS NOT NULL
+      AND scope_repo IS NOT NULL
+    )
+  )
 );
 
 CREATE INDEX idx_filters_dimension ON filters(dimension);

@@ -81,8 +81,10 @@ function filterMatches(filter: NotificationFilter, thread: NotificationThread): 
 
   switch (filter.dimension) {
     case 'author':
-      // Author is not available from the notifications list endpoint.
-      // Match against the title as a best-effort heuristic (e.g. "[bot]" in title).
+      // Note: The true author field is not available from the notifications list endpoint
+      // at sync time, so this filter matches against the title substring as a best-effort
+      // heuristic (e.g., "[bot]" in title). For more accurate author filtering, thread
+      // data would need to be enriched during prefetch.
       return thread.title.toLowerCase().includes(needle)
 
     case 'org':

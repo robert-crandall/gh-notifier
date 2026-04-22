@@ -6,7 +6,7 @@ import { useFilters } from '../hooks/useFilters'
 
 export function Settings() {
   const { status, isLoading, error, savePat, logout } = useAuth()
-  const { filters, addFilter, removeFilter } = useFilters()
+  const { filters, isLoading: filtersLoading, addFilter, removeFilter } = useFilters()
 
   return (
     <div className={styles.main}>
@@ -35,6 +35,7 @@ export function Settings() {
               filters={filters}
               onAdd={addFilter}
               onRemove={removeFilter}
+              isLoading={filtersLoading}
             />
           </div>
         </section>

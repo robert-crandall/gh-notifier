@@ -42,8 +42,13 @@ export function useFilters() {
   )
 
   const removeFilter = useCallback(async (id: number) => {
-    await window.electron.ipc.invoke('filters:delete', id)
-    setFilters((prev) => prev.filter((f) => f.id !== id))
+    try {
+      await window.electron.ipc.invoke('filters:delete', id)
+      setFilters((prev) => prev.filter((f) => f.id !== id))
+    } catch (err) {
+      console.error('[useFilters] Failed to remove filter:', err)
+      throw err
+    }
   }, [])
 
   return { filters, isLoading, addFilter, removeFilter }
