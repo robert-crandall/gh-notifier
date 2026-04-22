@@ -18,7 +18,8 @@ export function App() {
     try {
       const threads = await window.electron.ipc.invoke('notifications:inbox')
       setInboxCount(threads.filter((t) => t.unread).length)
-    } catch {
+    } catch (err) {
+      console.error('[App] Failed to load inbox count:', err)
       // Notifications table may not exist yet during first boot before migration
     }
   }, [])

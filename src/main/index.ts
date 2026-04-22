@@ -42,7 +42,9 @@ function createWindow(): void {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     // Trigger first sync after the window is visible so the event reaches the renderer
-    void syncOnce()
+    void syncOnce().catch((error: unknown) => {
+      console.error('[main] Initial notification sync failed:', error)
+    })
   })
 
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
@@ -97,14 +99,28 @@ app.whenReady().then(async () => {
   ipcMain.handle('notifications:list', (_event, projectId: number) => listThreadsByProject(projectId))
   ipcMain.handle('notifications:inbox', () => listInboxThreads())
   ipcMain.handle('notifications:unread-counts', () => getUnreadCounts())
-  ipcMain.handle('notifications:assign', (_event, threadId: string, projectId: number | null) =>
+  ipcMain.handle('notifications:assign', (_event, threadId: string, projectId: number | null) => {
     assignThread(threadId, projectId)
-  )
-  ipcMain.handle('notifications:mark-read', (_event, threadId: string) => markThreadRead(threadId))
+    // Emit update event so UI refreshes immediately
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
+  })
+  ipcMain.handle('notifications:mark-read', (_event, threadId: string) => {
+    markThreadRead(threadId)
+    // Emit update event so unread badges refresh immediately
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
+  })
   ipcMain.handle('notifications:unsubscribe', async (_event, threadId: string) => {
     const octokit = getOctokit()
     await octokit.rest.activity.deleteThreadSubscription({ thread_id: parseInt(threadId, 10) })
     deleteThread(threadId)
+    // Emit update event so UI refreshes immediately
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
   })
   ipcMain.handle('notifications:sync', async () => { await syncOnce() })
 

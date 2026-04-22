@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
-import type { NotificationThread, ProjectLink } from '@shared/ipc-channels'
+import type { NotificationThread, NotificationType, ProjectLink } from '@shared/ipc-channels'
 
 type Tab = 'todos' | 'notes' | 'notifications'
 
@@ -45,8 +45,9 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
     try {
       const threads = await window.electron.ipc.invoke('notifications:list', projectId)
       setNotifications(threads)
-    } catch {
-      // notifications table may not be ready on first launch
+    } catch (err) {
+      console.error('[ProjectDetail] Failed to load notifications:', err)
+      // Notifications table may not be ready on first launch, but log unexpected errors
     }
   }, [projectId])
 
@@ -59,14 +60,19 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
   // Mark all notifications as read when the notifications tab is opened
   useEffect(() => {
     if (activeTab !== 'notifications') return
+    
     const unread = notifications.filter((n) => n.unread)
-    for (const n of unread) {
-      void window.electron.ipc.invoke('notifications:mark-read', n.id)
-    }
-    if (unread.length > 0) {
-      setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
-    }
-  }, [activeTab, notifications])
+    if (unread.length === 0) return
+    
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
+    
+    void (async () => {
+      await Promise.allSettled(
+        unread.map((n) => window.electron.ipc.invoke('notifications:mark-read', n.id))
+      )
+      onProjectChanged()
+    })()
+  }, [activeTab, notifications, onProjectChanged])
 
   useEffect(() => {
     if (editingAction && actionRef.current) {
@@ -407,7 +413,7 @@ function NotificationsTab({ notifications, onUnsubscribe }: NotificationsTabProp
   )
 }
 
-function NotificationTypeChip({ type }: { type: string }) {
+function NotificationTypeChip({ type }: { type: NotificationType }) {
   const chipClass =
     type === 'PullRequest' ? styles.typeChipPR
     : type === 'Issue' ? styles.typeChipIssue

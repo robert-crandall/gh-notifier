@@ -12,8 +12,9 @@ const api: ElectronApi = {
   },
   openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url),
   onNotificationsUpdated: (callback: () => void) => {
-    ipcRenderer.on('notifications:updated', () => callback())
-    return () => { ipcRenderer.removeAllListeners('notifications:updated') }
+    const handler = () => callback()
+    ipcRenderer.on('notifications:updated', handler)
+    return () => { ipcRenderer.removeListener('notifications:updated', handler) }
   }
 }
 
