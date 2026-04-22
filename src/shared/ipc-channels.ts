@@ -106,6 +106,29 @@ export interface ProjectDetail extends Project {
   links: ProjectLink[]
 }
 
+// ── Filter types (M7) ─────────────────────────────────────────────────────────
+
+/** The notification dimension this filter operates on. */
+export type FilterDimension = 'author' | 'org' | 'repo' | 'reason' | 'state' | 'type'
+
+/**
+ * Filter scope.
+ * - 'global': applies to all notifications.
+ * - 'repo': applies only to notifications from the specified repo.
+ *   Only valid for the 'type' dimension (per PRD two-tier type filtering).
+ */
+export type FilterScope = 'global' | 'repo'
+
+export interface NotificationFilter {
+  id: number
+  dimension: FilterDimension
+  value: string
+  scope: FilterScope
+  scopeOwner: string | null
+  scopeRepo: string | null
+  createdAt: string
+}
+
 // ── Request-response channels ─────────────────────────────────────────────────
 
 export type IpcChannels = {
@@ -290,6 +313,37 @@ export type IpcChannels = {
 
   /** Deletes a repo routing rule by id. */
   'repo-rules:delete': {
+    args: [id: number]
+    result: void
+  }
+
+  // ── Filters (M7) ──────────────────────────────────────────────────────────
+
+  /** Returns all active notification filters. */
+  'filters:list': {
+    args: []
+    result: NotificationFilter[]
+  }
+
+  /**
+   * Creates a new notification filter.
+   * For scope='repo', scopeOwner and scopeRepo must be provided.
+   * Repo scope is only valid for dimensions that support repo-scoping under
+   * FilterScope; currently, that means the `type` dimension.
+   */
+  'filters:create': {
+    args: [
+      dimension: FilterDimension,
+      value: string,
+      scope?: FilterScope,
+      scopeOwner?: string,
+      scopeRepo?: string,
+    ]
+    result: NotificationFilter
+  }
+
+  /** Deletes a notification filter by id. */
+  'filters:delete': {
     args: [id: number]
     result: void
   }

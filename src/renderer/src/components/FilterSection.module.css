@@ -1,0 +1,249 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Filter groups ── */
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.groupLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── Chips ── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  background: color-mix(in oklch, var(--blue) 14%, transparent);
+  border: 1px solid color-mix(in oklch, var(--blue) 30%, transparent);
+  color: var(--blue);
+}
+
+.chipRepo {
+  background: color-mix(in oklch, var(--orange) 12%, transparent);
+  border-color: color-mix(in oklch, var(--orange) 28%, transparent);
+  color: var(--orange);
+}
+
+.chipLabel {
+  line-height: 1;
+}
+
+.chipRemove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 50%;
+  padding: 0;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.chipRemove:hover {
+  opacity: 1;
+}
+
+/* ── Add form ── */
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.addFormRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.select,
+.input {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.select:focus,
+.input:focus {
+  border-color: var(--blue);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Scope row ── */
+
+.scopeRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scopeLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.repoInputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 22px;
+}
+
+.repoDivider {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ── Form actions ── */
+
+.addFormActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btnPrimary {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: none;
+  background: var(--blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnGhost {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btnGhost:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btnGhost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Add button ── */
+
+.addButton {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px dashed var(--border-2);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.addButton:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+/* ── Empty state ── */
+
+.emptyText {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ── Hierarchy note ── */
+
+.hierarchyNote {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: color-mix(in oklch, var(--orange) 8%, transparent);
+  border: 1px solid color-mix(in oklch, var(--orange) 18%, transparent);
+}
+
+/* ── Error ── */
+
+.errorText {
+  font-size: 12px;
+  color: oklch(55% 0.22 25);
+}

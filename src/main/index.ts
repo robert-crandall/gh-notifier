@@ -20,9 +20,10 @@ import {
   deleteRepoRule,
   invalidateOpenThreadPrefetch,
 } from './db/notifications'
+import { listFilters, createFilter, deleteFilter } from './db/filters'
 import { startNotificationSync, syncOnce, prefetchThreadContent } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode } from '../shared/ipc-channels'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope } from '../shared/ipc-channels'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -143,6 +144,21 @@ app.whenReady().then(async () => {
     createRepoRule(repoOwner, repoName, projectId)
   )
   ipcMain.handle('repo-rules:delete', (_event, id: number) => deleteRepoRule(id))
+
+  // Filter handlers (M7)
+  ipcMain.handle('filters:list', () => listFilters())
+  ipcMain.handle(
+    'filters:create',
+    (
+      _event,
+      dimension: FilterDimension,
+      value: string,
+      scope: FilterScope = 'global',
+      scopeOwner?: string,
+      scopeRepo?: string,
+    ) => createFilter(dimension, value, scope, scopeOwner, scopeRepo)
+  )
+  ipcMain.handle('filters:delete', (_event, id: number) => deleteFilter(id))
 
   startNotificationSync()
   startSnoozeWatcher()
