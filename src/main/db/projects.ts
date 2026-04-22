@@ -7,6 +7,7 @@ import type {
   ProjectStatus,
   ProjectTodo,
   ProjectTodoPatch,
+  SnoozeMode,
 } from '../../shared/ipc-channels'
 import { getDb } from './index'
 
@@ -21,6 +22,8 @@ interface ProjectRow {
   sort_order: number
   created_at: string
   updated_at: string
+  snooze_until: string | null
+  snooze_mode: string | null
 }
 
 interface TodoRow {
@@ -53,6 +56,8 @@ function toProject(row: ProjectRow): Project {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     unreadCount: 0,
+    snoozeMode: (row.snooze_mode as SnoozeMode) ?? null,
+    snoozeUntil: row.snooze_until ?? null,
   }
 }
 
@@ -149,20 +154,62 @@ export function updateProject(id: number, patch: ProjectPatch): Project {
   const status = patch.status ?? current.status
   const sortOrder = patch.sortOrder ?? current.sort_order
 
+  // Clear snooze fields when un-snoozing via a status patch
+  const snoozeUntil = status === 'active' ? null : current.snooze_until
+  const snoozeMode = status === 'active' ? null : current.snooze_mode
+
   const row = db
     .prepare(
       `UPDATE projects
        SET name = ?, notes = ?, next_action = ?, status = ?, sort_order = ?,
-           updated_at = datetime('now')
+           snooze_until = ?, snooze_mode = ?, updated_at = datetime('now')
        WHERE id = ?
        RETURNING *`
     )
-    .get(name, notes, nextAction, status, sortOrder, id) as ProjectRow
+    .get(name, notes, nextAction, status, sortOrder, snoozeUntil, snoozeMode, id) as ProjectRow
   return toProject(row)
 }
 
 export function deleteProject(id: number): void {
   getDb().prepare('DELETE FROM projects WHERE id = ?').run(id)
+}
+
+/** Snoozes a project with the given mode. For date-based snooze, `until` must be an ISO datetime string. */
+export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Project {
+  // Validate mode and until consistency
+  if (mode === 'date' && !until) {
+    throw new Error('snooze_until is required when mode is "date"')
+  }
+  if (mode !== 'date' && until) {
+    throw new Error('snooze_until should only be provided when mode is "date"')
+  }
+
+  const row = getDb()
+    .prepare(
+      `UPDATE projects
+       SET status = 'snoozed', snooze_mode = ?, snooze_until = ?, updated_at = datetime('now')
+       WHERE id = ?
+       RETURNING *`
+    )
+    .get(mode, until ?? null, id) as ProjectRow | undefined
+  if (!row) throw new Error(`Project not found: ${id}`)
+  return toProject(row)
+}
+
+/**
+ * Wakes any date-based snoozed projects whose snooze_until time has passed.
+ * Returns the IDs of projects that were woken.
+ */
+export function wakeExpiredSnoozes(): number[] {
+  const rows = getDb()
+    .prepare(
+      `UPDATE projects
+       SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
+       WHERE status = 'snoozed' AND snooze_mode = 'date' AND datetime(snooze_until) <= datetime('now')
+       RETURNING id`
+    )
+    .all() as { id: number }[]
+  return rows.map((r) => r.id)
 }
 
 // ── Todos ─────────────────────────────────────────────────────────────────────

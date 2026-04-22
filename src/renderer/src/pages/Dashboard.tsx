@@ -12,6 +12,7 @@ export function Dashboard({ projects, onSelectProject, onCreateProject }: Props)
   const [showNewForm, setShowNewForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [snoozedExpanded, setSnoozedExpanded] = useState(false)
 
   const active = projects.filter((p) => p.status === 'active')
   const snoozed = projects.filter((p) => p.status === 'snoozed')
@@ -126,12 +127,53 @@ export function Dashboard({ projects, onSelectProject, onCreateProject }: Props)
           })}
         </ul>
 
-        {/* Snoozed footer */}
+        {/* Snoozed section */}
         {snoozed.length > 0 && (
-          <div className={styles.snoozedFooter}>
-            <span className={styles.snoozedText}>
-              💤 {snoozed.length} snoozed project{snoozed.length !== 1 ? 's' : ''}
-            </span>
+          <div className={styles.snoozedSection}>
+            <button
+              className={styles.snoozedToggle}
+              onClick={() => setSnoozedExpanded((v) => !v)}
+              aria-expanded={snoozedExpanded}
+              aria-controls="snoozed-projects-list"
+            >
+              <svg
+                className={`${styles.snoozedChevron} ${snoozedExpanded ? styles.snoozedChevronOpen : ''}`}
+                width="10"
+                height="6"
+                viewBox="0 0 10 6"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>💤 {snoozed.length} snoozed project{snoozed.length !== 1 ? 's' : ''}</span>
+            </button>
+            {snoozedExpanded && (
+              <ul className={styles.snoozedList} id="snoozed-projects-list">
+                {snoozed.map((p) => (
+                  <li key={p.id}>
+                    <button
+                      className={styles.snoozedRow}
+                      onClick={() => onSelectProject(p.id)}
+                    >
+                      <div className={styles.projectInfo}>
+                        <span className={styles.snoozedName}>{p.name}</span>
+                        <span className={styles.snoozedMeta}>
+                          {p.snoozeMode === 'date' && p.snoozeUntil
+                            ? `Until ${new Date(p.snoozeUntil).toLocaleDateString()}`
+                            : p.snoozeMode === 'notification'
+                            ? 'Until next notification'
+                            : 'Manual snooze'}
+                        </span>
+                      </div>
+                      <svg className={styles.chevron} width="6" height="10" viewBox="0 0 6 10" fill="none" aria-hidden="true">
+                        <path d="M1 1l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </div>

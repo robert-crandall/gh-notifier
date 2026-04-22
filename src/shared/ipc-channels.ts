@@ -13,6 +13,8 @@ export type AuthStatus =
 
 export type ProjectStatus = 'active' | 'snoozed'
 
+export type SnoozeMode = 'manual' | 'date' | 'notification'
+
 export interface Project {
   id: number
   name: string
@@ -23,6 +25,8 @@ export interface Project {
   createdAt: string
   updatedAt: string
   unreadCount: number
+  snoozeMode: SnoozeMode | null
+  snoozeUntil: string | null
 }
 
 // ── Notification types ────────────────────────────────────────────────────────
@@ -168,6 +172,16 @@ export type IpcChannels = {
   'projects:delete': {
     args: [id: number]
     result: void
+  }
+
+  /**
+   * Snoozes a project. mode='manual' keeps it snoozed indefinitely;
+   * mode='date' wakes it at `until` (ISO 8601 string in UTC, e.g. from Date.toISOString());
+   * mode='notification' wakes it when the next notification routes to this project.
+   */
+  'projects:snooze': {
+    args: [id: number, mode: SnoozeMode, until?: string]
+    result: Project
   }
 
   // ── Todos ──────────────────────────────────────────────────────────────────

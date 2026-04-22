@@ -6,6 +6,7 @@ import {
   listProjects, getProject, createProject, updateProject, deleteProject,
   createTodo, updateTodo, deleteTodo,
   createLink, updateLink, deleteLink,
+  snoozeProject,
 } from './db/projects'
 import {
   listThreadsByProject,
@@ -20,7 +21,8 @@ import {
   invalidateOpenThreadPrefetch,
 } from './db/notifications'
 import { startNotificationSync, syncOnce, prefetchThreadContent } from './notifications/sync'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch } from '../shared/ipc-channels'
+import { startSnoozeWatcher } from './snooze'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode } from '../shared/ipc-channels'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -85,6 +87,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('projects:create', (_event, name: string) => createProject(name))
   ipcMain.handle('projects:update', (_event, id: number, patch: ProjectPatch) => updateProject(id, patch))
   ipcMain.handle('projects:delete', (_event, id: number) => deleteProject(id))
+  ipcMain.handle('projects:snooze', (_event, id: number, mode: SnoozeMode, until?: string) =>
+    snoozeProject(id, mode, until)
+  )
 
   // Todo handlers
   ipcMain.handle('todos:create', (_event, projectId: number, text: string) => createTodo(projectId, text))
@@ -140,6 +145,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('repo-rules:delete', (_event, id: number) => deleteRepoRule(id))
 
   startNotificationSync()
+  startSnoozeWatcher()
 
   createWindow()
 

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
-import type { NotificationThread, NotificationType, ProjectLink } from '@shared/ipc-channels'
+import type { NotificationThread, NotificationType, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
 
 type Tab = 'todos' | 'notes' | 'notifications'
 
@@ -16,6 +16,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
     detail,
     isLoading,
     updateProject,
+    snoozeProject,
     createTodo,
     updateTodo,
     deleteTodo,
@@ -39,7 +40,38 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
   const [linkUrl, setLinkUrl] = useState('')
   const [notesDraft, setNotesDraft] = useState<string | null>(null)
 
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
+  const [snoozeDateDraft, setSnoozeDateDraft] = useState('')
+  const snoozeMenuRef = useRef<HTMLDivElement>(null)
+
   const [notifications, setNotifications] = useState<NotificationThread[]>([])
+
+  // Close the snooze menu when clicking outside of it or pressing Escape
+  useEffect(() => {
+    if (!showSnoozeMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (snoozeMenuRef.current && !snoozeMenuRef.current.contains(e.target as Node)) {
+        setShowSnoozeMenu(false)
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowSnoozeMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [showSnoozeMenu])
+
+  const handleSnooze = async (mode: SnoozeMode, until?: string) => {
+    setShowSnoozeMenu(false)
+    setSnoozeDateDraft('')
+    await snoozeProject(mode, until)
+  }
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -138,12 +170,83 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
           <span className={styles.breadcrumbCurrent}>{detail.name}</span>
         </div>
         <div className={styles.toolbarActions}>
-          <button
-            className={styles.actionButton}
-            onClick={() => updateProject({ status: detail.status === 'snoozed' ? 'active' : 'snoozed' })}
-          >
-            {detail.status === 'snoozed' ? 'Unsnooze' : 'Snooze'}
-          </button>
+          {detail.status === 'snoozed' ? (
+            <>
+              <span className={styles.snoozedBadge}>
+                {detail.snoozeMode === 'date' && detail.snoozeUntil
+                  ? `💤 Until ${new Date(detail.snoozeUntil).toLocaleDateString()}`
+                  : detail.snoozeMode === 'notification'
+                  ? '💤 Until next notification'
+                  : '💤 Snoozed'}
+              </span>
+              <button
+                className={styles.actionButton}
+                onClick={() => updateProject({ status: 'active' })}
+              >
+                Unsnooze
+              </button>
+            </>
+          ) : (
+            <div className={styles.snoozeWrap} ref={snoozeMenuRef}>
+              <button
+                className={styles.actionButton}
+                onClick={() => setShowSnoozeMenu((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={showSnoozeMenu}
+                aria-controls="snooze-menu"
+              >
+                Snooze ▾
+              </button>
+              {showSnoozeMenu && (
+                <div className={styles.snoozeMenu} id="snooze-menu" role="menu">
+                  <button
+                    className={styles.snoozeOption}
+                    onClick={() => handleSnooze('manual')}
+                  >
+                    <span className={styles.snoozeOptionIcon}>💤</span>
+                    <span>
+                      <strong>Indefinitely</strong>
+                      <span className={styles.snoozeOptionSub}>Wake manually</span>
+                    </span>
+                  </button>
+                  <button
+                    className={styles.snoozeOption}
+                    onClick={() => handleSnooze('notification')}
+                  >
+                    <span className={styles.snoozeOptionIcon}>🔔</span>
+                    <span>
+                      <strong>Until next notification</strong>
+                      <span className={styles.snoozeOptionSub}>Wake when a notification arrives</span>
+                    </span>
+                  </button>
+                  <div className={styles.snoozeDateRow}>
+                    <span className={styles.snoozeOptionIcon}>📅</span>
+                    <input
+                      type="date"
+                      className={styles.snoozeDateInput}
+                      value={snoozeDateDraft}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) => setSnoozeDateDraft(e.target.value)}
+                    />
+                    <button
+                      className={styles.snoozeDateBtn}
+                      disabled={!snoozeDateDraft}
+                      onClick={() => {
+                        if (snoozeDateDraft) {
+                          // Create a Date at end of the selected day in local time, then convert to ISO string
+                          const localDate = new Date(snoozeDateDraft)
+                          localDate.setHours(23, 59, 59, 999)
+                          handleSnooze('date', localDate.toISOString())
+                        }
+                      }}
+                    >
+                      Snooze until date
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
