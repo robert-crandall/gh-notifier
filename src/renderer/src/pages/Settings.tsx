@@ -31,6 +31,7 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
                 className={`${styles.themeCard} ${theme === t.id ? styles.themeCardActive : ''}`}
                 onClick={() => onThemeChange(t.id)}
                 title={t.label}
+                aria-pressed={theme === t.id}
               >
                 <span className={styles.themeSwatches}>
                   <span className={styles.swatch} style={{ background: 'var(--color-base-100)' }} />
