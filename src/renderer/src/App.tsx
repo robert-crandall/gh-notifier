@@ -1,15 +1,32 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import styles from './App.module.css'
 import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './pages/Dashboard'
 import { ProjectDetail } from './pages/ProjectDetail'
+import { Inbox } from './pages/Inbox'
 import { useProjects } from './hooks/useProjects'
 
-type View = { page: 'dashboard' } | { page: 'project'; id: number }
+type View = { page: 'dashboard' } | { page: 'project'; id: number } | { page: 'inbox' }
 
 export function App() {
   const { projects, isLoading, createProject, refreshProjects } = useProjects()
   const [view, setView] = useState<View>({ page: 'dashboard' })
+  const [inboxCount, setInboxCount] = useState(0)
+
+  const loadInboxCount = useCallback(async () => {
+    try {
+      const threads = await window.electron.ipc.invoke('notifications:inbox')
+      setInboxCount(threads.filter((t) => t.unread).length)
+    } catch {
+      // Notifications table may not exist yet during first boot before migration
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadInboxCount()
+    const unsub = window.electron.onNotificationsUpdated(() => { void loadInboxCount() })
+    return unsub
+  }, [loadInboxCount])
 
   if (isLoading) {
     return (
@@ -25,6 +42,9 @@ export function App() {
         projects={projects}
         selectedId={view.page === 'project' ? view.id : null}
         onSelect={(id) => setView({ page: 'project', id })}
+        inboxCount={inboxCount}
+        onSelectInbox={() => setView({ page: 'inbox' })}
+        inboxSelected={view.page === 'inbox'}
       />
 
       {view.page === 'dashboard' ? (
@@ -32,6 +52,10 @@ export function App() {
           projects={projects}
           onSelectProject={(id) => setView({ page: 'project', id })}
           onCreateProject={createProject}
+        />
+      ) : view.page === 'inbox' ? (
+        <Inbox
+          onAssigned={() => { void refreshProjects(); void loadInboxCount() }}
         />
       ) : (
         <ProjectDetail

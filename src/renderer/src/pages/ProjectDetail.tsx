@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
-import type { ProjectLink } from '@shared/ipc-channels'
+import type { NotificationThread, ProjectLink } from '@shared/ipc-channels'
 
 type Tab = 'todos' | 'notes' | 'notifications'
 
@@ -38,6 +38,35 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
   const [linkLabel, setLinkLabel] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [notesDraft, setNotesDraft] = useState<string | null>(null)
+
+  const [notifications, setNotifications] = useState<NotificationThread[]>([])
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const threads = await window.electron.ipc.invoke('notifications:list', projectId)
+      setNotifications(threads)
+    } catch {
+      // notifications table may not be ready on first launch
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    void loadNotifications()
+    const unsub = window.electron.onNotificationsUpdated(() => { void loadNotifications() })
+    return unsub
+  }, [loadNotifications])
+
+  // Mark all notifications as read when the notifications tab is opened
+  useEffect(() => {
+    if (activeTab !== 'notifications') return
+    const unread = notifications.filter((n) => n.unread)
+    for (const n of unread) {
+      void window.electron.ipc.invoke('notifications:mark-read', n.id)
+    }
+    if (unread.length > 0) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
+    }
+  }, [activeTab, notifications])
 
   useEffect(() => {
     if (editingAction && actionRef.current) {
@@ -205,15 +234,23 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
 
         {/* Tabs */}
         <div className={styles.tabs}>
-          {(['todos', 'notes', 'notifications'] as Tab[]).map((tab) => (
-            <button
-              key={tab}
-              className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
+          {(['todos', 'notes', 'notifications'] as Tab[]).map((tab) => {
+            const unreadCount = tab === 'notifications'
+              ? notifications.filter((n) => n.unread).length
+              : 0
+            return (
+              <button
+                key={tab}
+                className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {unreadCount > 0 && (
+                  <span className={styles.tabBadge}>{unreadCount}</span>
+                )}
+              </button>
+            )
+          })}
         </div>
 
         {/* Tab content */}
@@ -286,12 +323,101 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
           )}
 
           {activeTab === 'notifications' && (
-            <div className={styles.notificationsEmpty}>
-              <p>Notifications will appear here in a future milestone.</p>
-            </div>
+            <NotificationsTab
+              notifications={notifications}
+              onUnsubscribe={async (id) => {
+                try {
+                  await window.electron.ipc.invoke('notifications:unsubscribe', id)
+                  await loadNotifications()
+                } catch (err) {
+                  console.error('[ProjectDetail] Unsubscribe failed:', err)
+                }
+              }}
+            />
           )}
         </div>
       </div>
     </div>
   )
+}
+
+// ── NotificationsTab ──────────────────────────────────────────────────────────
+
+interface NotificationsTabProps {
+  notifications: NotificationThread[]
+  onUnsubscribe: (id: string) => Promise<void>
+}
+
+function NotificationsTab({ notifications, onUnsubscribe }: NotificationsTabProps) {
+  if (notifications.length === 0) {
+    return (
+      <div className={styles.notificationsEmpty}>
+        <p>No notifications for this project.</p>
+      </div>
+    )
+  }
+
+  // Group by repo
+  const groups = new Map<string, NotificationThread[]>()
+  for (const n of notifications) {
+    const key = `${n.repoOwner}/${n.repoName}`
+    const existing = groups.get(key) ?? []
+    existing.push(n)
+    groups.set(key, existing)
+  }
+
+  return (
+    <div className={styles.notificationsList}>
+      {Array.from(groups.entries()).map(([repoKey, threads]) => (
+        <div key={repoKey} className={styles.notificationGroup}>
+          <div className={styles.notificationGroupHeader}>
+            <span>{repoKey}</span>
+            <div className={styles.notificationGroupDivider} />
+          </div>
+          {threads.map((n) => (
+            <div key={n.id} className={styles.notificationRow}>
+              <div
+                className={styles.notificationDot}
+                data-unread={n.unread}
+              />
+              <div className={styles.notificationBody}>
+                <div className={styles.notificationTitle}>
+                  <span className={styles.notificationName} data-unread={n.unread}>
+                    {n.title}
+                  </span>
+                  <NotificationTypeChip type={n.type} />
+                </div>
+                <div className={styles.notificationMeta}>
+                  <span className={styles.notificationRepo}>
+                    {n.repoOwner}/{n.repoName}
+                  </span>
+                </div>
+              </div>
+              <button
+                className={styles.unsubscribeBtn}
+                onClick={() => void onUnsubscribe(n.id)}
+              >
+                Unsubscribe
+              </button>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function NotificationTypeChip({ type }: { type: string }) {
+  const chipClass =
+    type === 'PullRequest' ? styles.typeChipPR
+    : type === 'Issue' ? styles.typeChipIssue
+    : type === 'Release' ? styles.typeChipRelease
+    : styles.typeChipOther
+
+  const label =
+    type === 'PullRequest' ? 'PR'
+    : type === 'CheckSuite' ? 'CI'
+    : type
+
+  return <span className={`${styles.typeChip} ${chipClass}`}>{label}</span>
 }

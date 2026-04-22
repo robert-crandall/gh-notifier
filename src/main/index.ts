@@ -1,12 +1,24 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { initDb } from './db'
-import { initAuth, getAuthStatus, savePat, logout } from './auth'
+import { initAuth, getAuthStatus, savePat, logout, getOctokit } from './auth'
 import {
   listProjects, getProject, createProject, updateProject, deleteProject,
   createTodo, updateTodo, deleteTodo,
   createLink, updateLink, deleteLink,
 } from './db/projects'
+import {
+  listThreadsByProject,
+  listInboxThreads,
+  getUnreadCounts,
+  assignThread,
+  markThreadRead,
+  deleteThread,
+  listRepoRules,
+  createRepoRule,
+  deleteRepoRule,
+} from './db/notifications'
+import { startNotificationSync, syncOnce } from './notifications/sync'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch } from '../shared/ipc-channels'
 
 function createWindow(): void {
@@ -29,6 +41,8 @@ function createWindow(): void {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
+    // Trigger first sync after the window is visible so the event reaches the renderer
+    void syncOnce()
   })
 
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
@@ -71,6 +85,30 @@ app.whenReady().then(async () => {
   ipcMain.handle('links:create', (_event, projectId: number, label: string, url: string) => createLink(projectId, label, url))
   ipcMain.handle('links:update', (_event, id: number, patch: ProjectLinkPatch) => updateLink(id, patch))
   ipcMain.handle('links:delete', (_event, id: number) => deleteLink(id))
+
+  // Notification handlers
+  ipcMain.handle('notifications:list', (_event, projectId: number) => listThreadsByProject(projectId))
+  ipcMain.handle('notifications:inbox', () => listInboxThreads())
+  ipcMain.handle('notifications:unread-counts', () => getUnreadCounts())
+  ipcMain.handle('notifications:assign', (_event, threadId: string, projectId: number | null) =>
+    assignThread(threadId, projectId)
+  )
+  ipcMain.handle('notifications:mark-read', (_event, threadId: string) => markThreadRead(threadId))
+  ipcMain.handle('notifications:unsubscribe', async (_event, threadId: string) => {
+    const octokit = getOctokit()
+    await octokit.rest.activity.deleteThreadSubscription({ thread_id: parseInt(threadId, 10) })
+    deleteThread(threadId)
+  })
+  ipcMain.handle('notifications:sync', async () => { await syncOnce() })
+
+  // Repo rule handlers
+  ipcMain.handle('repo-rules:list', () => listRepoRules())
+  ipcMain.handle('repo-rules:create', (_event, repoOwner: string, repoName: string, projectId: number) =>
+    createRepoRule(repoOwner, repoName, projectId)
+  )
+  ipcMain.handle('repo-rules:delete', (_event, id: number) => deleteRepoRule(id))
+
+  startNotificationSync()
 
   createWindow()
 

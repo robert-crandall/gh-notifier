@@ -52,6 +52,7 @@ function toProject(row: ProjectRow): Project {
     sortOrder: row.sort_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    unreadCount: 0,
   }
 }
 
@@ -80,9 +81,20 @@ function toLink(row: LinkRow): ProjectLink {
 
 export function listProjects(): Project[] {
   const rows = getDb()
-    .prepare('SELECT * FROM projects ORDER BY sort_order ASC, id ASC')
-    .all() as ProjectRow[]
-  return rows.map(toProject)
+    .prepare(`
+      SELECT p.*,
+             COALESCE(nc.cnt, 0) AS unread_count
+      FROM projects p
+      LEFT JOIN (
+        SELECT project_id, COUNT(*) AS cnt
+        FROM notification_threads
+        WHERE unread = 1 AND project_id IS NOT NULL
+        GROUP BY project_id
+      ) nc ON nc.project_id = p.id
+      ORDER BY p.sort_order ASC, p.id ASC
+    `)
+    .all() as (ProjectRow & { unread_count: number })[]
+  return rows.map((r) => ({ ...toProject(r), unreadCount: r.unread_count }))
 }
 
 export function getProject(id: number): ProjectDetail {

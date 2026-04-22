@@ -22,6 +22,49 @@ export interface Project {
   sortOrder: number
   createdAt: string
   updatedAt: string
+  unreadCount: number
+}
+
+// ── Notification types ────────────────────────────────────────────────────────
+
+export type NotificationType = 'PullRequest' | 'Issue' | 'Release' | 'Discussion' | 'Commit' | 'CheckSuite'
+
+export interface NotificationThread {
+  id: string
+  projectId: number | null
+  repoOwner: string
+  repoName: string
+  title: string
+  type: NotificationType
+  reason: string
+  unread: boolean
+  updatedAt: string
+  lastReadAt: string | null
+  apiUrl: string
+}
+
+/** Suggestion offered to the user after assigning a thread to a project. */
+export type RepoRuleSuggestionType = 'opt-in' | 'opt-out'
+
+export interface RepoRuleSuggestion {
+  type: RepoRuleSuggestionType
+  repoOwner: string
+  repoName: string
+  projectId: number
+  projectName: string
+}
+
+export interface RepoRule {
+  id: number
+  repoOwner: string
+  repoName: string
+  projectId: number
+  createdAt: string
+}
+
+export interface UnreadCount {
+  projectId: number
+  count: number
 }
 
 export type ProjectPatch = Partial<Pick<Project, 'name' | 'notes' | 'nextAction' | 'status' | 'sortOrder'>>
@@ -159,6 +202,76 @@ export type IpcChannels = {
     args: [id: number]
     result: void
   }
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+
+  /** Returns all notification threads routed to a project, ordered by updated_at desc. */
+  'notifications:list': {
+    args: [projectId: number]
+    result: NotificationThread[]
+  }
+
+  /** Returns all unmapped (inbox) notification threads, ordered by updated_at desc. */
+  'notifications:inbox': {
+    args: []
+    result: NotificationThread[]
+  }
+
+  /** Returns unread notification counts per project for badge display. */
+  'notifications:unread-counts': {
+    args: []
+    result: UnreadCount[]
+  }
+
+  /**
+   * Assigns a thread to a project (or null to move back to inbox).
+   * Returns a repo rule suggestion if one applies, otherwise null.
+   */
+  'notifications:assign': {
+    args: [threadId: string, projectId: number | null]
+    result: RepoRuleSuggestion | null
+  }
+
+  /** Marks a notification thread as read locally. No write-back to GitHub. */
+  'notifications:mark-read': {
+    args: [threadId: string]
+    result: void
+  }
+
+  /**
+   * Unsubscribes from a GitHub notification thread via the API,
+   * then removes the thread from local storage.
+   */
+  'notifications:unsubscribe': {
+    args: [threadId: string]
+    result: void
+  }
+
+  /** Triggers an immediate notification sync. Resolves when sync completes. */
+  'notifications:sync': {
+    args: []
+    result: void
+  }
+
+  // ── Repo rules ─────────────────────────────────────────────────────────────
+
+  /** Returns all repo routing rules. */
+  'repo-rules:list': {
+    args: []
+    result: RepoRule[]
+  }
+
+  /** Creates a repo-level routing rule. Overwrites any existing rule for that repo. */
+  'repo-rules:create': {
+    args: [repoOwner: string, repoName: string, projectId: number]
+    result: RepoRule
+  }
+
+  /** Deletes a repo routing rule by id. */
+  'repo-rules:delete': {
+    args: [id: number]
+    result: void
+  }
 }
 
 export type IpcChannelName = keyof IpcChannels
@@ -174,6 +287,8 @@ export interface ElectronApi {
     ): Promise<IpcChannels[C]['result']>
   }
   openExternal: (url: string) => Promise<void>
+  /** Registers a callback that fires whenever a notification sync completes. Returns an unsubscribe fn. */
+  onNotificationsUpdated: (callback: () => void) => () => void
 }
 
 declare global {

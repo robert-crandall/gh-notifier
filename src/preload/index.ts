@@ -10,7 +10,11 @@ const api: ElectronApi = {
       return ipcRenderer.invoke(channel, ...args) as Promise<IpcChannels[C]['result']>
     }
   },
-  openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url)
+  openExternal: (url: string) => ipcRenderer.invoke('app:open-external', url),
+  onNotificationsUpdated: (callback: () => void) => {
+    ipcRenderer.on('notifications:updated', () => callback())
+    return () => { ipcRenderer.removeAllListeners('notifications:updated') }
+  }
 }
 
 contextBridge.exposeInMainWorld('electron', api)
