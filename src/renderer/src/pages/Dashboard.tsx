@@ -24,11 +24,14 @@ export function Dashboard({ projects, onSelectProject, onCreateProject }: Props)
     const name = newName.trim()
     if (!name || creating) return
     setCreating(true)
-    const project = await onCreateProject(name)
-    setCreating(false)
-    setNewName('')
-    setShowNewForm(false)
-    onSelectProject(project.id)
+    try {
+      const project = await onCreateProject(name)
+      setNewName('')
+      setShowNewForm(false)
+      onSelectProject(project.id)
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (

@@ -24,7 +24,9 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
   } = useProjectDetail(projectId, onProjectChanged)
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
-    return (localStorage.getItem(`tab:${projectId}`) as Tab | null) ?? 'todos'
+    const stored = localStorage.getItem(`tab:${projectId}`)
+    const validTabs: Tab[] = ['todos', 'notes', 'notifications']
+    return stored && validTabs.includes(stored as Tab) ? (stored as Tab) : 'todos'
   })
 
   const [editingAction, setEditingAction] = useState(false)

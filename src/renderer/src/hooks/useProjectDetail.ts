@@ -26,11 +26,37 @@ export function useProjectDetail(
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    setIsLoading(true)
-    window.electron.ipc.invoke('projects:get', projectId).then((d) => {
-      setDetail(d)
-      setIsLoading(false)
-    })
+    let isActive = true
+
+    const loadProjectDetail = async (): Promise<void> => {
+      setIsLoading(true)
+
+      try {
+        const d = await window.electron.ipc.invoke('projects:get', projectId)
+
+        if (!isActive) {
+          return
+        }
+
+        setDetail(d)
+      } catch (error: unknown) {
+        if (!isActive) {
+          return
+        }
+
+        console.error('Failed to load project detail', error)
+      } finally {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadProjectDetail()
+
+    return () => {
+      isActive = false
+    }
   }, [projectId])
 
   const updateProject = useCallback(

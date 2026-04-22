@@ -32,7 +32,33 @@
   /* ── Typography ── */
   --font: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 
-  color-scheme: light;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* ── Backgrounds ── */
+    --bg:             oklch(17% 0.010 75);
+    --bg-2:           oklch(21% 0.012 75);
+    --sidebar:        oklch(24% 0.015 75);
+
+    /* ── Borders ── */
+    --border:         oklch(30% 0.010 75);
+    --border-2:       oklch(36% 0.012 75);
+    --sidebar-border: oklch(34% 0.015 75);
+
+    /* ── Text ── */
+    --text:           oklch(94% 0.008 75);
+    --text-2:         oklch(78% 0.010 75);
+    --text-3:         oklch(62% 0.012 75);
+
+    /* ── Accents ── */
+    --blue:           oklch(68% 0.165 255);
+    --blue-dark:      oklch(45% 0.11 255);
+    --blue-mid:       oklch(56% 0.14 255);
+    --orange:         oklch(72% 0.18 35);
+    --green:          oklch(70% 0.16 145);
+  }
 }
 
 body {

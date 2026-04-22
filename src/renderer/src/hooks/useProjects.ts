@@ -14,9 +14,14 @@ export function useProjects(): UseProjectsResult {
   const [isLoading, setIsLoading] = useState(true)
 
   const loadProjects = useCallback(async () => {
-    const list = await window.electron.ipc.invoke('projects:list')
-    setProjects(list)
-    setIsLoading(false)
+    try {
+      const list = await window.electron.ipc.invoke('projects:list')
+      setProjects(list)
+    } catch (error: unknown) {
+      console.error('Failed to load projects:', error)
+    } finally {
+      setIsLoading(false)
+    }
   }, [])
 
   useEffect(() => {
