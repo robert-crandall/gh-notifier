@@ -4,9 +4,10 @@ import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './pages/Dashboard'
 import { ProjectDetail } from './pages/ProjectDetail'
 import { Inbox } from './pages/Inbox'
+import { Settings } from './pages/Settings'
 import { useProjects } from './hooks/useProjects'
 
-type View = { page: 'dashboard' } | { page: 'project'; id: number } | { page: 'inbox' }
+type View = { page: 'dashboard' } | { page: 'project'; id: number } | { page: 'inbox' } | { page: 'settings' }
 
 export function App() {
   const { projects, isLoading, createProject, refreshProjects } = useProjects()
@@ -45,6 +46,8 @@ export function App() {
         inboxCount={inboxCount}
         onSelectInbox={() => setView({ page: 'inbox' })}
         inboxSelected={view.page === 'inbox'}
+        onSelectSettings={() => setView({ page: 'settings' })}
+        settingsSelected={view.page === 'settings'}
       />
 
       {view.page === 'dashboard' ? (
@@ -57,6 +60,8 @@ export function App() {
         <Inbox
           onAssigned={() => { void refreshProjects(); void loadInboxCount() }}
         />
+      ) : view.page === 'settings' ? (
+        <Settings />
       ) : (
         <ProjectDetail
           key={view.id}

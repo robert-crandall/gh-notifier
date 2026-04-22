@@ -61,7 +61,14 @@ app.whenReady().then(async () => {
 
   // Auth handlers
   ipcMain.handle('auth:status', () => getAuthStatus())
-  ipcMain.handle('auth:save-token', (_event, token: string) => savePat(token))
+  ipcMain.handle('auth:save-token', async (_event, token: string) => {
+    const result = await savePat(token)
+    // Fire a sync now that we have credentials; fire-and-forget
+    void syncOnce().catch((err: unknown) => {
+      console.error('[auth] Post-auth sync failed:', err)
+    })
+    return result
+  })
   ipcMain.handle('auth:logout', () => { logout() })
 
   // External URL handler (security: controlled via main process)

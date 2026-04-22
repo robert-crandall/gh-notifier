@@ -11,17 +11,21 @@ export function Inbox({ onAssigned }: Props) {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [suggestion, setSuggestion] = useState<(RepoRuleSuggestion & { threadId: string }) | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [inbox, projectList] = await Promise.all([
+      const [inbox, projectList, authStatus] = await Promise.all([
         window.electron.ipc.invoke('notifications:inbox'),
         window.electron.ipc.invoke('projects:list'),
+        window.electron.ipc.invoke('auth:status'),
       ])
       setThreads(inbox)
       setProjects(projectList.filter((p) => p.status === 'active'))
+      setIsAuthenticated(authStatus.authenticated)
     } catch (err) {
       console.error('[Inbox] Failed to load:', err)
     } finally {
@@ -32,11 +36,17 @@ export function Inbox({ onAssigned }: Props) {
   const handleSync = useCallback(async () => {
     if (isSyncing) return
     setIsSyncing(true)
+    setSyncError(null)
     try {
       await window.electron.ipc.invoke('notifications:sync')
       await load()
-    } catch (err) {
-      console.error('[Inbox] Sync failed:', err)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('NOT_AUTHENTICATED')) {
+        setSyncError('Not connected to GitHub. Add a token in Settings.')
+      } else {
+        setSyncError(`Sync failed: ${msg}`)
+      }
     } finally {
       setIsSyncing(false)
     }
@@ -127,7 +137,17 @@ export function Inbox({ onAssigned }: Props) {
       <div className={styles.content}>
         {isLoading && <div className={styles.empty}>Loading…</div>}
 
-        {!isLoading && threads.length === 0 && (
+        {!isLoading && syncError && (
+          <div className={styles.errorBanner}>{syncError}</div>
+        )}
+
+        {!isLoading && !syncError && isAuthenticated === false && threads.length === 0 && (
+          <div className={styles.empty}>
+            <p>Connect a GitHub account to fetch notifications.</p>
+          </div>
+        )}
+
+        {!isLoading && isAuthenticated && threads.length === 0 && (
           <div className={styles.empty}>
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <rect x="3" y="4" width="26" height="20" rx="3" stroke="currentColor" strokeWidth="1.5" fill="none" />

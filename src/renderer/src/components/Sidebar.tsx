@@ -8,9 +8,11 @@ interface Props {
   inboxCount: number
   onSelectInbox: () => void
   inboxSelected: boolean
+  onSelectSettings: () => void
+  settingsSelected: boolean
 }
 
-export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectInbox, inboxSelected }: Props) {
+export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectInbox, inboxSelected, onSelectSettings, settingsSelected }: Props) {
   const active = projects.filter((p) => p.status === 'active')
   const snoozed = projects.filter((p) => p.status === 'snoozed')
 
@@ -78,6 +80,20 @@ export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectIn
           </div>
         )}
       </nav>
+
+      {/* Settings pinned to bottom */}
+      <div className={styles.bottomNav}>
+        <button
+          className={`${styles.settingsRow} ${settingsSelected ? styles.selected : ''}`}
+          onClick={onSelectSettings}
+        >
+          <svg className={styles.settingsIcon} width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <circle cx="7" cy="7" r="2" stroke="currentColor" strokeWidth="1.4" fill="none" />
+            <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.93 2.93l1.06 1.06M10.01 10.01l1.06 1.06M2.93 11.07l1.06-1.06M10.01 3.99l1.06-1.06" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+          <span>Settings</span>
+        </button>
+      </div>
     </aside>
   )
 }

@@ -113,6 +113,17 @@
   padding: 12px 20px;
 }
 
+/* ── Error banner ── */
+.errorBanner {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 7px;
+  background: oklch(97% 0.015 35);
+  border: 1px solid oklch(87% 0.05 35);
+  color: oklch(40% 0.12 35);
+  font-size: 13px;
+}
+
 /* ── Empty state ── */
 .empty {
   display: flex;

@@ -154,3 +154,43 @@
   padding-top: 12px;
   border-top: 1px solid var(--sidebar-border);
 }
+
+/* ── Bottom nav (Settings) ── */
+.bottomNav {
+  flex-shrink: 0;
+  padding: 6px 8px 10px;
+  border-top: 1px solid var(--sidebar-border);
+}
+
+.settingsRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-3);
+  transition: background 80ms, color 80ms;
+}
+
+.settingsRow:hover:not(.selected) {
+  background: oklch(89% 0.018 75 / 0.6);
+  color: var(--text);
+}
+
+.settingsRow.selected {
+  background: var(--blue-dark);
+  color: #fff;
+}
+
+.settingsIcon {
+  flex-shrink: 0;
+  color: currentColor;
+}
