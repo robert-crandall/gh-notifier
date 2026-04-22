@@ -137,10 +137,9 @@ export function upsertThreads(threads: ThreadSyncData[]): void {
       unread       = excluded.unread,
       updated_at   = excluded.updated_at,
       last_read_at = excluded.last_read_at,
+      subject_url  = COALESCE(notification_threads.subject_url, excluded.subject_url),
       synced_at    = datetime('now')
-    -- Note: subject_url, subject_state, html_url, content_fetched_at are NOT
-    -- overwritten here; subject_url is set on first insert only, and
-    -- subject_state/html_url/content_fetched_at are managed by prefetchThreadContent.
+    -- subject_state/html_url/content_fetched_at are managed by prefetchThreadContent only.
   `)
 
   const getRule = db.prepare(
@@ -265,6 +264,17 @@ export function deleteThread(threadId: string): void {
     .run(threadId)
 }
 
+/**
+ * Removes all locally-read threads. Called after each sync: if GitHub had new
+ * activity on a thread, the upsert would have flipped it back to unread=1
+ * before this runs, so it's safe to discard anything still read.
+ */
+export function deleteReadThreads(): void {
+  getDb()
+    .prepare(`DELETE FROM notification_threads WHERE unread = 0`)
+    .run()
+}
+
 // ── Repo rules ────────────────────────────────────────────────────────────────
 
 export function listRepoRules(): RepoRule[] {
@@ -301,6 +311,22 @@ export interface PrefetchCandidate {
   id: string
   subjectUrl: string
   type: NotificationType
+}
+
+/**
+ * Clears content_fetched_at for all threads whose subject_state is 'open' or
+ * not yet determined (NULL). Called before a manual sync so that prefetch
+ * re-verifies the current state of every open thread rather than assuming
+ * the cached state is still current.
+ */
+export function invalidateOpenThreadPrefetch(): void {
+  getDb()
+    .prepare(
+      `UPDATE notification_threads
+       SET content_fetched_at = NULL
+       WHERE subject_state IS NULL OR subject_state = 'open'`
+    )
+    .run()
 }
 
 /**

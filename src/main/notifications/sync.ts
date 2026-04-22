@@ -8,7 +8,7 @@
 
 import { BrowserWindow } from 'electron'
 import { getOctokit, isOctokitReady } from '../auth/octokit'
-import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
+import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread, deleteReadThreads, invalidateOpenThreadPrefetch } from '../db/notifications'
 import { getDb } from '../db'
 import type { NotificationType } from '../../shared/ipc-channels'
 
@@ -92,6 +92,10 @@ export async function syncOnce(): Promise<void> {
     }))
 
     upsertThreads(threads)
+
+    // Remove threads the user marked as read that haven't received new activity.
+    // If GitHub sent new activity, the upsert above would already have set unread=1.
+    deleteReadThreads()
     
     // Update last sync timestamp
     const now = new Date().toISOString()
@@ -140,7 +144,7 @@ const PREFETCH_BATCH_SIZE = 5
  * Auto-removes threads whose PR has been merged or issue has been closed.
  * Emits notifications:updated if any threads were removed.
  */
-async function prefetchThreadContent(): Promise<void> {
+export async function prefetchThreadContent(): Promise<void> {
   if (!isOctokitReady()) return
 
   const candidates = getThreadsNeedingPrefetch()
@@ -174,10 +178,11 @@ async function prefetchThreadContent(): Promise<void> {
           const subjectState = isMerged ? 'merged' : (data.state ?? 'open')
           const htmlUrl: string = data.html_url
 
-          // Auto-remove merged PRs and closed issues per PRD M5 spec
+          // Auto-remove resolved threads per PRD M5 spec:
+          // merged PRs, closed PRs (rejected/abandoned), and closed issues
           const shouldRemove =
             (candidate.type === 'Issue' && subjectState === 'closed') ||
-            (candidate.type === 'PullRequest' && subjectState === 'merged')
+            (candidate.type === 'PullRequest' && (subjectState === 'merged' || subjectState === 'closed'))
 
           if (shouldRemove) {
             console.log(`[notifications] Auto-removing ${candidate.type} thread ${candidate.id} (state: ${subjectState})`)
