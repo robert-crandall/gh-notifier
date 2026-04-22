@@ -11,6 +11,47 @@ export type AuthStatus =
   | { authenticated: false }
   | { authenticated: true; login: string; avatarUrl: string }
 
+export type ProjectStatus = 'active' | 'snoozed'
+
+export interface Project {
+  id: number
+  name: string
+  notes: string
+  nextAction: string
+  status: ProjectStatus
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'notes' | 'nextAction' | 'status' | 'sortOrder'>>
+
+export interface ProjectTodo {
+  id: number
+  projectId: number
+  text: string
+  done: boolean
+  sortOrder: number
+  createdAt: string
+}
+
+export type ProjectTodoPatch = Partial<Pick<ProjectTodo, 'text' | 'done' | 'sortOrder'>>
+
+export interface ProjectLink {
+  id: number
+  projectId: number
+  label: string
+  url: string
+  sortOrder: number
+}
+
+export type ProjectLinkPatch = Partial<Pick<ProjectLink, 'label' | 'url' | 'sortOrder'>>
+
+export interface ProjectDetail extends Project {
+  todos: ProjectTodo[]
+  links: ProjectLink[]
+}
+
 // ── Request-response channels ─────────────────────────────────────────────────
 
 export type IpcChannels = {
@@ -44,6 +85,78 @@ export type IpcChannels = {
   /** Opens a URL in the user's default browser via shell.openExternal. */
   'app:open-external': {
     args: [url: string]
+    result: void
+  }
+
+  // ── Projects ───────────────────────────────────────────────────────────────
+
+  /** Returns all projects ordered by sort_order. */
+  'projects:list': {
+    args: []
+    result: Project[]
+  }
+
+  /** Returns a single project with its todos and links. */
+  'projects:get': {
+    args: [id: number]
+    result: ProjectDetail
+  }
+
+  /** Creates a new project with the given name. */
+  'projects:create': {
+    args: [name: string]
+    result: Project
+  }
+
+  /** Updates fields on an existing project. */
+  'projects:update': {
+    args: [id: number, patch: ProjectPatch]
+    result: Project
+  }
+
+  /** Deletes a project and all its todos and links. */
+  'projects:delete': {
+    args: [id: number]
+    result: void
+  }
+
+  // ── Todos ──────────────────────────────────────────────────────────────────
+
+  /** Creates a new todo for the given project. */
+  'todos:create': {
+    args: [projectId: number, text: string]
+    result: ProjectTodo
+  }
+
+  /** Updates fields on an existing todo. */
+  'todos:update': {
+    args: [id: number, patch: ProjectTodoPatch]
+    result: ProjectTodo
+  }
+
+  /** Deletes a todo. */
+  'todos:delete': {
+    args: [id: number]
+    result: void
+  }
+
+  // ── Links ──────────────────────────────────────────────────────────────────
+
+  /** Creates a new link for the given project. */
+  'links:create': {
+    args: [projectId: number, label: string, url: string]
+    result: ProjectLink
+  }
+
+  /** Updates fields on an existing link. */
+  'links:update': {
+    args: [id: number, patch: ProjectLinkPatch]
+    result: ProjectLink
+  }
+
+  /** Deletes a link. */
+  'links:delete': {
+    args: [id: number]
     result: void
   }
 }

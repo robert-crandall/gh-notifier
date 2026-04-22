@@ -1,0 +1,481 @@
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.loadingState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 14px;
+  color: var(--text-3);
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  -webkit-app-region: drag;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.breadcrumbBack {
+  font-size: 13px;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 0;
+}
+
+.breadcrumbBack:hover {
+  color: var(--text-2);
+}
+
+.breadcrumbSep {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.breadcrumbCurrent {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.actionButton {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  background: var(--bg-2);
+}
+
+/* ── Scrollable content ── */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Next Action Banner ── */
+.nextActionBanner {
+  border-radius: 10px;
+  padding: 16px 22px;
+  background:
+    radial-gradient(ellipse at 10% 30%, oklch(35% 0.09 255), transparent 60%),
+    var(--blue-dark);
+  color: #fff;
+}
+
+.focusLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 8px;
+}
+
+.actionText {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: text;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: #fff;
+  padding: 0;
+}
+
+.actionPlaceholder {
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+.actionTextarea {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  color: #fff;
+  font-family: var(--font);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  padding: 6px 8px;
+  resize: none;
+  outline: none;
+  user-select: text;
+}
+
+.actionTextarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.actionMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.actionMetaBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0;
+}
+
+.actionMetaBtn:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.actionMetaDot {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* ── Links strip ── */
+.linksStrip {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.linksLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  line-height: 26px;
+  flex-shrink: 0;
+}
+
+.linksPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.linkPillWrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.linkPill {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blue);
+  background: oklch(53% 0.185 255 / 0.07);
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.linkPill:hover {
+  background: oklch(53% 0.185 255 / 0.14);
+}
+
+.linkDelete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-3);
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.linkDelete:hover {
+  color: var(--text-2);
+}
+
+.addLinkBtn {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 2px 4px;
+}
+
+.addLinkBtn:hover {
+  color: var(--text-2);
+}
+
+.linkForm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.linkInput {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  user-select: text;
+}
+
+.linkInput:focus {
+  border-color: var(--blue);
+}
+
+.linkSaveBtn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: none;
+  background: var(--blue);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.linkCancelBtn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-2);
+  background: none;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 80ms;
+}
+
+.tab:hover {
+  color: var(--text-2);
+}
+
+.tabActive {
+  font-weight: 600;
+  color: var(--text);
+  border-bottom-color: var(--blue-dark);
+}
+
+/* ── Tab content ── */
+.tabContent {
+  flex: 1;
+  animation: fadeIn 150ms ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Todos ── */
+.todoList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.todoRow {
+  display: flex;
+  align-items: center;
+  padding: 9px 12px;
+  border-radius: 7px;
+  gap: 10px;
+  transition: background 80ms;
+}
+
+.todoRow:hover {
+  background: var(--bg-2);
+}
+
+.todoRow:hover .todoDelete {
+  opacity: 1;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-2);
+  background: transparent;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms, border-color 120ms;
+}
+
+.checkbox:hover {
+  border-color: var(--green);
+}
+
+.checkboxDone {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.todoText {
+  flex: 1;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.done .todoText {
+  /* not used directly — use .todoTextDone */
+}
+
+.todoTextDone {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+
+.todoDelete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text-3);
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 80ms;
+}
+
+.addTodoRow {
+  padding: 4px 12px;
+}
+
+.addTodoInput {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-3);
+  padding: 5px 0;
+  user-select: text;
+}
+
+.addTodoInput::placeholder {
+  color: var(--text-3);
+}
+
+/* ── Notes ── */
+.notesArea {
+  flex: 1;
+}
+
+.notesTextarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  user-select: text;
+}
+
+.notesTextarea:focus {
+  border-color: var(--border-2);
+}
+
+.notesTextarea::placeholder {
+  color: var(--text-3);
+}
+
+/* ── Notifications placeholder ── */
+.notificationsEmpty {
+  padding: 40px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-3);
+}
