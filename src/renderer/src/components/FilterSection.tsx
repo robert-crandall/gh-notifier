@@ -149,9 +149,8 @@ function AddFilterForm({ onAdd, onCancel }: AddFormProps) {
         )}
       </div>
 
-      {/* Per-repo scope toggle — only for type dimension */}
-      {dimension === 'type' && (
-        <div className={styles.scopeRow}>
+      {/* Per-repo scope toggle */}
+      <div className={styles.scopeRow}>
           <label className={styles.scopeLabel}>
             <input
               type="checkbox"
@@ -180,7 +179,6 @@ function AddFilterForm({ onAdd, onCancel }: AddFormProps) {
             </div>
           )}
         </div>
-      )}
 
       {error && <p className={styles.errorText}>{error}</p>}
 
@@ -247,8 +245,8 @@ export function FilterSection({ filters, onAdd, onRemove }: Props) {
         </>
       )}
 
-      {/* Two-tier hierarchy explanation */}
-      {(globalFilters.some((f) => f.dimension === 'type') || repoFilters.length > 0) && (
+      {/* Two-tier hierarchy explanation — only relevant for type filters */}
+      {globalFilters.some((f) => f.dimension === 'type') && (
         <p className={styles.hierarchyNote}>
           Global type filters are a non-overridable floor. Per-repo type filters can only
           suppress additional types — they cannot un-suppress a globally suppressed type.

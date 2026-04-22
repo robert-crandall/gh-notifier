@@ -108,12 +108,12 @@ function filterMatches(filter: NotificationFilter, thread: NotificationThread): 
 
 /**
  * Returns true if the thread should be suppressed given the full set of
- * active filters, respecting the two-tier type filtering rules:
+ * active filters.
  *
  * - Global filters (any dimension): suppress if matched.
- * - Per-repo type filters: suppress if dimension=type, scope=repo, and the
- *   thread is from that repo. These are additive to the global floor —
- *   they cannot un-suppress a globally suppressed type.
+ * - Per-repo filters (any dimension): suppress if the thread is from that
+ *   specific repo and the filter matches. Additive to global rules —
+ *   a per-repo filter can never un-suppress something a global filter catches.
  *
  * A single matching filter is sufficient to suppress (OR semantics across
  * independent filter rules).

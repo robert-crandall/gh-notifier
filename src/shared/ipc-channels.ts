@@ -328,7 +328,7 @@ export type IpcChannels = {
   /**
    * Creates a new notification filter.
    * For scope='repo', scopeOwner and scopeRepo must be provided.
-   * scope='repo' is only valid for dimension='type'.
+   * Any dimension can be scoped to a specific repo.
    */
   'filters:create': {
     args: [
