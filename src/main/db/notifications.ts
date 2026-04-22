@@ -62,6 +62,18 @@ function toRepoRule(row: RepoRuleRow): RepoRule {
 
 // ── Notification threads ──────────────────────────────────────────────────────
 
+/**
+ * Returns a prepared statement to wake notification-triggered snooze for a project.
+ * Reused in multiple places to avoid preparing the same SQL repeatedly.
+ */
+function getWakeNotificationSnoozeStmt() {
+  return getDb().prepare(
+    `UPDATE projects
+     SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
+     WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
+  )
+}
+
 export function listThreadsByProject(projectId: number): NotificationThread[] {
   const rows = getDb()
     .prepare(
@@ -128,11 +140,7 @@ export function upsertThreads(
   ) as { get: (id: string) => { project_id: number | null } | undefined }
 
   // Wake a notification-triggered snoozed project when it receives a new thread
-  const wakeNotificationSnooze = db.prepare(
-    `UPDATE projects
-     SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
-     WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
-  )
+  const wakeNotificationSnooze = getWakeNotificationSnoozeStmt()
 
   const runAll = db.transaction(() => {
     for (const t of threads) {
@@ -187,11 +195,7 @@ export function assignThread(
 
   // Wake notification-triggered snooze when manually assigning a thread to a project
   if (projectId !== null) {
-    db.prepare(
-      `UPDATE projects
-       SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
-       WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
-    ).run(projectId)
+    getWakeNotificationSnoozeStmt().run(projectId)
   }
 
   // Only suggest a repo rule when assigning to a project (not moving to inbox)

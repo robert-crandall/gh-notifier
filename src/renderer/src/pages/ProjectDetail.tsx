@@ -46,16 +46,25 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
 
   const [notifications, setNotifications] = useState<NotificationThread[]>([])
 
-  // Close the snooze menu when clicking outside of it
+  // Close the snooze menu when clicking outside of it or pressing Escape
   useEffect(() => {
     if (!showSnoozeMenu) return
-    const handler = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent) => {
       if (snoozeMenuRef.current && !snoozeMenuRef.current.contains(e.target as Node)) {
         setShowSnoozeMenu(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowSnoozeMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [showSnoozeMenu])
 
   const handleSnooze = async (mode: SnoozeMode, until?: string) => {
@@ -182,11 +191,14 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
               <button
                 className={styles.actionButton}
                 onClick={() => setShowSnoozeMenu((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={showSnoozeMenu}
+                aria-controls="snooze-menu"
               >
                 Snooze ▾
               </button>
               {showSnoozeMenu && (
-                <div className={styles.snoozeMenu}>
+                <div className={styles.snoozeMenu} id="snooze-menu" role="menu">
                   <button
                     className={styles.snoozeOption}
                     onClick={() => handleSnooze('manual')}
@@ -220,7 +232,12 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
                       className={styles.snoozeDateBtn}
                       disabled={!snoozeDateDraft}
                       onClick={() => {
-                        if (snoozeDateDraft) handleSnooze('date', `${snoozeDateDraft}T23:59:59`)
+                        if (snoozeDateDraft) {
+                          // Create a Date at end of the selected day in local time, then convert to ISO string
+                          const localDate = new Date(snoozeDateDraft)
+                          localDate.setHours(23, 59, 59, 999)
+                          handleSnooze('date', localDate.toISOString())
+                        }
                       }}
                     >
                       Snooze until date

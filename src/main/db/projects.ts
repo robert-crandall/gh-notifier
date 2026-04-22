@@ -176,6 +176,14 @@ export function deleteProject(id: number): void {
 
 /** Snoozes a project with the given mode. For date-based snooze, `until` must be an ISO datetime string. */
 export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Project {
+  // Validate mode and until consistency
+  if (mode === 'date' && !until) {
+    throw new Error('snooze_until is required when mode is "date"')
+  }
+  if (mode !== 'date' && until) {
+    throw new Error('snooze_until should only be provided when mode is "date"')
+  }
+
   const row = getDb()
     .prepare(
       `UPDATE projects
@@ -197,7 +205,7 @@ export function wakeExpiredSnoozes(): number[] {
     .prepare(
       `UPDATE projects
        SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
-       WHERE status = 'snoozed' AND snooze_mode = 'date' AND snooze_until <= datetime('now')
+       WHERE status = 'snoozed' AND snooze_mode = 'date' AND datetime(snooze_until) <= datetime('now')
        RETURNING id`
     )
     .all() as { id: number }[]

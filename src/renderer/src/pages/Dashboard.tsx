@@ -133,6 +133,8 @@ export function Dashboard({ projects, onSelectProject, onCreateProject }: Props)
             <button
               className={styles.snoozedToggle}
               onClick={() => setSnoozedExpanded((v) => !v)}
+              aria-expanded={snoozedExpanded}
+              aria-controls="snoozed-projects-list"
             >
               <svg
                 className={`${styles.snoozedChevron} ${snoozedExpanded ? styles.snoozedChevronOpen : ''}`}
@@ -147,7 +149,7 @@ export function Dashboard({ projects, onSelectProject, onCreateProject }: Props)
               <span>💤 {snoozed.length} snoozed project{snoozed.length !== 1 ? 's' : ''}</span>
             </button>
             {snoozedExpanded && (
-              <ul className={styles.snoozedList}>
+              <ul className={styles.snoozedList} id="snoozed-projects-list">
                 {snoozed.map((p) => (
                   <li key={p.id}>
                     <button

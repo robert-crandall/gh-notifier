@@ -169,8 +169,8 @@ export type IpcChannels = {
 
   /**
    * Snoozes a project. mode='manual' keeps it snoozed indefinitely;
-   * mode='date' wakes it at `until` (ISO string); mode='notification' wakes
-   * it when the next notification routes to this project.
+   * mode='date' wakes it at `until` (ISO 8601 string in UTC, e.g. from Date.toISOString());
+   * mode='notification' wakes it when the next notification routes to this project.
    */
   'projects:snooze': {
     args: [id: number, mode: SnoozeMode, until?: string]
