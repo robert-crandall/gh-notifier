@@ -7,7 +7,7 @@ export function App() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>Focus</h1>
+      <h1 className={styles.title}>GH Projects</h1>
       <AuthPanel
         status={status}
         isLoading={isLoading}

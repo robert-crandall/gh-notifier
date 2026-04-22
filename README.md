@@ -1,4 +1,4 @@
-# Focus
+# GH Projects
 
 A personal project management tool for developers. Surfaces GitHub notifications in the context of the projects they belong to.
 

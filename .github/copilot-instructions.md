@@ -2,7 +2,7 @@
 
 ## What This App Is
 
-**Focus** is a personal project management tool for developers — specifically a solo developer managing multiple GitHub-heavy projects. It answers: "What am I working on and what do I need to do next?"
+**GH Projects** is a personal project management tool for developers — specifically a solo developer managing multiple GitHub-heavy projects. It answers: "What am I working on and what do I need to do next?"
 
 GitHub notifications are surfaced in the context of the **projects they belong to**. This is not a notification manager. Projects are the primary unit of the app.
 
