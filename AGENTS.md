@@ -6,7 +6,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project Summary
 
-**Focus** is a macOS Electron app for solo developers. It's a project management tool that surfaces GitHub notifications in the context of the projects they belong to.
+**GH Projects** is a macOS Electron app for solo developers. It's a project management tool that surfaces GitHub notifications in the context of the projects they belong to.
 
 - **Not** a GitHub notification inbox — projects are the primary unit.
 - Data lives in local SQLite. All network I/O is off the render thread.

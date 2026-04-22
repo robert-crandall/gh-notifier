@@ -1,15 +1,11 @@
-.container {
+.root {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   height: 100vh;
-  gap: 1.5rem;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  overflow: hidden;
+  background: var(--bg);
 }
 
-.title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin: 0;
+.loadingRoot {
+  flex: 1;
+  background: var(--bg);
 }

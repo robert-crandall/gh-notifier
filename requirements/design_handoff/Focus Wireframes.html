@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus — Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Caveat', cursive; }
+
+  /* Sketchy / hand-drawn helpers */
+  .sk-box {
+    border: 2px solid #1a1a1a;
+    border-radius: 3px;
+    background: #fff;
+    position: relative;
+  }
+  .sk-box-dash {
+    border: 2px dashed #aaa;
+    border-radius: 3px;
+    background: #f7f7f5;
+    position: relative;
+  }
+  .sk-fill-light { background: #f0ede8; }
+  .sk-fill-mid { background: #e2ddd7; }
+  .sk-fill-accent { background: #2a2a2a; color: #fff; }
+  .sk-fill-accent-soft { background: #1a1a1a14; }
+
+  .label {
+    font-size: 11px;
+    font-family: 'Caveat', cursive;
+    color: #888;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .anno {
+    font-size: 13px;
+    font-family: 'Caveat', cursive;
+    color: #c96442;
+    line-height: 1.3;
+  }
+  .anno-line {
+    position: absolute;
+    width: 1px;
+    background: #c96442;
+    opacity: 0.5;
+  }
+
+  /* Sidebar chrome */
+  .sidebar {
+    width: 200px;
+    min-width: 200px;
+    border-right: 2px solid #1a1a1a;
+    background: #f4f1ec;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  .sidebar-item {
+    padding: 6px 14px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: default;
+    border-radius: 0;
+  }
+  .sidebar-item.active {
+    background: #2a2a2a;
+    color: #fff;
+  }
+  .sidebar-item.sub {
+    padding-left: 26px;
+    font-size: 15px;
+    color: #333;
+  }
+  .sidebar-item.sub.has-notif {
+    font-weight: 600;
+  }
+  .badge {
+    margin-left: auto;
+    background: #c96442;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 12px;
+    padding: 0 6px;
+    line-height: 18px;
+    min-width: 18px;
+    text-align: center;
+  }
+  .badge-gray {
+    background: #ccc;
+    color: #555;
+  }
+
+  /* App shell */
+  .app-shell {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border: 2px solid #1a1a1a;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .main-area {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .toolbar {
+    border-bottom: 2px solid #1a1a1a;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #faf9f7;
+    min-height: 42px;
+  }
+  .scroll-area {
+    flex: 1;
+    overflow: hidden;
+    padding: 16px;
+  }
+
+  /* Project cards */
+  .proj-card {
+    border: 2px solid #1a1a1a;
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: #fff;
+    margin-bottom: 10px;
+    cursor: default;
+  }
+  .proj-card-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .proj-name { font-size: 18px; font-weight: 700; color: #111; flex: 1; }
+  .proj-next-action {
+    background: #1a1a1a;
+    color: #fff;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 15px;
+    margin-bottom: 8px;
+  }
+  .proj-next-label { font-size: 12px; opacity: 0.6; margin-bottom: 2px; }
+  .proj-todo-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 14px;
+    color: #444;
+    margin-bottom: 3px;
+  }
+  .check-box {
+    width: 13px; height: 13px;
+    border: 2px solid #888;
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .check-box.done { background: #888; }
+
+  /* Notification threads */
+  .notif-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+  }
+  .notif-dot {
+    width: 8px; height: 8px;
+    border-radius: 4px;
+    background: #c96442;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .notif-dot.read { background: #ddd; }
+
+  /* Sketch divider */
+  .sk-divider {
+    height: 1px;
+    background: #ddd;
+    margin: 10px 0;
+  }
+
+  /* Tweak panel */
+  #tweak-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #fff;
+    border: 2px solid #1a1a1a;
+    border-radius: 8px;
+    padding: 14px 16px;
+    z-index: 999;
+    font-family: 'Caveat', cursive;
+    font-size: 15px;
+    width: 210px;
+    box-shadow: 3px 3px 0 #1a1a1a;
+    display: none;
+  }
+  #tweak-panel h4 { font-size: 17px; margin-bottom: 10px; }
+  .tweak-row { margin-bottom: 8px; display: flex; flex-direction: column; gap: 3px; }
+  .tweak-row label { font-size: 13px; color: #666; }
+  .tweak-row select, .tweak-row input[type=range] { width: 100%; font-family: 'Caveat', cursive; }
+</style>
+</head>
+<body>
+<script type="text/babel">
+
+// ──────────────────────────────────────────────────────────────
+// Shared primitives
+// ──────────────────────────────────────────────────────────────
+
+function Sidebar({ items, active }) {
+  return (
+    <div className="sidebar">
+      <div style={{padding:'10px 14px 6px', fontSize:13, color:'#999', borderBottom:'1px solid #ddd', marginBottom:4}}>
+        FOCUS
+      </div>
+      {items.map((item,i) => (
+        <div key={i} className={`sidebar-item${item.sub?' sub':''}${item.label===active?' active':''}${item.bold?' has-notif':''}`}>
+          {item.icon && <span style={{opacity:0.5, fontSize:13}}>{item.icon}</span>}
+          <span>{item.label}</span>
+          {item.badge != null && <span className={`badge${item.badge===0?' badge-gray':''}`}>{item.badge||''}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AppShell({ sidebar, toolbar, children, height='520px' }) {
+  return (
+    <div className="app-shell" style={{height}}>
+      {sidebar}
+      <div className="main-area">
+        {toolbar && <div className="toolbar">{toolbar}</div>}
+        <div className="scroll-area">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Btn({ children, dark, small }) {
+  return (
+    <div style={{
+      border:'2px solid #1a1a1a',
+      borderRadius:4,
+      padding: small ? '2px 8px' : '4px 12px',
+      fontSize: small ? 13 : 15,
+      background: dark ? '#1a1a1a' : '#fff',
+      color: dark ? '#fff' : '#1a1a1a',
+      display:'inline-flex', alignItems:'center', gap:4,
+      cursor:'default',
+    }}>{children}</div>
+  );
+}
+
+function Tag({ children, color }) {
+  return (
+    <div style={{
+      border:'1.5px solid #bbb',
+      borderRadius:10,
+      padding:'1px 8px',
+      fontSize:12,
+      color:'#666',
+      background: color||'transparent',
+      display:'inline-flex', alignItems:'center',
+    }}>{children}</div>
+  );
+}
+
+function SkLine({ text, indent=0 }) {
+  return <div style={{height:12,background:'#e5e5e5',borderRadius:3,marginBottom:5,marginLeft:indent,opacity:0.7}} />;
+}
+
+function PlaceholderImg({ width='100%', height=60, label }) {
+  return (
+    <div style={{
+      width, height,
+      background: 'repeating-linear-gradient(45deg,#f0ede8,#f0ede8 4px,#e8e5e0 4px,#e8e5e0 8px)',
+      border:'1.5px dashed #ccc',
+      borderRadius:3,
+      display:'flex', alignItems:'center', justifyContent:'center',
+      fontSize:12, color:'#999', fontFamily:'Caveat,cursive',
+    }}>{label}</div>
+  );
+}
+
+function NotifRow({ title, repo, read, type='PR' }) {
+  return (
+    <div className="notif-row">
+      <div className={`notif-dot${read?' read':''}`} />
+      <div style={{flex:1, minWidth:0}}>
+        <div style={{fontSize:13, color:'#333', fontFamily:'Caveat,cursive'}}>{title}</div>
+        <div style={{fontSize:11, color:'#aaa'}}>{repo} · {type}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children }) {
+  return <div className="label" style={{marginBottom:6,marginTop:4}}>{children}</div>;
+}
+
+function Annotation({ children, style }) {
+  return <div className="anno" style={{maxWidth:160,lineHeight:1.4,...style}}>{children}</div>;
+}
+
+// ──────────────────────────────────────────────────────────────
+// SIDEBAR ITEMS
+// ──────────────────────────────────────────────────────────────
+const sidebarItems = [
+  {label:'Inbox', icon:'📥', badge:5},
+  {label:'Projects', icon:'◎'},
+  {label:'API client v2', sub:true, badge:2, bold:true},
+  {label:'Focus app', sub:true, badge:0},
+  {label:'Blog redesign', sub:true, badge:0},
+  {label:'OSS tooling', sub:true, badge:1, bold:true},
+  {label:'[snoozed]', sub:true, icon:'💤'},
+];
+
+// ──────────────────────────────────────────────────────────────
+// DASHBOARD VARIATION A — Card Grid
+// Rich cards, grid layout, "next action" dominant
+// ──────────────────────────────────────────────────────────────
+function DashboardA() {
+  const cards = [
+    {name:'API client v2', next:'Finish pagination spec', todos:['Write OpenAPI yaml','Add auth headers test','Update README'], notifs:3, active:true},
+    {name:'OSS tooling', next:'Triage open issues', todos:['Fix #142 CI failure','Cut 1.4.1 release'], notifs:1, active:false},
+    {name:'Blog redesign', next:'Review Figma handoff', todos:['Check mobile breakpoints'], notifs:0, active:false},
+  ];
+  return (
+    <AppShell
+      sidebar={<Sidebar items={sidebarItems} active="Projects" />}
+      toolbar={
+        <>
+          <span style={{fontSize:18,fontWeight:700,flex:1}}>Projects</span>
+          <Btn small>+ New project</Btn>
+        </>
+      }
+      height="560px"
+    >
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
+        {cards.map(c => (
+          <div key={c.name} className="proj-card" style={{opacity:c.active?1:0.75}}>
+            <div className="proj-card-row">
+              <div className="proj-name">{c.name}</div>
+              {c.notifs > 0 && <span className="badge">{c.notifs}</span>}
+            </div>
+            <div style={{marginBottom:8}}>
+              <div className="proj-next-label">▶ Next action</div>
+              <div className="proj-next-action">{c.next}</div>
+            </div>
+            <div>
+              {c.todos.slice(0,2).map((t,i) => (
+                <div key={i} className="proj-todo-row">
+                  <div className="check-box" />
+                  <span>{t}</span>
+                </div>
+              ))}
+              {c.todos.length > 2 && <div style={{fontSize:12,color:'#aaa',marginTop:2}}>+{c.todos.length-2} more</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{marginTop:12,borderTop:'1px dashed #ddd',paddingTop:10}}>
+        <div style={{fontSize:14,color:'#aaa',display:'flex',alignItems:'center',gap:6}}>
+          <span>💤</span> <span>2 snoozed</span>
+          <span style={{marginLeft:'auto',cursor:'default',textDecoration:'underline',fontSize:13}}>show</span>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// DASHBOARD VARIATION B — Focused List, "Today" framing
+// Single-column list, each row = project w/ inline next action
+// ──────────────────────────────────────────────────────────────
+function DashboardB() {
+  const items = [
+    {name:'API client v2', next:'Finish pagination spec', notifs:3, tag:'active'},
+    {name:'OSS tooling', next:'Triage open issues', notifs:1, tag:'active'},
+    {name:'Blog redesign', next:'Review Figma handoff', notifs:0, tag:'active'},
+  ];
+  return (
+    <AppShell
+      sidebar={<Sidebar items={sidebarItems} active="Projects" />}
+      toolbar={
+        <>
+          <span style={{fontSize:18,fontWeight:700,flex:1}}>Your projects</span>
+          <Btn small>+ New</Btn>
+        </>
+      }
+      height="560px"
+    >
+      {/* Banner: top next action */}
+      <div style={{background:'#1a1a1a',borderRadius:6,padding:'10px 14px',marginBottom:14,color:'#fff',display:'flex',alignItems:'center',gap:12}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:11,opacity:0.5,marginBottom:3,letterSpacing:'0.08em'}}>FOCUS NOW · API CLIENT V2</div>
+          <div style={{fontSize:18,fontWeight:700}}>Finish pagination spec</div>
+        </div>
+        <div style={{fontSize:22,opacity:0.3}}>▶</div>
+      </div>
+
+      {items.map(item => (
+        <div key={item.name} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #eee'}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:17,fontWeight:700,color:'#111'}}>{item.name}</div>
+            <div style={{fontSize:14,color:'#666',marginTop:1}}>{item.next}</div>
+          </div>
+          {item.notifs > 0 && <span className="badge">{item.notifs}</span>}
+          <div style={{width:6,height:6,borderRadius:3,background:'#ccc'}} />
+        </div>
+      ))}
+
+      <div style={{marginTop:12}}>
+        <div style={{fontSize:13,color:'#aaa',display:'flex',alignItems:'center',gap:6}}>
+          <span>💤</span> <span>2 snoozed</span>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// DASHBOARD VARIATION C — Two-pane within two-pane
+// Project list left panel, mini-preview right
+// ──────────────────────────────────────────────────────────────
+function DashboardC() {
+  return (
+    <AppShell
+      sidebar={<Sidebar items={sidebarItems} active="API client v2" />}
+      toolbar={null}
+      height="560px"
+    >
+      <div style={{display:'flex',height:'100%',gap:0,margin:'-16px'}}>
+        {/* Project list panel */}
+        <div style={{width:220,borderRight:'1.5px solid #eee',padding:'12px 0',background:'#faf9f7',overflowY:'auto'}}>
+          <div style={{padding:'0 14px 8px',fontSize:13,color:'#aaa',letterSpacing:'0.05em'}}>ACTIVE</div>
+          {['API client v2','OSS tooling','Blog redesign'].map((p,i) => (
+            <div key={p} style={{
+              padding:'8px 14px',
+              background: i===0 ? '#fff' : 'transparent',
+              borderLeft: i===0 ? '3px solid #1a1a1a' : '3px solid transparent',
+              cursor:'default',
+            }}>
+              <div style={{fontSize:16,fontWeight:i===0?700:400,color:i===0?'#111':'#555'}}>{p}</div>
+              {i===0 && <div style={{fontSize:13,color:'#888',marginTop:1}}>Finish pagination spec</div>}
+            </div>
+          ))}
+          <div style={{padding:'8px 14px 0',fontSize:13,color:'#aaa',marginTop:8,letterSpacing:'0.05em'}}>SNOOZED</div>
+          <div style={{padding:'8px 14px',fontSize:15,color:'#bbb'}}>Portfolio site</div>
+        </div>
+
+        {/* Mini project preview */}
+        <div style={{flex:1,padding:'16px',overflowY:'auto',background:'#fff'}}>
+          <div style={{fontSize:22,fontWeight:700,marginBottom:4}}>API client v2</div>
+
+          <div style={{background:'#1a1a1a',color:'#fff',borderRadius:5,padding:'8px 12px',marginBottom:14}}>
+            <div style={{fontSize:11,opacity:0.5,marginBottom:2}}>NEXT ACTION</div>
+            <div style={{fontSize:16,fontWeight:600}}>Finish pagination spec</div>
+          </div>
+
+          <SectionLabel>Todos</SectionLabel>
+          {['Write OpenAPI yaml','Add auth headers test'].map((t,i) => (
+            <div key={i} className="proj-todo-row" style={{marginBottom:4}}>
+              <div className="check-box" style={{width:11,height:11}} />
+              <span style={{fontSize:14}}>{t}</span>
+            </div>
+          ))}
+
+          <div className="sk-divider" />
+
+          <SectionLabel>Notifications (3)</SectionLabel>
+          <NotifRow title="Add retry logic on 429s" repo="acme/api-client" type="PR" />
+          <NotifRow title="Pagination returns wrong cursor" repo="acme/api-client" type="Issue" />
+          <NotifRow title="v1.3 released" repo="acme/api-client" read type="Release" />
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// PROJECT DETAIL VARIATION A — Classic column layout
+// Tabs across top; next action banner prominent
+// ──────────────────────────────────────────────────────────────
+function DetailA() {
+  return (
+    <AppShell
+      sidebar={<Sidebar items={sidebarItems} active="API client v2" />}
+      toolbar={
+        <>
+          <div style={{fontSize:11,color:'#bbb'}}>Projects /</div>
+          <div style={{fontSize:17,fontWeight:700}}>API client v2</div>
+          <div style={{marginLeft:'auto',display:'flex',gap:8}}>
+            <Btn small>Snooze</Btn>
+            <Btn small>···</Btn>
+          </div>
+        </>
+      }
+      height="600px"
+    >
+      {/* Next action — large, always visible */}
+      <div style={{background:'#111',color:'#fff',borderRadius:6,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:14}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:11,opacity:0.4,letterSpacing:'0.08em',marginBottom:4}}>▶ NEXT ACTION</div>
+          <div style={{fontSize:20,fontWeight:700}}>Finish pagination spec</div>
+        </div>
+        <div style={{opacity:0.3,fontSize:12}}>edit</div>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+        {/* Left col */}
+        <div>
+          <SectionLabel>Notes</SectionLabel>
+          <div className="sk-box" style={{padding:10,minHeight:80,fontSize:14,color:'#444',background:'#fdfcfb'}}>
+            <SkLine /><SkLine /><SkLine style={{width:'60%'}} />
+            <div style={{marginTop:6,fontSize:13,color:'#aaa'}}>Links: Staging · Figma · Linear</div>
+          </div>
+
+          <div style={{marginTop:12}}>
+            <SectionLabel>Todos</SectionLabel>
+            {['Write OpenAPI yaml','Add auth headers test','Update README','Performance test suite'].map((t,i) => (
+              <div key={i} className="proj-todo-row" style={{marginBottom:5}}>
+                <div className={`check-box${i===0?' done':''}`} />
+                <span style={{fontSize:15,textDecoration:i===0?'line-through':'none',color:i===0?'#aaa':'#222'}}>{t}</span>
+              </div>
+            ))}
+            <div style={{fontSize:14,color:'#aaa',marginTop:4,paddingLeft:20}}>+ Add task</div>
+          </div>
+        </div>
+
+        {/* Right col — notifications */}
+        <div>
+          <SectionLabel>GitHub notifications (3 unread)</SectionLabel>
+          <div className="sk-box" style={{overflow:'hidden'}}>
+            <div style={{padding:'6px 10px',background:'#faf9f7',borderBottom:'1px solid #eee',fontSize:12,color:'#888',display:'flex',alignItems:'center',gap:6}}>
+              <span>acme/api-client</span>
+              <span style={{marginLeft:'auto'}}>Route all → this project</span>
+            </div>
+            <div style={{padding:'0 10px'}}>
+              <NotifRow title="Add retry logic on 429s" repo="PR #88" />
+              <NotifRow title="Pagination returns wrong cursor" repo="Issue #91" />
+              <NotifRow title="v1.3 released" repo="Release" read />
+            </div>
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// PROJECT DETAIL VARIATION B — Focus-first, tabbed secondary info
+// Giant next action + always-visible links; everything else tabs below
+// ──────────────────────────────────────────────────────────────
+function DetailB() {
+  const [tab, setTab] = React.useState('todos');
+  const links = ['Staging', 'Figma', 'Linear board', 'API docs'];
+  return (
+    <AppShell
+      sidebar={<Sidebar items={sidebarItems} active="API client v2" />}
+      toolbar={
+        <>
+          <div style={{fontSize:17,fontWeight:700,flex:1}}>API client v2</div>
+          <Btn small>Snooze</Btn>
+        </>
+      }
+      height="640px"
+    >
+      {/* Massive next action */}
+      <div style={{border:'2px solid #111',borderRadius:8,padding:'16px 20px',marginBottom:10,position:'relative'}}>
+        <div style={{fontSize:11,color:'#aaa',letterSpacing:'0.1em',marginBottom:6}}>▶ NEXT ACTION</div>
+        <div style={{fontSize:26,fontWeight:700,lineHeight:1.2,color:'#111'}}>Finish pagination spec</div>
+        <div style={{fontSize:12,color:'#aaa',marginTop:8}}>tap to edit · set a reminder</div>
+      </div>
+
+      {/* Links — always-visible strip */}
+      <div style={{border:'1.5px solid #ddd',borderRadius:6,padding:'8px 14px',marginBottom:18,background:'#faf9f7',display:'flex',alignItems:'center',gap:0,flexWrap:'wrap'}}>
+        <div style={{fontSize:11,color:'#aaa',letterSpacing:'0.08em',marginRight:12,whiteSpace:'nowrap'}}>LINKS</div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',flex:1}}>
+          {links.map(l => (
+            <div key={l} style={{fontSize:14,color:'#3a6fd8',borderBottom:'1px solid #3a6fd880',cursor:'default',paddingBottom:1}}>{l}</div>
+          ))}
+          <div style={{fontSize:14,color:'#bbb',cursor:'default'}}>+ add</div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:'flex',gap:0,borderBottom:'2px solid #1a1a1a',marginBottom:14}}>
+        {['todos','notes','notifications'].map(t => (
+          <div key={t} onClick={()=>setTab(t)} style={{
+            padding:'6px 16px',
+            fontWeight: tab===t ? 700 : 400,
+            fontSize:16,
+            borderBottom: tab===t ? '2px solid #1a1a1a' : '2px solid transparent',
+            marginBottom:-2,
+            cursor:'default',
+            color: tab===t ? '#111' : '#888',
+          }}>{t.charAt(0).toUpperCase()+t.slice(1)}{t==='notifications'&&<span className="badge" style={{marginLeft:6,background:'#c96442'}}>3</span>}</div>
+        ))}
+      </div>
+
+      {tab==='todos' && (
+        <div>
+          {['Write OpenAPI yaml','Add auth headers test','Update README'].map((t,i) => (
+            <div key={i} className="proj-todo-row" style={{marginBottom:8}}>
+              <div className={`check-box${i===0?' done':''}`} />
+              <span style={{fontSize:16,textDecoration:i===0?'line-through':'none',color:i===0?'#aaa':'#222'}}>{t}</span>
+            </div>
+          ))}
+          <div style={{fontSize:15,color:'#aaa',marginTop:4,paddingLeft:20}}>+ Add task</div>
+        </div>
+      )}
+
+      {tab==='notes' && (
+        <div className="sk-box" style={{padding:12,minHeight:100,fontSize:15,color:'#444',background:'#fdfcfb'}}>
+          <SkLine /><SkLine /><SkLine style={{width:'70%'}} />
+        </div>
+      )}
+
+      {tab==='notifications' && (
+        <div>
+          <NotifRow title="Add retry logic on 429s" repo="acme/api-client · PR #88" />
+          <NotifRow title="Pagination returns wrong cursor" repo="acme/api-client · Issue #91" />
+          <NotifRow title="v1.3 released" repo="acme/api-client · Release" read />
+        </div>
+      )}
+    </AppShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// PROJECT DETAIL VARIATION C — Next action + inline task stream
+// No tab switching; everything visible; notifications in sidebar strip
+// ──────────────────────────────────────────────────────────────
+function DetailC() {
+  return (
+    <AppShell
+      sidebar={<Sidebar items={sidebarItems} active="API client v2" />}
+      toolbar={
+        <>
+          <div style={{fontSize:17,fontWeight:700,flex:1}}>API client v2</div>
+          <Btn small>Snooze</Btn>
+          <Btn small>···</Btn>
+        </>
+      }
+      height="600px"
+    >
+      <div style={{display:'flex',height:'100%',gap:0,margin:'-16px'}}>
+        {/* Main content area */}
+        <div style={{flex:1,padding:16,overflowY:'auto'}}>
+          {/* Next action — inline editable feel */}
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,color:'#aaa',letterSpacing:'0.08em',marginBottom:6}}>▶ NEXT ACTION</div>
+            <div style={{display:'flex',alignItems:'center',gap:10,border:'2px solid #111',borderRadius:6,padding:'10px 14px',background:'#fdfcfb'}}>
+              <div style={{width:20,height:20,borderRadius:10,border:'2px solid #aaa',flexShrink:0}} />
+              <div style={{fontSize:20,fontWeight:700,flex:1,color:'#111'}}>Finish pagination spec</div>
+            </div>
+          </div>
+
+          {/* Todo stream */}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:13,color:'#aaa',letterSpacing:'0.06em',marginBottom:8}}>TASKS</div>
+            {[
+              {t:'Write OpenAPI yaml', done:true},
+              {t:'Add auth headers test', done:false},
+              {t:'Update README', done:false},
+              {t:'Performance test suite', done:false},
+            ].map((item,i) => (
+              <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid #f0ede8'}}>
+                <div className={`check-box${item.done?' done':''}`} style={{width:14,height:14}} />
+                <span style={{fontSize:16,textDecoration:item.done?'line-through':'none',color:item.done?'#bbb':'#222'}}>{item.t}</span>
+              </div>
+            ))}
+            <div style={{fontSize:14,color:'#bbb',marginTop:6,paddingLeft:24}}>+ Add task</div>
+          </div>
+
+          {/* Notes collapsed */}
+          <div style={{marginTop:4}}>
+            <div style={{fontSize:13,color:'#aaa',letterSpacing:'0.06em',marginBottom:6}}>NOTES</div>
+            <div style={{fontSize:14,color:'#666',lineHeight:1.6,background:'#fdfcfb',borderRadius:4,padding:'8px 10px',border:'1px solid #eee'}}>
+              <SkLine /><SkLine /><SkLine style={{width:'50%'}} />
+            </div>
+          </div>
+        </div>
+
+        {/* Right strip — notifications */}
+        <div style={{width:220,borderLeft:'1.5px solid #eee',padding:'12px 10px',background:'#faf9f7',overflowY:'auto'}}>
+          <div style={{fontSize:11,color:'#aaa',letterSpacing:'0.06em',marginBottom:8}}>GITHUB · 3 UNREAD</div>
+          <NotifRow title="Add retry logic on 429s" repo="PR #88" />
+          <NotifRow title="Pagination cursor bug" repo="Issue #91" />
+          <NotifRow title="v1.3 released" repo="Release" read />
+          <div style={{marginTop:10,fontSize:12,color:'#aaa',paddingLeft:16}}>+ Assign from inbox</div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Tweaks
+// ──────────────────────────────────────────────────────────────
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "showAnnotations": true
+}/*EDITMODE-END*/;
+
+function TweakPanel() {
+  const [visible, setVisible] = React.useState(false);
+  const [tweaks, setTweaks] = React.useState(TWEAK_DEFAULTS);
+
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === '__activate_edit_mode') setVisible(true);
+      if (e.data?.type === '__deactivate_edit_mode') setVisible(false);
+    };
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  if (!visible) return null;
+  return (
+    <div id="tweak-panel" style={{display:'block'}}>
+      <h4>Tweaks</h4>
+      <div className="tweak-row">
+        <label>
+          <input type="checkbox" checked={tweaks.showAnnotations}
+            onChange={e => {
+              const v = {...tweaks, showAnnotations: e.target.checked};
+              setTweaks(v);
+              window.parent.postMessage({type:'__edit_mode_set_keys', edits: v}, '*');
+              window.__focusAnnotations = v.showAnnotations;
+              document.querySelectorAll('.wf-anno').forEach(el => el.style.display = v.showAnnotations ? '' : 'none');
+            }}
+          /> Show annotations
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Main App
+// ──────────────────────────────────────────────────────────────
+function App() {
+  return (
+    <>
+    <DesignCanvas>
+      <DCSection id="dashboard" title="Dashboard" subtitle="How active projects are surfaced">
+        <DCArtboard id="a" label="A · Card grid" width={760} height={600}>
+          <div style={{padding:20,height:'100%',display:'flex',flexDirection:'column',gap:0}}>
+            <DashboardA />
+            <div className="wf-anno" style={{marginTop:14,display:'flex',gap:24,flexWrap:'wrap'}}>
+              <Annotation>Rich cards show next action + 2 tasks + unread badge at a glance</Annotation>
+              <Annotation>Grid works for 3-6 projects; degrades past that</Annotation>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="b" label="B · Focus banner" width={760} height={600}>
+          <div style={{padding:20,height:'100%',display:'flex',flexDirection:'column'}}>
+            <DashboardB />
+            <div className="wf-anno" style={{marginTop:14,display:'flex',gap:24,flexWrap:'wrap'}}>
+              <Annotation>Big black banner = clear "do this now" anchor; great for ADHD</Annotation>
+              <Annotation>Project list stays minimal; click to open detail</Annotation>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="c" label="C · List + preview" width={760} height={600}>
+          <div style={{padding:20,height:'100%',display:'flex',flexDirection:'column'}}>
+            <DashboardC />
+            <div className="wf-anno" style={{marginTop:14,display:'flex',gap:24,flexWrap:'wrap'}}>
+              <Annotation>Middle panel = lightweight project preview without full navigation</Annotation>
+              <Annotation>Stays in dashboard context; feels Things 3-like</Annotation>
+            </div>
+          </div>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="detail" title="Project Detail" subtitle="What you see when you open a project">
+        <DCArtboard id="a" label="A · Two columns" width={760} height={660}>
+          <div style={{padding:20,height:'100%',display:'flex',flexDirection:'column'}}>
+            <DetailA />
+            <div className="wf-anno" style={{marginTop:14,display:'flex',gap:24,flexWrap:'wrap'}}>
+              <Annotation>Notes + todos left; notifications right — full info density</Annotation>
+              <Annotation>Next action always pinned at top above both columns</Annotation>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="b" label="B · Focus + tabs" width={760} height={660}>
+          <div style={{padding:20,height:'100%',display:'flex',flexDirection:'column'}}>
+            <DetailB />
+            <div className="wf-anno" style={{marginTop:14,display:'flex',gap:24,flexWrap:'wrap'}}>
+              <Annotation>Massive next action = can't miss it; tabs reduce visual noise</Annotation>
+              <Annotation>Good for ADHD — one thing visible at a time</Annotation>
+            </div>
+          </div>
+        </DCArtboard>
+
+        <DCArtboard id="c" label="C · Stream + notif strip" width={760} height={660}>
+          <div style={{padding:20,height:'100%',display:'flex',flexDirection:'column'}}>
+            <DetailC />
+            <div className="wf-anno" style={{marginTop:14,display:'flex',gap:24,flexWrap:'wrap'}}>
+              <Annotation>Notifications live in a right strip — always visible but not intrusive</Annotation>
+              <Annotation>Tasks are a continuous stream; next action is just the first one</Annotation>
+            </div>
+          </div>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+    <TweakPanel />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<div id="root"></div>
+</body>
+</html>
