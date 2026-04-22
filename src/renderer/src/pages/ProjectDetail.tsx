@@ -388,10 +388,24 @@ function NotificationsTab({ notifications, onUnsubscribe }: NotificationsTabProp
               />
               <div className={styles.notificationBody}>
                 <div className={styles.notificationTitle}>
-                  <span className={styles.notificationName} data-unread={n.unread}>
-                    {n.title}
-                  </span>
+                  {n.htmlUrl ? (
+                    <button
+                      className={`${styles.notificationName} ${styles.notificationNameLink}`}
+                      data-unread={n.unread}
+                      onClick={() => window.electron.openExternal(n.htmlUrl!)}
+                      title="Open in browser"
+                    >
+                      {n.title}
+                    </button>
+                  ) : (
+                    <span className={styles.notificationName} data-unread={n.unread}>
+                      {n.title}
+                    </span>
+                  )}
                   <NotificationTypeChip type={n.type} />
+                  {n.subjectState && n.subjectState !== 'open' && (
+                    <NotificationStateChip state={n.subjectState} />
+                  )}
                 </div>
                 <div className={styles.notificationMeta}>
                   <span className={styles.notificationRepo}>
@@ -426,4 +440,12 @@ function NotificationTypeChip({ type }: { type: NotificationType }) {
     : type
 
   return <span className={`${styles.typeChip} ${chipClass}`}>{label}</span>
+}
+
+function NotificationStateChip({ state }: { state: string }) {
+  const stateClass =
+    state === 'merged' ? styles.stateChipMerged
+    : state === 'closed' ? styles.stateChipClosed
+    : styles.stateChipOpen
+  return <span className={`${styles.stateChip} ${stateClass}`}>{state}</span>
 }

@@ -164,10 +164,24 @@ export function Inbox({ onAssigned }: Props) {
                 <div className={styles.threadDot} data-unread={thread.unread} />
                 <div className={styles.threadBody}>
                   <div className={styles.threadTitle}>
-                    <span className={styles.threadName} data-unread={thread.unread}>
-                      {thread.title}
-                    </span>
+                    {thread.htmlUrl ? (
+                      <button
+                        className={`${styles.threadName} ${styles.threadNameLink}`}
+                        data-unread={thread.unread}
+                        onClick={() => window.electron.openExternal(thread.htmlUrl!)}
+                        title="Open in browser"
+                      >
+                        {thread.title}
+                      </button>
+                    ) : (
+                      <span className={styles.threadName} data-unread={thread.unread}>
+                        {thread.title}
+                      </span>
+                    )}
                     <TypeChip type={thread.type} />
+                    {thread.subjectState && thread.subjectState !== 'open' && (
+                      <StateChip state={thread.subjectState} />
+                    )}
                   </div>
                   <div className={styles.threadMeta}>
                     <span className={styles.threadRepo}>
@@ -230,4 +244,11 @@ function TypeChip({ type }: { type: string }) {
     : type
 
   return <span className={classes.join(' ')}>{label}</span>
+}
+
+function StateChip({ state }: { state: string }) {
+  const classes = [styles.stateChip]
+  if (state === 'merged') classes.push(styles.stateMerged)
+  else if (state === 'closed') classes.push(styles.stateClosed)
+  return <span className={classes.join(' ')}>{state}</span>
 }

@@ -573,6 +573,19 @@
   font-weight: 500;
 }
 
+.notificationNameLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font);
+  cursor: pointer;
+  text-align: left;
+}
+
+.notificationNameLink:hover {
+  text-decoration: underline;
+}
+
 .notificationMeta {
   display: flex;
   align-items: center;
@@ -611,6 +624,31 @@
 .typeChipOther {
   background: var(--bg-2);
   color: var(--text-3);
+}
+
+/* ── State chips ── */
+.stateChip {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 6px;
+  text-transform: lowercase;
+}
+
+.stateChipMerged {
+  background: rgba(130, 80, 255, 0.1);
+  color: var(--purple, #a78bfa);
+}
+
+.stateChipClosed {
+  background: rgba(220, 60, 60, 0.1);
+  color: var(--red, #f87171);
+}
+
+.stateChipOpen {
+  background: rgba(50, 180, 100, 0.1);
+  color: var(--green);
 }
 
 .unsubscribeBtn {

@@ -196,6 +196,19 @@
   font-weight: 500;
 }
 
+.threadNameLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font);
+  cursor: pointer;
+  text-align: left;
+}
+
+.threadNameLink:hover {
+  text-decoration: underline;
+}
+
 .threadMeta {
   display: flex;
   gap: 6px;
@@ -234,6 +247,26 @@
 .typeOther {
   background: var(--bg-2);
   color: var(--text-3);
+}
+
+/* ── State chips ── */
+.stateChip {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 6px;
+  text-transform: lowercase;
+}
+
+.stateMerged {
+  background: rgba(130, 80, 255, 0.1);
+  color: var(--purple, #a78bfa);
+}
+
+.stateClosed {
+  background: rgba(220, 60, 60, 0.1);
+  color: var(--red, #f87171);
 }
 
 /* ── Thread actions ── */
