@@ -135,7 +135,7 @@ export function registerProjectHandlers(): void {
       values.push(id)
       const row = db
         .prepare(`UPDATE projects SET ${setClauses.join(', ')} WHERE id = ? RETURNING *`)
-        .get(...(values as Parameters<typeof db.prepare>)) as ProjectRow
+        .get(...values) as ProjectRow
       return mapProject(row)
     }
   )
@@ -203,7 +203,7 @@ export function registerProjectHandlers(): void {
       values.push(id)
       const row = db
         .prepare(`UPDATE project_todos SET ${setClauses.join(', ')} WHERE id = ? RETURNING *`)
-        .get(...(values as Parameters<typeof db.prepare>)) as TodoRow
+        .get(...values) as TodoRow
       return mapTodo(row)
     }
   )
@@ -274,7 +274,7 @@ export function registerProjectHandlers(): void {
       values.push(id)
       const row = db
         .prepare(`UPDATE project_links SET ${setClauses.join(', ')} WHERE id = ? RETURNING *`)
-        .get(...(values as Parameters<typeof db.prepare>)) as LinkRow
+        .get(...values) as LinkRow
       return mapLink(row)
     }
   )

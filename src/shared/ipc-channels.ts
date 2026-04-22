@@ -74,6 +74,12 @@ export type IpcChannels = {
     args: [{ id: number }]
     result: void
   }
+
+  // ── External Links ────────────────────────────────────────────────────────
+  'app:open-external': {
+    args: [{ url: string }]
+    result: void
+  }
 }
 
 export type IpcChannelName = keyof IpcChannels

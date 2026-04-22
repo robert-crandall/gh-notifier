@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { initDb } from './db'
 import { registerProjectHandlers } from './projects'
@@ -14,6 +14,11 @@ function createWindow(): void {
     },
     titleBarStyle: 'hiddenInset',
     show: false
+  })
+
+  // Security: prevent renderer from opening new windows with preload access
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' }
   })
 
   mainWindow.once('ready-to-show', () => {
@@ -32,6 +37,11 @@ app.whenReady().then(() => {
 
   // M1 health-check handler — returns 'pong'
   ipcMain.handle('app:ping', () => 'pong')
+
+  // Security: handle external link opening via shell.openExternal
+  ipcMain.handle('app:open-external', (_event, { url }: { url: string }) => {
+    shell.openExternal(url)
+  })
 
   registerProjectHandlers()
 

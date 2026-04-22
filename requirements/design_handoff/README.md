@@ -1,8 +1,10 @@
-# Handoff: Focus App — Dashboard & Project Detail
+# Handoff: GH Projects — Dashboard & Project Detail
 
 ## Overview
 
-Focus is a macOS desktop app (Electron + React + SQLite) for solo developers managing personal projects with GitHub integration. This handoff covers two primary screens: **Dashboard** and **Project Detail**, both using the selected "Option B" layout direction.
+**GH Projects** (formerly "Focus") is a macOS desktop app (Electron + React + SQLite) for solo developers managing personal projects with GitHub integration. This handoff covers two primary screens: **Dashboard** and **Project Detail**, both using the selected "Option B" layout direction.
+
+_Note: Design files may still reference the historical working name "Focus"._
 
 ## About the Design Files
 

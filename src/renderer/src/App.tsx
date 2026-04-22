@@ -3,11 +3,13 @@ import type { Project } from '../../shared/types'
 import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './pages/Dashboard'
 import { ProjectDetail } from './pages/ProjectDetail'
+import { NewProjectModal } from './components/NewProjectModal'
 import styles from './App.module.css'
 
 export function App(): JSX.Element {
   const [projects, setProjects] = useState<Project[]>([])
   const [activeProjectId, setActiveProjectId] = useState<number | null>(null)
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false)
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null
 
@@ -20,12 +22,15 @@ export function App(): JSX.Element {
     loadProjects()
   }, [loadProjects])
 
-  async function handleNewProject(): Promise<void> {
-    const name = prompt('Project name:')?.trim()
-    if (!name) return
+  function handleNewProject(): void {
+    setShowNewProjectModal(true)
+  }
+
+  async function handleCreateProject(name: string): Promise<void> {
     const project = await window.electron.ipc.invoke('projects:create', { name })
     setProjects((prev) => [...prev, project])
     setActiveProjectId(project.id)
+    setShowNewProjectModal(false)
   }
 
   async function handleUpdateProject(
@@ -61,6 +66,12 @@ export function App(): JSX.Element {
           />
         )}
       </main>
+      {showNewProjectModal && (
+        <NewProjectModal
+          onCancel={() => setShowNewProjectModal(false)}
+          onCreate={handleCreateProject}
+        />
+      )}
     </div>
   )
 }

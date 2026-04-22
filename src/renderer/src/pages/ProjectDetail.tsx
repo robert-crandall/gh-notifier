@@ -42,8 +42,25 @@ export function ProjectDetail({ project, onBack, onUpdate }: ProjectDetailProps)
 
   // Load todos and links on mount / project change
   useEffect(() => {
-    window.electron.ipc.invoke('todos:list', { projectId: project.id }).then(setTodos)
-    window.electron.ipc.invoke('links:list', { projectId: project.id }).then(setLinks)
+    let isMounted = true
+    
+    async function loadData(): Promise<void> {
+      const [todosData, linksData] = await Promise.all([
+        window.electron.ipc.invoke('todos:list', { projectId: project.id }),
+        window.electron.ipc.invoke('links:list', { projectId: project.id })
+      ])
+      
+      if (isMounted) {
+        setTodos(todosData)
+        setLinks(linksData)
+      }
+    }
+    
+    loadData()
+    
+    return () => {
+      isMounted = false
+    }
   }, [project.id])
 
   useEffect(() => {
@@ -126,13 +143,8 @@ export function ProjectDetail({ project, onBack, onUpdate }: ProjectDetailProps)
   }
 
   function openLink(url: string): void {
-    // shell.openExternal is not available in renderer — use IPC or anchor
-    // For now open via <a> element as a safe fallback
-    const a = document.createElement('a')
-    a.href = url
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    a.click()
+    // Security: route external links through main process shell.openExternal
+    window.electron.ipc.invoke('app:open-external', { url })
   }
 
   // ── Sorted todos ─────────────────────────────────────────────────────────────
@@ -367,6 +379,16 @@ function NotesTab({ project, onUpdate }: NotesTabProps): JSX.Element {
   useEffect(() => {
     setDraft(project.notes)
   }, [project.notes])
+
+  useEffect(() => {
+    // Clear pending timeout on unmount or when project.id changes
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [project.id])
 
   function handleChange(value: string): void {
     setDraft(value)
