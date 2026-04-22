@@ -6,11 +6,13 @@ import { ProjectDetail } from './pages/ProjectDetail'
 import { Inbox } from './pages/Inbox'
 import { Settings } from './pages/Settings'
 import { useProjects } from './hooks/useProjects'
+import { useTheme } from './hooks/useTheme'
 
 type View = { page: 'dashboard' } | { page: 'project'; id: number } | { page: 'inbox' } | { page: 'settings' }
 
 export function App() {
   const { projects, isLoading, createProject, refreshProjects } = useProjects()
+  const { theme, setTheme } = useTheme()
   const [view, setView] = useState<View>({ page: 'dashboard' })
   const [inboxCount, setInboxCount] = useState(0)
 
@@ -62,7 +64,7 @@ export function App() {
           onAssigned={() => { void refreshProjects(); void loadInboxCount() }}
         />
       ) : view.page === 'settings' ? (
-        <Settings />
+        <Settings theme={theme} onThemeChange={setTheme} />
       ) : (
         <ProjectDetail
           key={view.id}
