@@ -7,6 +7,7 @@ import type {
   UnreadCount,
 } from '../../shared/ipc-channels'
 import { getDb } from './index'
+import { listFilters, shouldSuppress } from './filters'
 
 // ── Row types (SQLite returns snake_case column names) ────────────────────────
 
@@ -90,7 +91,9 @@ export function listThreadsByProject(projectId: number): NotificationThread[] {
        ORDER BY updated_at DESC`
     )
     .all(projectId) as ThreadRow[]
-  return rows.map(toThread)
+  const threads = rows.map(toThread)
+  const filters = listFilters()
+  return filters.length === 0 ? threads : threads.filter((t) => !shouldSuppress(t, filters))
 }
 
 export function listInboxThreads(): NotificationThread[] {
@@ -101,7 +104,9 @@ export function listInboxThreads(): NotificationThread[] {
        ORDER BY updated_at DESC`
     )
     .all() as ThreadRow[]
-  return rows.map(toThread)
+  const threads = rows.map(toThread)
+  const filters = listFilters()
+  return filters.length === 0 ? threads : threads.filter((t) => !shouldSuppress(t, filters))
 }
 
 export function getUnreadCounts(): UnreadCount[] {

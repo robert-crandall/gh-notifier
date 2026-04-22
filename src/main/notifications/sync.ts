@@ -9,6 +9,7 @@
 import { BrowserWindow } from 'electron'
 import { getOctokit, isOctokitReady } from '../auth/octokit'
 import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
+import { listFilters, shouldSuppress } from '../db/filters'
 import { getDb } from '../db'
 import type { NotificationType } from '../../shared/ipc-channels'
 
@@ -91,7 +92,21 @@ export async function syncOnce(): Promise<void> {
       subjectUrl: n.subject.url ?? null,
     }))
 
-    upsertThreads(threads)
+    // M7: Apply notification filters before storing. Threads matching an active
+    // filter are discarded from this sync batch and never written to the DB.
+    const activeFilters = listFilters()
+    const filteredThreads =
+      activeFilters.length === 0
+        ? threads
+        : threads.filter((t) => {
+            // shouldSuppress needs a NotificationThread shape; subjectState is null pre-prefetch
+            return !shouldSuppress(
+              { ...t, projectId: null, subjectState: null, htmlUrl: null, lastReadAt: t.lastReadAt },
+              activeFilters,
+            )
+          })
+
+    upsertThreads(filteredThreads)
     
     // Update last sync timestamp
     const now = new Date().toISOString()
