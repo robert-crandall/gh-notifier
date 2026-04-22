@@ -149,14 +149,19 @@ async function prefetchThreadContent(): Promise<void> {
   console.log(`[notifications] Prefetching content for ${candidates.length} thread(s)`)
 
   const octokit = getOctokit()
-  let anyRemoved = false
+  let anyChanged = false
 
   // Process in small batches to avoid hammering the API
+  let rateLimited = false
+
   for (let i = 0; i < candidates.length; i += PREFETCH_BATCH_SIZE) {
+    if (rateLimited) break
+
     const batch = candidates.slice(i, i + PREFETCH_BATCH_SIZE)
 
     await Promise.all(
       batch.map(async (candidate) => {
+        if (rateLimited) return
         try {
           const response = await octokit.request(`GET ${candidate.subjectUrl}`)
           const data = response.data as {
@@ -177,20 +182,36 @@ async function prefetchThreadContent(): Promise<void> {
           if (shouldRemove) {
             console.log(`[notifications] Auto-removing ${candidate.type} thread ${candidate.id} (state: ${subjectState})`)
             deleteThread(candidate.id)
-            anyRemoved = true
           } else {
             updateThreadContent(candidate.id, subjectState, htmlUrl)
           }
+          anyChanged = true
         } catch (err) {
-          // Don't update content_fetched_at on failure so the thread is retried
-          // when the next notification arrives (updated_at changes) or next sync.
-          console.error(`[notifications] Failed to prefetch thread ${candidate.id}:`, err)
+          const status = (err as { status?: number }).status
+
+          if (status === 403 || status === 429) {
+            // Rate-limited — stop all prefetching until the next sync cycle
+            console.warn(`[notifications] Rate limited during prefetch, aborting batch`)
+            rateLimited = true
+            return
+          }
+
+          if (status === 404 || status === 410 || status === 451) {
+            // Deleted repo / gone / unavailable — thread will never be fetchable; remove it
+            console.log(`[notifications] Removing thread ${candidate.id} (HTTP ${status} on subject URL)`)
+            deleteThread(candidate.id)
+            anyChanged = true
+            return
+          }
+
+          // Transient error — leave content_fetched_at unset so it retries next sync
+          console.error(`[notifications] Failed to prefetch thread ${candidate.id} (HTTP ${status ?? 'unknown'}):`, err)
         }
       })
     )
   }
 
-  if (anyRemoved) {
+  if (anyChanged) {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
