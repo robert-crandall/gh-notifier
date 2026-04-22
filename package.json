@@ -8,9 +8,12 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "dist": "npm run build && electron-builder",
+    "dist": "bun run build && electron-builder --mac",
+    "dist:dir": "bun run build && electron-builder --dir --mac",
+    "icons": "bash scripts/generate-icons.sh",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "setup": "bun install --ignore-scripts && bun run rebuild"
+    "setup": "bun install --ignore-scripts && bun run rebuild",
+    "install-app": "bash scripts/install-app.sh"
   },
   "keywords": [],
   "author": "robert-crandall",

@@ -11,17 +11,6 @@ node_modules/
 .bun/
 bun.lockb
 
-# SvelteKit
-.svelte-kit/
-build/
-.vercel/
-.netlify/
-
-# Tauri
-src-tauri/target/
-src-tauri/WixTools/
-src-tauri/gen/
-
 # Environment
 .env
 .env.local
