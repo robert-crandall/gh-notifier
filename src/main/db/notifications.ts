@@ -127,6 +127,13 @@ export function upsertThreads(
     `SELECT project_id FROM notification_threads WHERE id = ?`
   ) as { get: (id: string) => { project_id: number | null } | undefined }
 
+  // Wake a notification-triggered snoozed project when it receives a new thread
+  const wakeNotificationSnooze = db.prepare(
+    `UPDATE projects
+     SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
+     WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
+  )
+
   const runAll = db.transaction(() => {
     for (const t of threads) {
       // Preserve existing project assignment if already set; otherwise apply repo rule
@@ -150,6 +157,11 @@ export function upsertThreads(
         t.lastReadAt,
         t.apiUrl
       )
+
+      // If this is a brand-new thread routed to a project, wake notification-triggered snooze
+      if (existing === undefined && projectId !== null) {
+        wakeNotificationSnooze.run(projectId)
+      }
     }
   })
 
@@ -172,6 +184,15 @@ export function assignThread(
     projectId,
     threadId
   )
+
+  // Wake notification-triggered snooze when manually assigning a thread to a project
+  if (projectId !== null) {
+    db.prepare(
+      `UPDATE projects
+       SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
+       WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
+    ).run(projectId)
+  }
 
   // Only suggest a repo rule when assigning to a project (not moving to inbox)
   if (projectId === null) return null

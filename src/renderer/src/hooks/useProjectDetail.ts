@@ -4,12 +4,14 @@ import type {
   ProjectPatch,
   ProjectTodoPatch,
   ProjectLinkPatch,
+  SnoozeMode,
 } from '@shared/ipc-channels'
 
 interface UseProjectDetailResult {
   detail: ProjectDetail | null
   isLoading: boolean
   updateProject: (patch: ProjectPatch) => Promise<void>
+  snoozeProject: (mode: SnoozeMode, until?: string) => Promise<void>
   createTodo: (text: string) => Promise<void>
   updateTodo: (id: number, patch: ProjectTodoPatch) => Promise<void>
   deleteTodo: (id: number) => Promise<void>
@@ -68,6 +70,15 @@ export function useProjectDetail(
     [projectId, onProjectChanged]
   )
 
+  const snoozeProject = useCallback(
+    async (mode: SnoozeMode, until?: string): Promise<void> => {
+      const updated = await window.electron.ipc.invoke('projects:snooze', projectId, mode, until)
+      setDetail((prev) => (prev ? { ...prev, ...updated } : null))
+      onProjectChanged?.()
+    },
+    [projectId, onProjectChanged]
+  )
+
   const createTodo = useCallback(
     async (text: string): Promise<void> => {
       const todo = await window.electron.ipc.invoke('todos:create', projectId, text)
@@ -116,6 +127,7 @@ export function useProjectDetail(
     detail,
     isLoading,
     updateProject,
+    snoozeProject,
     createTodo,
     updateTodo,
     deleteTodo,
