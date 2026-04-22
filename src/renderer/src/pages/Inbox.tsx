@@ -91,6 +91,15 @@ export function Inbox({ onAssigned }: Props) {
     setSuggestion(null)
   }
 
+  const handleMarkRead = async (threadId: string) => {
+    try {
+      await window.electron.ipc.invoke('notifications:mark-read', threadId)
+      setThreads((prev) => prev.map((t) => t.id === threadId ? { ...t, unread: false } : t))
+    } catch (err) {
+      console.error('[Inbox] Mark read failed:', err)
+    }
+  }
+
   const handleUnsubscribe = async (threadId: string) => {
     try {
       await window.electron.ipc.invoke('notifications:unsubscribe', threadId)
@@ -191,6 +200,32 @@ export function Inbox({ onAssigned }: Props) {
                 </div>
 
                 <div className={styles.threadActions}>
+                  <div className={styles.threadIconGroup}>
+                    {thread.htmlUrl && (
+                      <button
+                        className={styles.iconBtn}
+                        title="Open in GitHub"
+                        onClick={() => window.electron.openExternal(thread.htmlUrl!)}
+                      >
+                        <ExternalLinkIcon />
+                      </button>
+                    )}
+                    <button
+                      className={styles.iconBtn}
+                      title="Mark as read"
+                      disabled={!thread.unread}
+                      onClick={() => void handleMarkRead(thread.id)}
+                    >
+                      <MarkReadIcon />
+                    </button>
+                    <button
+                      className={styles.iconBtn}
+                      title="Unsubscribe"
+                      onClick={() => void handleUnsubscribe(thread.id)}
+                    >
+                      <UnsubscribeIcon />
+                    </button>
+                  </div>
                   {assigningId === thread.id ? (
                     <select
                       className={styles.projectSelect}
@@ -215,12 +250,6 @@ export function Inbox({ onAssigned }: Props) {
                       Assign
                     </button>
                   )}
-                  <button
-                    className={styles.unsubscribeBtn}
-                    onClick={() => void handleUnsubscribe(thread.id)}
-                  >
-                    Unsubscribe
-                  </button>
                 </div>
               </li>
             ))}
@@ -228,6 +257,32 @@ export function Inbox({ onAssigned }: Props) {
         )}
       </div>
     </div>
+  )
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 1.5H11.5V5M11.5 1.5 5.5 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function MarkReadIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M2 6.5l3.5 3.5 5.5-5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function UnsubscribeIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M6.5 1v.5M5 11a1.5 1.5 0 0 0 3 0M3 9.5h7L9 8V5.5a2.5 2.5 0 0 0-5 0V8L3 9.5Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="2" y1="2" x2="11" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    </svg>
   )
 }
 

@@ -277,6 +277,48 @@
   gap: 8px;
 }
 
+/* Icon group — fades in on row hover */
+.threadIconGroup {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms;
+}
+
+.threadRow:hover .threadIconGroup {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 80ms, color 80ms;
+  flex-shrink: 0;
+}
+
+.iconBtn:hover {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.iconBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
 .assignBtn {
   padding: 3px 10px;
   border-radius: 5px;
@@ -303,17 +345,4 @@
   background: var(--bg);
   color: var(--text);
   cursor: pointer;
-}
-
-.unsubscribeBtn {
-  border: none;
-  background: transparent;
-  color: var(--text-3);
-  font-family: var(--font);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.unsubscribeBtn:hover {
-  color: var(--text);
 }

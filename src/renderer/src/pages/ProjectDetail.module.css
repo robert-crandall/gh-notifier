@@ -651,20 +651,46 @@
   color: var(--green);
 }
 
-.unsubscribeBtn {
+/* ── Notification icon group (shown on row hover) ── */
+.notificationIconGroup {
   flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-3);
-  font-family: var(--font);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 0;
-  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms;
 }
 
-.unsubscribeBtn:hover {
+.notificationRow:hover .notificationIconGroup {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notificationIconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 80ms, color 80ms;
+  flex-shrink: 0;
+}
+
+.notificationIconBtn:hover {
+  background: var(--bg-3, var(--bg));
   color: var(--text);
+}
+
+.notificationIconBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* ── Notifications placeholder ── */
