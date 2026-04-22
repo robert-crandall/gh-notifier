@@ -472,6 +472,163 @@
   color: var(--text-3);
 }
 
+/* ── Tab badge ── */
+.tabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+/* ── Notifications list ── */
+.notificationsList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.notificationGroup {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.notificationGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.notificationGroupDivider {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.notificationRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 80ms;
+}
+
+.notificationRow:hover {
+  background: var(--bg-2);
+}
+
+.notificationDot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: var(--border-2);
+}
+
+.notificationDot[data-unread='true'] {
+  background: var(--orange);
+}
+
+.notificationBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.notificationTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.notificationName {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notificationName[data-unread='true'] {
+  font-weight: 500;
+}
+
+.notificationMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notificationRepo {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ── Type chips (shared with Inbox) ── */
+.typeChip {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.typeChipPR {
+  background: rgba(82, 130, 255, 0.1);
+  color: var(--blue-mid);
+}
+
+.typeChipIssue {
+  background: rgba(212, 82, 29, 0.1);
+  color: var(--orange);
+}
+
+.typeChipRelease {
+  background: rgba(50, 180, 100, 0.1);
+  color: var(--green);
+}
+
+.typeChipOther {
+  background: var(--bg-2);
+  color: var(--text-3);
+}
+
+.unsubscribeBtn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 2px;
+}
+
+.unsubscribeBtn:hover {
+  color: var(--text);
+}
+
 /* ── Notifications placeholder ── */
 .notificationsEmpty {
   padding: 40px 16px;

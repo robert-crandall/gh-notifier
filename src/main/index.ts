@@ -1,12 +1,24 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { initDb } from './db'
-import { initAuth, getAuthStatus, savePat, logout } from './auth'
+import { initAuth, getAuthStatus, savePat, logout, getOctokit } from './auth'
 import {
   listProjects, getProject, createProject, updateProject, deleteProject,
   createTodo, updateTodo, deleteTodo,
   createLink, updateLink, deleteLink,
 } from './db/projects'
+import {
+  listThreadsByProject,
+  listInboxThreads,
+  getUnreadCounts,
+  assignThread,
+  markThreadRead,
+  deleteThread,
+  listRepoRules,
+  createRepoRule,
+  deleteRepoRule,
+} from './db/notifications'
+import { startNotificationSync, syncOnce } from './notifications/sync'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch } from '../shared/ipc-channels'
 
 function createWindow(): void {
@@ -29,6 +41,10 @@ function createWindow(): void {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
+    // Trigger first sync after the window is visible so the event reaches the renderer
+    void syncOnce().catch((error: unknown) => {
+      console.error('[main] Initial notification sync failed:', error)
+    })
   })
 
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
@@ -47,7 +63,14 @@ app.whenReady().then(async () => {
 
   // Auth handlers
   ipcMain.handle('auth:status', () => getAuthStatus())
-  ipcMain.handle('auth:save-token', (_event, token: string) => savePat(token))
+  ipcMain.handle('auth:save-token', async (_event, token: string) => {
+    const result = await savePat(token)
+    // Fire a sync now that we have credentials; fire-and-forget
+    void syncOnce().catch((err: unknown) => {
+      console.error('[auth] Post-auth sync failed:', err)
+    })
+    return result
+  })
   ipcMain.handle('auth:logout', () => { logout() })
 
   // External URL handler (security: controlled via main process)
@@ -71,6 +94,44 @@ app.whenReady().then(async () => {
   ipcMain.handle('links:create', (_event, projectId: number, label: string, url: string) => createLink(projectId, label, url))
   ipcMain.handle('links:update', (_event, id: number, patch: ProjectLinkPatch) => updateLink(id, patch))
   ipcMain.handle('links:delete', (_event, id: number) => deleteLink(id))
+
+  // Notification handlers
+  ipcMain.handle('notifications:list', (_event, projectId: number) => listThreadsByProject(projectId))
+  ipcMain.handle('notifications:inbox', () => listInboxThreads())
+  ipcMain.handle('notifications:unread-counts', () => getUnreadCounts())
+  ipcMain.handle('notifications:assign', (_event, threadId: string, projectId: number | null) => {
+    assignThread(threadId, projectId)
+    // Emit update event so UI refreshes immediately
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
+  })
+  ipcMain.handle('notifications:mark-read', (_event, threadId: string) => {
+    markThreadRead(threadId)
+    // Emit update event so unread badges refresh immediately
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
+  })
+  ipcMain.handle('notifications:unsubscribe', async (_event, threadId: string) => {
+    const octokit = getOctokit()
+    await octokit.rest.activity.deleteThreadSubscription({ thread_id: parseInt(threadId, 10) })
+    deleteThread(threadId)
+    // Emit update event so UI refreshes immediately
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
+  })
+  ipcMain.handle('notifications:sync', async () => { await syncOnce() })
+
+  // Repo rule handlers
+  ipcMain.handle('repo-rules:list', () => listRepoRules())
+  ipcMain.handle('repo-rules:create', (_event, repoOwner: string, repoName: string, projectId: number) =>
+    createRepoRule(repoOwner, repoName, projectId)
+  )
+  ipcMain.handle('repo-rules:delete', (_event, id: number) => deleteRepoRule(id))
+
+  startNotificationSync()
 
   createWindow()
 

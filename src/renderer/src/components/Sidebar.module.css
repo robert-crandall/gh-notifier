@@ -34,11 +34,54 @@
   padding: 4px 8px 6px;
 }
 
+.divider {
+  height: 1px;
+  background: var(--sidebar-border);
+  margin: 4px 0;
+}
+
 .list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+
+/* ── Inbox row ── */
+.inboxRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  transition: background 80ms;
+}
+
+.inboxRow:hover:not(.selected) {
+  background: oklch(89% 0.018 75 / 0.6);
+}
+
+.inboxRow.selected {
+  background: var(--blue-dark);
+  color: #fff;
+}
+
+.inboxIcon {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.inboxLabel {
+  flex: 1;
 }
 
 .projectRow {
@@ -84,6 +127,22 @@
   white-space: nowrap;
 }
 
+/* ── Unread badge ── */
+.badge {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .empty {
   font-size: 13px;
   color: var(--text-3);
@@ -94,4 +153,44 @@
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px solid var(--sidebar-border);
+}
+
+/* ── Bottom nav (Settings) ── */
+.bottomNav {
+  flex-shrink: 0;
+  padding: 6px 8px 10px;
+  border-top: 1px solid var(--sidebar-border);
+}
+
+.settingsRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-3);
+  transition: background 80ms, color 80ms;
+}
+
+.settingsRow:hover:not(.selected) {
+  background: oklch(89% 0.018 75 / 0.6);
+  color: var(--text);
+}
+
+.settingsRow.selected {
+  background: var(--blue-dark);
+  color: #fff;
+}
+
+.settingsIcon {
+  flex-shrink: 0;
+  color: currentColor;
 }

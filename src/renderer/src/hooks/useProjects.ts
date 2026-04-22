@@ -26,6 +26,9 @@ export function useProjects(): UseProjectsResult {
 
   useEffect(() => {
     loadProjects()
+    // Refresh project list (unread counts) whenever a notification sync completes
+    const unsub = window.electron.onNotificationsUpdated(() => { void loadProjects() })
+    return unsub
   }, [loadProjects])
 
   const createProject = useCallback(async (name: string): Promise<Project> => {
