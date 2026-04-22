@@ -434,6 +434,15 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
           {activeTab === 'notifications' && (
             <NotificationsTab
               notifications={notifications}
+              onMarkRead={async (id) => {
+                try {
+                  await window.electron.ipc.invoke('notifications:mark-read', id)
+                  setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, unread: false } : n))
+                  onProjectChanged()
+                } catch (err) {
+                  console.error('[ProjectDetail] Mark read failed:', err)
+                }
+              }}
               onUnsubscribe={async (id) => {
                 try {
                   await window.electron.ipc.invoke('notifications:unsubscribe', id)
@@ -454,10 +463,11 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
 
 interface NotificationsTabProps {
   notifications: NotificationThread[]
+  onMarkRead: (id: string) => Promise<void>
   onUnsubscribe: (id: string) => Promise<void>
 }
 
-function NotificationsTab({ notifications, onUnsubscribe }: NotificationsTabProps) {
+function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: NotificationsTabProps) {
   if (notifications.length === 0) {
     return (
       <div className={styles.notificationsEmpty}>
@@ -491,10 +501,24 @@ function NotificationsTab({ notifications, onUnsubscribe }: NotificationsTabProp
               />
               <div className={styles.notificationBody}>
                 <div className={styles.notificationTitle}>
-                  <span className={styles.notificationName} data-unread={n.unread}>
-                    {n.title}
-                  </span>
+                  {n.htmlUrl ? (
+                    <button
+                      className={`${styles.notificationName} ${styles.notificationNameLink}`}
+                      data-unread={n.unread}
+                      onClick={() => window.electron.openExternal(n.htmlUrl!)}
+                      title="Open in browser"
+                    >
+                      {n.title}
+                    </button>
+                  ) : (
+                    <span className={styles.notificationName} data-unread={n.unread}>
+                      {n.title}
+                    </span>
+                  )}
                   <NotificationTypeChip type={n.type} />
+                  {n.subjectState && n.subjectState !== 'open' && (
+                    <NotificationStateChip state={n.subjectState} />
+                  )}
                 </div>
                 <div className={styles.notificationMeta}>
                   <span className={styles.notificationRepo}>
@@ -502,17 +526,66 @@ function NotificationsTab({ notifications, onUnsubscribe }: NotificationsTabProp
                   </span>
                 </div>
               </div>
-              <button
-                className={styles.unsubscribeBtn}
-                onClick={() => void onUnsubscribe(n.id)}
-              >
-                Unsubscribe
-              </button>
+              <div className={styles.notificationIconGroup}>
+                    {n.htmlUrl && (
+                      <button
+                        className={styles.notificationIconBtn}
+                        title="Open in GitHub"
+                        aria-label="Open in GitHub"
+                        onClick={() => window.electron.openExternal(n.htmlUrl!)}
+                      >
+                        <ExternalLinkIcon />
+                      </button>
+                    )}
+                    <button
+                      className={styles.notificationIconBtn}
+                      title="Mark as read"
+                      aria-label="Mark as read"
+                      disabled={!n.unread}
+                      onClick={() => void onMarkRead(n.id)}
+                    >
+                      <MarkReadIcon />
+                    </button>
+                    <button
+                      className={styles.notificationIconBtn}
+                      title="Unsubscribe"
+                      aria-label="Unsubscribe"
+                      onClick={() => void onUnsubscribe(n.id)}
+                    >
+                      <UnsubscribeIcon />
+                    </button>
+              </div>
             </div>
           ))}
         </div>
       ))}
     </div>
+  )
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 1.5H11.5V5M11.5 1.5 5.5 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function MarkReadIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M2 6.5l3.5 3.5 5.5-5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function UnsubscribeIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M6.5 1v.5M5 11a1.5 1.5 0 0 0 3 0M3 9.5h7L9 8V5.5a2.5 2.5 0 0 0-5 0V8L3 9.5Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="2" y1="2" x2="11" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    </svg>
   )
 }
 
@@ -529,4 +602,12 @@ function NotificationTypeChip({ type }: { type: NotificationType }) {
     : type
 
   return <span className={`${styles.typeChip} ${chipClass}`}>{label}</span>
+}
+
+function NotificationStateChip({ state }: { state: string }) {
+  const stateClass =
+    state === 'merged' ? styles.stateChipMerged
+    : state === 'closed' ? styles.stateChipClosed
+    : styles.stateChipOpen
+  return <span className={`${styles.stateChip} ${stateClass}`}>{state}</span>
 }

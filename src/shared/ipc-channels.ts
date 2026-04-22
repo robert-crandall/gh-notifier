@@ -32,6 +32,7 @@ export interface Project {
 // ── Notification types ────────────────────────────────────────────────────────
 
 export type NotificationType = 'PullRequest' | 'Issue' | 'Release' | 'Discussion' | 'Commit' | 'CheckSuite'
+export type SubjectState = 'open' | 'closed' | 'merged'
 
 export interface NotificationThread {
   id: string
@@ -45,6 +46,12 @@ export interface NotificationThread {
   updatedAt: string
   lastReadAt: string | null
   apiUrl: string
+  /** GitHub API URL for the PR/Issue subject. Available from initial sync. */
+  subjectUrl: string | null
+  /** Resolved state from content prefetch: 'open', 'closed', or 'merged'. Null until fetched. */
+  subjectState: SubjectState | null
+  /** Direct browser URL for the PR/Issue. Null until content is prefetched. */
+  htmlUrl: string | null
 }
 
 /** Suggestion offered to the user after assigning a thread to a project. */

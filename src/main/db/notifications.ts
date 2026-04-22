@@ -1,6 +1,7 @@
 import type {
   NotificationThread,
   NotificationType,
+  SubjectState,
   RepoRule,
   RepoRuleSuggestion,
   UnreadCount,
@@ -22,6 +23,10 @@ interface ThreadRow {
   last_read_at: string | null
   api_url: string
   synced_at: string
+  subject_url: string | null
+  subject_state: string | null
+  html_url: string | null
+  content_fetched_at: string | null
 }
 
 interface RepoRuleRow {
@@ -47,6 +52,9 @@ function toThread(row: ThreadRow): NotificationThread {
     updatedAt: row.updated_at,
     lastReadAt: row.last_read_at,
     apiUrl: row.api_url,
+    subjectUrl: row.subject_url,
+    subjectState: row.subject_state as SubjectState | null,
+    htmlUrl: row.html_url,
   }
 }
 
@@ -108,27 +116,43 @@ export function getUnreadCounts(): UnreadCount[] {
   return rows
 }
 
+/** Shape of sync data passed in from the GitHub Notifications API response. */
+export interface ThreadSyncData {
+  id: string
+  repoOwner: string
+  repoName: string
+  title: string
+  type: NotificationType
+  reason: string
+  unread: boolean
+  updatedAt: string
+  lastReadAt: string | null
+  apiUrl: string
+  /** GitHub API URL for the PR/Issue subject (n.subject.url). */
+  subjectUrl: string | null
+}
+
 /**
  * Upserts a batch of notification threads from GitHub sync.
  * Applies repo-level routing rules if no project is explicitly assigned.
  */
-export function upsertThreads(
-  threads: Omit<NotificationThread, 'projectId'>[]
-): void {
+export function upsertThreads(threads: ThreadSyncData[]): void {
   const db = getDb()
 
   const upsert = db.prepare(`
     INSERT INTO notification_threads
-      (id, project_id, repo_owner, repo_name, title, type, reason, unread, updated_at, last_read_at, api_url, synced_at)
+      (id, project_id, repo_owner, repo_name, title, type, reason, unread, updated_at, last_read_at, api_url, subject_url, synced_at)
     VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(id) DO UPDATE SET
       title        = excluded.title,
       reason       = excluded.reason,
       unread       = excluded.unread,
       updated_at   = excluded.updated_at,
       last_read_at = excluded.last_read_at,
+      subject_url  = COALESCE(notification_threads.subject_url, excluded.subject_url),
       synced_at    = datetime('now')
+    -- subject_state/html_url/content_fetched_at are managed by prefetchThreadContent only.
   `)
 
   const getRule = db.prepare(
@@ -163,7 +187,8 @@ export function upsertThreads(
         t.unread ? 1 : 0,
         t.updatedAt,
         t.lastReadAt,
-        t.apiUrl
+        t.apiUrl,
+        t.subjectUrl
       )
 
       // If this is a brand-new thread routed to a project, wake notification-triggered snooze
@@ -265,6 +290,17 @@ export function deleteThread(threadId: string): void {
     .run(threadId)
 }
 
+/**
+ * Removes all locally-read threads. Called after each sync: if GitHub had new
+ * activity on a thread, the upsert would have flipped it back to unread=1
+ * before this runs, so it's safe to discard anything still read.
+ */
+export function deleteReadThreads(): void {
+  getDb()
+    .prepare(`DELETE FROM notification_threads WHERE unread = 0`)
+    .run()
+}
+
 // ── Repo rules ────────────────────────────────────────────────────────────────
 
 export function listRepoRules(): RepoRule[] {
@@ -292,4 +328,65 @@ export function createRepoRule(
 
 export function deleteRepoRule(id: number): void {
   getDb().prepare(`DELETE FROM repo_rules WHERE id = ?`).run(id)
+}
+
+// ── Content prefetch helpers (M5) ─────────────────────────────────────────────
+
+/** Minimal shape returned by getThreadsNeedingPrefetch. */
+export interface PrefetchCandidate {
+  id: string
+  subjectUrl: string
+  type: NotificationType
+}
+
+/**
+ * Clears content_fetched_at for all threads whose subject_state is 'open' or
+ * not yet determined (NULL). Called before a manual sync so that prefetch
+ * re-verifies the current state of every open thread rather than assuming
+ * the cached state is still current.
+ */
+export function invalidateOpenThreadPrefetch(): void {
+  getDb()
+    .prepare(
+      `UPDATE notification_threads
+       SET content_fetched_at = NULL
+       WHERE subject_state IS NULL OR subject_state = 'open'`
+    )
+    .run()
+}
+
+/**
+ * Returns threads whose content has never been fetched, or whose updated_at
+ * is newer than the last fetch (meaning a new notification arrived on the thread).
+ * Only returns threads that have a subject_url to fetch from.
+ */
+export function getThreadsNeedingPrefetch(): PrefetchCandidate[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT id, subject_url AS subjectUrl, type
+       FROM notification_threads
+       WHERE subject_url IS NOT NULL
+         AND (content_fetched_at IS NULL OR updated_at > content_fetched_at)`
+    )
+    .all() as PrefetchCandidate[]
+  return rows
+}
+
+/**
+ * Records the result of a successful content prefetch for a thread.
+ * Sets subject_state, html_url, and content_fetched_at.
+ */
+export function updateThreadContent(
+  threadId: string,
+  subjectState: string,
+  htmlUrl: string
+): void {
+  const now = new Date().toISOString()
+  getDb()
+    .prepare(
+      `UPDATE notification_threads
+       SET subject_state = ?, html_url = ?, content_fetched_at = ?
+       WHERE id = ?`
+    )
+    .run(subjectState, htmlUrl, now, threadId)
 }

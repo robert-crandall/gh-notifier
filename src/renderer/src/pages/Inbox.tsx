@@ -91,6 +91,15 @@ export function Inbox({ onAssigned }: Props) {
     setSuggestion(null)
   }
 
+  const handleMarkRead = async (threadId: string) => {
+    try {
+      await window.electron.ipc.invoke('notifications:mark-read', threadId)
+      setThreads((prev) => prev.map((t) => t.id === threadId ? { ...t, unread: false } : t))
+    } catch (err) {
+      console.error('[Inbox] Mark read failed:', err)
+    }
+  }
+
   const handleUnsubscribe = async (threadId: string) => {
     try {
       await window.electron.ipc.invoke('notifications:unsubscribe', threadId)
@@ -164,10 +173,24 @@ export function Inbox({ onAssigned }: Props) {
                 <div className={styles.threadDot} data-unread={thread.unread} />
                 <div className={styles.threadBody}>
                   <div className={styles.threadTitle}>
-                    <span className={styles.threadName} data-unread={thread.unread}>
-                      {thread.title}
-                    </span>
+                    {thread.htmlUrl ? (
+                      <button
+                        className={`${styles.threadName} ${styles.threadNameLink}`}
+                        data-unread={thread.unread}
+                        onClick={() => window.electron.openExternal(thread.htmlUrl!)}
+                        title="Open in browser"
+                      >
+                        {thread.title}
+                      </button>
+                    ) : (
+                      <span className={styles.threadName} data-unread={thread.unread}>
+                        {thread.title}
+                      </span>
+                    )}
                     <TypeChip type={thread.type} />
+                    {thread.subjectState && thread.subjectState !== 'open' && (
+                      <StateChip state={thread.subjectState} />
+                    )}
                   </div>
                   <div className={styles.threadMeta}>
                     <span className={styles.threadRepo}>
@@ -177,6 +200,35 @@ export function Inbox({ onAssigned }: Props) {
                 </div>
 
                 <div className={styles.threadActions}>
+                  <div className={styles.threadIconGroup}>
+                    {thread.htmlUrl && (
+                      <button
+                        className={styles.iconBtn}
+                        title="Open in GitHub"
+                        aria-label="Open in GitHub"
+                        onClick={() => window.electron.openExternal(thread.htmlUrl!)}
+                      >
+                        <ExternalLinkIcon />
+                      </button>
+                    )}
+                    <button
+                      className={styles.iconBtn}
+                      title="Mark as read"
+                      aria-label="Mark as read"
+                      disabled={!thread.unread}
+                      onClick={() => void handleMarkRead(thread.id)}
+                    >
+                      <MarkReadIcon />
+                    </button>
+                    <button
+                      className={styles.iconBtn}
+                      title="Unsubscribe"
+                      aria-label="Unsubscribe"
+                      onClick={() => void handleUnsubscribe(thread.id)}
+                    >
+                      <UnsubscribeIcon />
+                    </button>
+                  </div>
                   {assigningId === thread.id ? (
                     <select
                       className={styles.projectSelect}
@@ -201,12 +253,6 @@ export function Inbox({ onAssigned }: Props) {
                       Assign
                     </button>
                   )}
-                  <button
-                    className={styles.unsubscribeBtn}
-                    onClick={() => void handleUnsubscribe(thread.id)}
-                  >
-                    Unsubscribe
-                  </button>
                 </div>
               </li>
             ))}
@@ -214,6 +260,32 @@ export function Inbox({ onAssigned }: Props) {
         )}
       </div>
     </div>
+  )
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 1.5H11.5V5M11.5 1.5 5.5 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function MarkReadIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M2 6.5l3.5 3.5 5.5-5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}
+
+function UnsubscribeIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+      <path d="M6.5 1v.5M5 11a1.5 1.5 0 0 0 3 0M3 9.5h7L9 8V5.5a2.5 2.5 0 0 0-5 0V8L3 9.5Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="2" y1="2" x2="11" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+    </svg>
   )
 }
 
@@ -230,4 +302,11 @@ function TypeChip({ type }: { type: string }) {
     : type
 
   return <span className={classes.join(' ')}>{label}</span>
+}
+
+function StateChip({ state }: { state: string }) {
+  const classes = [styles.stateChip]
+  if (state === 'merged') classes.push(styles.stateMerged)
+  else if (state === 'closed') classes.push(styles.stateClosed)
+  return <span className={classes.join(' ')}>{state}</span>
 }
