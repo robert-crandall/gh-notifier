@@ -21,7 +21,7 @@ import {
   invalidateOpenThreadPrefetch,
 } from './db/notifications'
 import { listFilters, createFilter, deleteFilter } from './db/filters'
-import { startNotificationSync, syncOnce, prefetchThreadContent } from './notifications/sync'
+import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
 import { getDb } from './db'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope } from '../shared/ipc-channels'
@@ -141,6 +141,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('notifications:last-sync-time', () => {
     const row = getDb().prepare('SELECT value FROM sync_metadata WHERE key = ?').get('last_notification_sync') as { value: string } | undefined
     return row?.value ?? null
+  })
+
+  // Settings handlers
+  ipcMain.handle('settings:get-sync-interval', () => getSyncIntervalMinutes())
+  ipcMain.handle('settings:set-sync-interval', (_event, minutes) => {
+    setSyncIntervalMinutes(minutes)
+    rescheduleSync()
   })
 
   // Repo rule handlers

@@ -1,9 +1,11 @@
 import styles from './Settings.module.css'
+import { useState, useEffect } from 'react'
 import { AuthPanel } from '../components/AuthPanel'
 import { FilterSection } from '../components/FilterSection'
 import { useAuth } from '../hooks/useAuth'
 import { useFilters } from '../hooks/useFilters'
 import { THEMES, type ThemeId } from '../hooks/useTheme'
+import { SYNC_INTERVAL_OPTIONS, type SyncIntervalMinutes } from '@shared/ipc-channels'
 
 interface SettingsProps {
   theme: ThemeId
@@ -13,6 +15,16 @@ interface SettingsProps {
 export function Settings({ theme, onThemeChange }: SettingsProps) {
   const { status, isLoading, error, savePat, logout } = useAuth()
   const { filters, isLoading: filtersLoading, addFilter, removeFilter } = useFilters()
+  const [syncInterval, setSyncInterval] = useState<SyncIntervalMinutes | null>(null)
+
+  useEffect(() => {
+    void window.electron.ipc.invoke('settings:get-sync-interval').then(setSyncInterval)
+  }, [])
+
+  const handleSyncIntervalChange = async (minutes: SyncIntervalMinutes) => {
+    await window.electron.ipc.invoke('settings:set-sync-interval', minutes)
+    setSyncInterval(minutes)
+  }
 
   return (
     <div className={styles.main}>
@@ -42,6 +54,25 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
                 <span className={styles.themeLabel}>{t.label}</span>
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Sync Interval</h2>
+          <div className={styles.sectionBody}>
+            <div className={styles.intervalRow}>
+              {SYNC_INTERVAL_OPTIONS.map((minutes) => (
+                <button
+                  key={minutes}
+                  className={`${styles.intervalOption} ${syncInterval === minutes ? styles.intervalOptionActive : ''}`}
+                  onClick={() => void handleSyncIntervalChange(minutes)}
+                  aria-pressed={syncInterval === minutes}
+                >
+                  {minutes}m
+                </button>
+              ))}
+            </div>
+            <p className={styles.intervalHint}>How often to check GitHub for new notifications in the background.</p>
           </div>
         </section>
 
