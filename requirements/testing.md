@@ -87,7 +87,7 @@ Same requirement as projects: row mapper functions must be tested for correct fi
 
 ---
 
-## Layer 2 — Database Integration Tests
+## [DONE] Layer 2 — Database Integration Tests
 
 These tests run the actual migration stack against an in-memory `better-sqlite3` database. They must not hit the filesystem or network.
 
@@ -145,7 +145,7 @@ These tests run the actual migration stack against an in-memory `better-sqlite3`
 
 ---
 
-## Layer 3 — React Component Tests
+## [DONE] Layer 3 — React Component Tests
 
 These tests use React Testing Library with all `window.electron` IPC calls mocked. They verify rendered output and user interaction — not internal implementation details.
 
