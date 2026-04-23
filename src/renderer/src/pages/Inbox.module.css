@@ -50,6 +50,19 @@
   cursor: default;
 }
 
+.syncControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.lastSyncTime {
+  font-size: 11px;
+  color: var(--text-3, var(--text-2));
+  opacity: 0.7;
+}
+
 /* ── Repo rule suggestion banner ── */
 .suggestionBanner {
   margin: 12px 20px 0;

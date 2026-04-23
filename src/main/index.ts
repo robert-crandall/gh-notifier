@@ -23,6 +23,7 @@ import {
 import { listFilters, createFilter, deleteFilter } from './db/filters'
 import { startNotificationSync, syncOnce, prefetchThreadContent } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
+import { getDb } from './db'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope } from '../shared/ipc-channels'
 
 function createWindow(): void {
@@ -136,6 +137,10 @@ app.whenReady().then(async () => {
     invalidateOpenThreadPrefetch()
     await syncOnce()
     try { await prefetchThreadContent() } catch (err) { console.error('[notifications] Prefetch after manual sync failed:', err) }
+  })
+  ipcMain.handle('notifications:last-sync-time', () => {
+    const row = getDb().prepare('SELECT value FROM sync_metadata WHERE key = ?').get('last_notification_sync') as { value: string } | undefined
+    return row?.value ?? null
   })
 
   // Repo rule handlers

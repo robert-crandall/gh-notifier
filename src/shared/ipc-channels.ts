@@ -297,6 +297,12 @@ export type IpcChannels = {
     result: void
   }
 
+  /** Returns the ISO 8601 timestamp of the last completed notification sync, or null if never synced. */
+  'notifications:last-sync-time': {
+    args: []
+    result: string | null
+  }
+
   // ── Repo rules ─────────────────────────────────────────────────────────────
 
   /** Returns all repo routing rules. */
