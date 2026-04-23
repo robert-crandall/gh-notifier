@@ -24,7 +24,8 @@ import { listFilters, createFilter, deleteFilter } from './db/filters'
 import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
 import { getDb } from './db'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope } from '../shared/ipc-channels'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope, SyncIntervalMinutes } from '../shared/ipc-channels'
+import { SYNC_INTERVAL_OPTIONS } from '../shared/ipc-channels'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -146,7 +147,13 @@ app.whenReady().then(async () => {
   // Settings handlers
   ipcMain.handle('settings:get-sync-interval', () => getSyncIntervalMinutes())
   ipcMain.handle('settings:set-sync-interval', (_event, minutes) => {
-    setSyncIntervalMinutes(minutes)
+    if (typeof minutes !== 'number' || !Number.isFinite(minutes) || !Number.isInteger(minutes) || minutes <= 0) {
+      return
+    }
+    if (!SYNC_INTERVAL_OPTIONS.includes(minutes as SyncIntervalMinutes)) {
+      return
+    }
+    setSyncIntervalMinutes(minutes as SyncIntervalMinutes)
     rescheduleSync()
   })
 

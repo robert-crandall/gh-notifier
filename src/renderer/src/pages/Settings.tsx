@@ -18,7 +18,10 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
   const [syncInterval, setSyncInterval] = useState<SyncIntervalMinutes | null>(null)
 
   useEffect(() => {
-    void window.electron.ipc.invoke('settings:get-sync-interval').then(setSyncInterval)
+    void (async () => {
+      const minutes = await window.electron.ipc.invoke('settings:get-sync-interval')
+      setSyncInterval(minutes)
+    })()
   }, [])
 
   const handleSyncIntervalChange = async (minutes: SyncIntervalMinutes) => {

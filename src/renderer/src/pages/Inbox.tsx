@@ -121,7 +121,17 @@ export function Inbox({ onAssigned }: Props) {
         <div className={styles.syncControls}>
           {lastSyncTime && (
             <span className={styles.lastSyncTime}>
-              {formatDistanceToNow(parseISO(lastSyncTime), { addSuffix: true })}
+              {(() => {
+                try {
+                  const parsed = parseISO(lastSyncTime)
+                  if (!isNaN(parsed.getTime())) {
+                    return formatDistanceToNow(parsed, { addSuffix: true })
+                  }
+                } catch {
+                  // Fall through to fallback
+                }
+                return 'recently'
+              })()}
             </span>
           )}
           <button
