@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
 import { Inbox } from './Inbox'
-import type { NotificationThread, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
+import type { NotificationThread, Project, RepoRuleSuggestion, AuthStatus } from '@shared/ipc-channels'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -42,11 +42,17 @@ const makeProject = (overrides: Partial<Project> = {}): Project => ({
 })
 
 function setupElectron({
-  authStatus = { authenticated: false as const },
+  authStatus = { authenticated: false } as AuthStatus,
   inbox = [] as NotificationThread[],
   projects = [] as Project[],
   lastSyncTime = null as string | null,
   assignResult = null as RepoRuleSuggestion | null,
+}: {
+  authStatus?: AuthStatus
+  inbox?: NotificationThread[]
+  projects?: Project[]
+  lastSyncTime?: string | null
+  assignResult?: RepoRuleSuggestion | null
 } = {}) {
   const mockInvoke = vi.fn((channel: string) => {
     switch (channel) {
