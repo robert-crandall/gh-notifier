@@ -1,185 +1,128 @@
-# Engineering Roadmap: GitHub Task Manager
+# Milestones
 
-**Starting point:** UI prototype complete. All 5 screens built (Svelte + Tailwind). Rust backend fully stubbed (18 commands return hardcoded data). No persistence, no GitHub API, no async.
-
----
-
-## Milestone 1: Local Persistence (SQLite)
-
-**Goal:** Every action the user takes persists across app restarts.
-
-### Tasks
-- [x] Add `rusqlite` (bundled) and `tokio` to Cargo.toml
-- [x] Create `db.rs` — initialize SQLite at the macOS app data directory
-- [x] Write schema migration (v1):
-  - `projects` table (id, name, context_doc, next_action, status, snooze_mode, snooze_until, icon, repo_label, created_at, updated_at)
-  - `notifications` table (id, github_id, repo_full_name, subject_title, subject_type, subject_url, reason, is_read, updated_at, project_id, author, author_avatar)
-  - `manual_tasks` table (id, title, is_done, project_id)
-  - `settings` table (key, value) — stores github_token, poll_interval, etc.
-  - `thread_mappings` table (repo_full_name, thread_id, project_id) — for auto-routing
-- [x] Replace all 7 project commands with real CRUD queries
-- [x] Replace notification query commands (get, get_unmapped, mark_read, assign)
-- [x] Replace task commands with real queries
-- [x] Replace settings commands (get/save)
-- [x] Update frontend to remove try/catch fallback stubs (Tauri commands now work)
-
-### Done when
-- Create a project → restart app → project is still there
-- Edit context doc / next action → persists
-- All CRUD operations work end-to-end through the UI
+Each milestone leaves the app in a stable, usable state. Later milestones build on earlier ones without requiring rewrites.
 
 ---
 
-## Milestone 2: GitHub Notification Sync
+## M1 — Project Scaffold
 
-**Goal:** App pulls real notifications from GitHub and displays them.
+**Goal:** A working Electron + React app that boots, nothing more.
 
-### Tasks
-- [x] Add `reqwest` to Cargo.toml
-- [x] Create `github.rs` — GitHub REST API v3 client
-- [x] Implement `sync_notifications` command:
-  - Call `GET /notifications` with the stored PAT
-  - Upsert results into the notifications table
-  - Filter out `team_mention` reason notifications automatically
-  - Compute `unread_count` per project
-- [x] Implement token validation — test the PAT on save, show error if invalid
-- [x] Implement `unsubscribe_thread` — call `DELETE /notifications/threads/{id}/subscription`
-- [x] Implement "Open in GitHub" — resolve `subject.url` API URLs to browser-friendly HTML URLs
-- [x] Wire the Setup page to actually validate + save + do first sync
+- Electron shell with a single BrowserWindow
+- Vite dev server with hot reload
+- TypeScript configured (`strict`, `strictNullChecks`)
+- SQLite wired up in the main process (`better-sqlite3`)
+- IPC skeleton: typed channel definitions in `src/shared/ipc-channels.ts`
+- Basic migration runner in `db/migrations/`
+- `npm run dev`, `npm run build`, `npm run typecheck` all work
 
-### Done when
-- Enter a real GitHub PAT → app pulls your actual notifications
-- Notifications appear in the Inbox
-- Unsubscribe button actually unsubscribes on GitHub
-- Invalid token shows an error message
+**Shippable signal:** App opens, shows a placeholder UI, no crashes.
 
 ---
 
-## Milestone 3: Thread Mapping & Auto-Routing
+## M2 — GitHub Authentication
 
-**Goal:** Assigning a notification to a project teaches the app to auto-route future notifications from the same thread.
+**Goal:** User can connect their GitHub account and the app can make API calls.
 
-### Tasks
-- [x] When user assigns a notification to a project, save a mapping in `thread_mappings` (keyed by repo + thread ID)
-- [x] During sync, check incoming notifications against `thread_mappings` and auto-assign matches
-- [x] Show newly auto-routed notifications in the project detail view
-- [x] Update unread counts on the dashboard after sync
-- [x] Handle edge case: notification for a snoozed project (wake it if snooze_mode = "notification")
+- GitHub OAuth flow (main process handles the redirect)
+- Token stored securely (macOS Keychain via `keytar` or equivalent)
+- `@octokit/rest` client instantiated in main process, authenticated
+- IPC channel to expose auth status to renderer
+- Renderer shows "Connect GitHub" → "Connected as @user" state
+- Token refresh / re-auth on expiry
 
-### Done when
-- Assign notification from `org/repo#42` to "My Project"
-- Next sync brings a new comment on `org/repo#42` → it auto-appears under "My Project"
-- Inbox only shows truly unmapped notifications
+**Shippable signal:** User can authenticate and the app reflects their identity.
 
 ---
 
-## Milestone 4: Snooze System
+## M3 — Core Project Management
 
-**Goal:** User can hide projects and they resurface at the right time.
+**Goal:** The app is useful as a standalone project tracker, independent of GitHub.
 
-### Tasks
-- [x] Implement snooze UI (modal/popover with three mode options: date picker, "next notification", manual)
-- [x] `snooze_project` command → set status to "snoozed", save mode + until date
-- [x] `wake_project` command → set status back to "active", clear snooze fields
-- [x] On app startup, check date-based snoozes: if `snooze_until <= now`, auto-wake
-- [x] During notification sync, if a snoozed project (mode=notification) gets a new notification, auto-wake it
-- [x] Dashboard: snoozed section collapsed by default, shows resume criteria
+- `projects` DB table + migrations
+- CRUD IPC channels: `projects:create`, `projects:update`, `projects:delete`, `projects:list`
+- Dashboard view: list of active projects, each showing name + next action
+- Project detail view: name, notes, next action, links (labeled URLs), todo list
+- Todo list: add, check off, reorder, delete tasks (`project_todos` table)
+- Active / Snoozed status field (snooze logic comes in M6)
+- Snoozed projects visible in a collapsed section (static for now)
 
-### Done when
-- Snooze a project until tomorrow → it disappears from Active → reappears tomorrow
-- Snooze until "next notification" → new notification wakes it
-- Manual snooze → only comes back when user clicks "Wake"
+**Shippable signal:** App is a functional project tracker. GitHub features not yet needed.
 
 ---
 
-## Milestone 5: Background Polling
+## M4 — Notification Sync and Routing
 
-**Goal:** App stays current without manual sync button.
+**Goal:** GitHub notifications appear in the right project.
 
-### Tasks
-- [x] Add Tauri async runtime setup for background tasks
-- [x] Create a polling loop that runs `sync_notifications` on a configurable interval (default: 5 min)
-- [x] Store poll interval in settings, respect changes without restart
-- [x] Show "last synced" timestamp in the UI (settings page or top bar)
-- [x] Handle errors gracefully (network down, token expired) — don't crash the loop
-- [x] Check date-based snoozes on each poll cycle (not just app startup)
+- Poll GitHub Notifications API on a configurable interval (main process, fully async)
+- `notification_threads` and `repo_rules` DB tables
+- Notifications stored locally; UI renders from local state only
+- Thread-level mapping: thread → project
+- Repo-level rules: repo → project (lower precedence than thread mapping)
+- Inbox view: unmapped notifications
+- Assign-to-project flow from Inbox
+- Post-assignment repo rule offer (opt-in / opt-out / no offer logic from PRD)
+- Repo rules editable/deletable in Settings
+- Unread count badge on each project in the dashboard
 
-### Done when
-- Leave the app open → new notifications appear automatically
-- Change poll interval in settings → takes effect immediately
-- Network goes down → app shows stale data without crashing
-
----
-
-## Milestone 6: Manual Tasks & Polish
-
-**Goal:** Support non-GitHub tasks. Polish for daily-driver use.
-
-### Tasks
-- [x] Manual task CRUD: create, toggle done, delete
-- [x] Attach manual tasks to projects (or keep standalone)
-- [x] Show manual tasks in project detail view alongside notifications
-- [x] Keyboard shortcuts: Cmd+N (new project), Cmd+K (search), Cmd+1/2/3 (nav)
-- [x] Empty states: no projects, no notifications, inbox zero
-- [ ] Error handling: show user-friendly messages for API failures
-- [ ] Loading states: skeleton screens during sync
-- [x] Window state persistence (size, position)
-
-### Done when
-- Can add "Call Bob about deployment" to a project
-- App feels snappy and handles edge cases without confusion
-- All success criteria from the PRD are met
+**Shippable signal:** Notifications arrive, route to projects, Inbox captures the rest.
 
 ---
 
-## Post-MVP (Parking Lot)
+## M5 — Thread Lifecycle and Unsubscribe
 
-These are explicitly **not** in the MVP. Revisit after validating the core workflow.
+**Goal:** Closed work disappears automatically; manual unsubscribe works.
 
-- Markdown rendering in context documents
-- Notification sound/badge on macOS dock
-- Multiple GitHub accounts
-- Repo-level filtering (only watch specific repos)
-- Drag-and-drop project reordering
-- Data export/backup
-- Auto-update mechanism (Tauri updater plugin)
+- Async content prefetch: after notification list syncs, fetch thread details in background; content populates in-place
+- Content staleness: re-fetch only when a new notification arrives on the thread
+- Thread closure: auto-remove threads when GitHub signals PR merged / issue closed
+- Read state: tracked locally, no write-back to GitHub
+- Unsubscribe: IPC channel calls GitHub API, removes thread locally
 
----
-
-## Code Quality & Testing Strategy
-
-### Active Now
-- **`cargo clippy`** (pedantic) — catches bugs, enforces idioms. Config in `src-tauri/.cargo/config.toml`. Run before commits.
-- **`cargo fmt`** — consistent formatting. Config in `src-tauri/rustfmt.toml`.
-- **`bun run check`** (`svelte-check`) — Svelte + TypeScript type checking. Run before commits.
-
-**Pre-commit workflow:** `cd src-tauri && cargo clippy && cargo fmt --check && cd .. && bun run check`
-
-### After M1 (Persistence)
-- **Rust unit tests for `db.rs`** — test migrations, CRUD operations, edge cases (e.g., delete project with notifications, snooze null handling). This is the first code where bugs are subtle and painful.
-- Use `#[cfg(test)]` module in each Rust source file.
-
-### After M2 (GitHub Sync)
-- **Rust unit tests for `github.rs`** — mock HTTP responses, test JSON parsing, test `team_mention` filtering logic. GitHub API responses are the most likely thing to break from upstream changes.
-
-### After M3 (Auto-Routing)
-- **Rust unit tests for thread mapping logic** — this is the "smartest" business logic. Test auto-assignment, re-routing, conflict handling.
-
-### Not Planned for MVP
-- **E2E tests** — UI is still evolving; too brittle to test through automation right now.
-- **CI/CD** — solo dev, no PRs, no team. Manual checks before commits suffice.
-- **ESLint/Prettier for Svelte** — nice-to-have; `svelte-check` already covers the critical path.
+**Shippable signal:** Merged PRs and closed issues vanish without user action. Unsubscribe works.
 
 ---
 
-## Execution Notes
+## M6 — Snooze
 
-**Work in milestone order.** Each milestone builds on the previous one:
-- M1 (persistence) is the foundation — nothing else works without it
-- M2 (GitHub sync) is the core value proposition
-- M3 (auto-routing) is what makes it "smart"
-- M4 (snooze) is the ADHD-critical feature
-- M5 (polling) makes it hands-off
-- M6 (polish) makes it a daily driver
+**Goal:** Projects can be silenced until they matter again.
 
-**Each milestone is independently shippable** — after M2 you have a usable (if manual) app. After M4 it's genuinely useful. M6 is the "1.0" quality bar.
+- Three snooze modes: manual, date-based, notification-triggered
+- `snooze_until` and `snooze_mode` fields on `projects` table
+- Background job in main process wakes date-based snoozes
+- Notification-triggered snooze: un-snooze fires when a new notification routes to that project
+- Snoozed projects collapsed on dashboard (was static in M3, now functional)
+
+**Shippable signal:** Snooze works in all three modes end-to-end.
+
+---
+
+## M7 — Notification Filtering
+
+**Goal:** Noise is suppressible at multiple dimensions with a clear hierarchy.
+
+- `filters` DB table (author, org, repo, reason, state, type)
+- Filter evaluation runs in main process before storing/displaying notifications
+- Two-tier type filtering: global floor + per-repo additive rules
+- Renderer: filter management UI with removable chips
+- UI makes global vs. per-repo hierarchy visually explicit
+
+> **Note:** PRD specifies filters are session-scoped in v1. Persist to DB now anyway — session-only is a regression risk and the cost is negligible.
+
+**Shippable signal:** Filtering works across all dimensions; global type floor cannot be overridden per-repo.
+
+---
+
+## M8 — Appearance and Polish
+
+**Goal:** The app feels crafted, not like a default Electron shell.
+
+- Native macOS dark/light mode (`prefers-color-scheme`)
+- At least two built-in themes beyond light/dark
+- Theme switcher in Settings
+- Typography, spacing, and color pass — no default browser/Electron styling visible
+- App icon, window chrome appropriate for macOS
+- No layout jank or flash of unstyled content on launch
+
+**Shippable signal:** All 10 success criteria from the PRD are met. App is ready to use daily.

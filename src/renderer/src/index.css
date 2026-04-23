@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: light --default, dark, nord, dracula, night, dim, corporate, lemonade;
+}
+
+/* ─────────────────────────────────────────────────────────
+   Map app-specific CSS custom properties → DaisyUI tokens.
+   All existing CSS Modules use these vars, so they respond
+   to theme changes automatically.
+   ───────────────────────────────────────────────────────── */
+:root,
+[data-theme] {
+  /* Backgrounds */
+  --bg:             var(--color-base-100);
+  --bg-2:           var(--color-base-200);
+  --sidebar:        var(--color-base-300);
+
+  /* Borders — base-content at low opacity */
+  --border:         color-mix(in oklch, var(--color-base-content) 12%, transparent);
+  --border-2:       color-mix(in oklch, var(--color-base-content) 20%, transparent);
+  --sidebar-border: color-mix(in oklch, var(--color-base-content) 16%, transparent);
+
+  /* Text */
+  --text:           var(--color-base-content);
+  --text-2:         color-mix(in oklch, var(--color-base-content) 70%, transparent);
+  --text-3:         color-mix(in oklch, var(--color-base-content) 50%, transparent);
+
+  /* Accents */
+  --blue:           var(--color-primary);
+  --blue-dark:      color-mix(in oklch, var(--color-primary) 50%, black);
+  --blue-mid:       color-mix(in oklch, var(--color-primary) 70%, black);
+  --orange:         var(--color-warning);
+  --green:          var(--color-success);
+
+  /* Typography */
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  overflow: hidden;
+}

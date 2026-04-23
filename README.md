@@ -1,49 +1,82 @@
-### Prerequisites
+# GH Projects
 
-**macOS only.** This app currently targets macOS, and the setup steps below assume a macOS development environment.
-- **Xcode Command Line Tools** (macOS C toolchain): `xcode-select --install`
-- **Rust** (via rustup): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Bun** (JS runtime/package manager): `curl -fsSL https://bun.sh/install | bash`
+A personal project management tool for developers. Surfaces GitHub notifications in the context of the projects they belong to.
 
-After installing, run `bun install` to fetch JS/TS dependencies.
+macOS only.
 
-### Launching app
+---
 
-```
-bun run tauri dev
-```
+## Prerequisites
 
-This compiles Rust, starts the Vite dev server, and opens the desktop window. First run takes a few minutes while Rust dependencies compile.
+- [Bun](https://bun.sh) — the only supported package manager/runtime (`npm`/`node` are not required)
+- Xcode Command Line Tools — required to compile `better-sqlite3` (`xcode-select --install`)
+- A GitHub Personal Access Token — create one at https://github.com/settings/tokens/new with `notifications` and `read:user` scopes. The token is stored locally using Electron's safeStorage (OS-level encryption).
 
-### Manual testing (M1 — SQLite persistence)
+---
 
-The SQLite database is created at:
-```
-~/Library/Application Support/com.gh-notifier/gh-notifier.db
-```
+## Setup
 
-To inspect it directly:
 ```bash
-sqlite3 ~/Library/Application\ Support/com.gh-notifier/gh-notifier.db
+# Install deps and rebuild better-sqlite3 for Electron's ABI
+bun run setup
 ```
 
-**Click-through test sequence:**
-1. Launch the app with `bun run tauri dev`
-2. Click **New Project** in the sidebar → enter a name → click Create
-3. The project detail page opens — the project is now in SQLite
-4. Edit the Context Document or Next Action fields
-5. Quit and relaunch the app → the project and edits should still be there
-6. Go to **Settings** → enter any token string → click Save
-7. Quit and relaunch → the token field should show as `••••••••` (confirming persistence)
+> `better-sqlite3` is a native module. It must be compiled against Electron's ABI, not Node's. Running plain `bun install` will fail — always use `bun run setup` on first clone or after changing the Electron version.
 
-### Security — token encryption key
+---
 
-The GitHub PAT is stored encrypted in SQLite using AES-GCM. The 256-bit key is kept in a separate file:
+## Development
 
-```
-~/Library/Application Support/com.gh-notifier/key.bin
+```bash
+# Start Electron + Vite dev server with hot reload
+bun run dev
 ```
 
-On **Unix/macOS** the file is created with mode `0600` (owner read/write only).
+---
 
-On **Windows**, restrictive file permissions are not enforced at creation time. The key file is the sole protection for the encrypted token — do not share or expose your app data directory. For production use on Windows, consider replacing this with DPAPI-backed storage.
+## Build
+
+```bash
+# Compile all targets (main, preload, renderer) into out/
+bun run build
+
+# Package as a distributable .dmg
+bun run dist
+```
+
+---
+
+## Type checking
+
+```bash
+bun run typecheck
+```
+
+---
+
+## After updating Electron
+
+If you bump the `electron` version in `package.json`, rebuild the native module:
+
+```bash
+bun run rebuild
+```
+
+---
+
+## Project structure
+
+```
+src/
+  main/          # Electron main process — IPC handlers, DB access, GitHub sync
+  preload/       # Context bridge — exposes typed IPC to the renderer
+  renderer/      # React app
+    src/
+      components/
+      hooks/
+      pages/
+  shared/        # Types and constants shared between main and renderer
+db/
+  migrations/    # SQL migration files, applied in filename order on startup
+requirements/    # PRD and milestone docs (not shipped)
+```

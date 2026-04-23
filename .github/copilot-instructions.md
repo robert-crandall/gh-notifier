@@ -1,91 +1,106 @@
-# Copilot Instructions — gh-notifier
+# Copilot Instructions
 
-## Philosophy
+## What This App Is
 
-Ship fast but structured. Every change must pass formatters and linters before it's considered done. Tests phase in as real logic lands — don't write tests for stubs.
+**GH Projects** is a personal project management tool for developers — specifically a solo developer managing multiple GitHub-heavy projects. It answers: "What am I working on and what do I need to do next?"
 
-## Stack
+GitHub notifications are surfaced in the context of the **projects they belong to**. This is not a notification manager. Projects are the primary unit of the app.
 
-- **Frontend:** Svelte 5, SvelteKit (static adapter, SPA fallback), Tailwind v3, TypeScript
-- **Backend:** Rust (Tauri v2 commands)
-- **Runtime:** Bun (not npm/yarn/pnpm)
-- **Package commands:** `bun install`, `bun run build`, `bun run check`
-- **Tauri commands:** `bun run tauri dev`, `bun run tauri build`
+---
 
-## Quality Gates (must pass before any change is done)
+## Tech Stack
 
-1. `cargo fmt --check` — Rust formatting (2-space indentation, see `src-tauri/rustfmt.toml`)
-2. `cargo clippy` — pedantic lints enabled (see `src-tauri/.cargo/config.toml`)
-3. `bun run check` — `svelte-check` for Svelte + TypeScript type checking
+| Layer | Technology |
+|---|---|
+| Shell | Electron (macOS app bundle only) |
+| Frontend | React (TypeScript) |
+| Backend / main process | Node.js (Electron main process) |
+| Database | SQLite (local, no server) |
+| GitHub API | GitHub REST API v3 |
 
-## Rust Conventions
+**macOS only.** No cross-platform compatibility work.
 
-- Clippy pedantic is enabled project-wide. Fix all warnings, don't suppress them unless there's a documented reason.
-- 2-space indentation (`tab_spaces = 2` in rustfmt.toml). Do NOT use 4-space Rust defaults.
-- `max_width = 100`.
-- Use `use_field_init_shorthand` and `use_try_shorthand` (both enabled in rustfmt).
-- All Tauri commands live in `src-tauri/src/commands.rs`. Models in `models.rs`.
-- Prefer returning `Result<T, String>` from Tauri commands (Tauri's invoke error convention).
+---
 
-## Frontend Conventions
+## Architecture Principles
 
-- Svelte 5 runes syntax (`$state`, `$derived`, `$effect`). No legacy `let` reactivity.
-- TypeScript types for all data models are in `src/lib/types.ts`. Keep Rust and TS types in sync.
-- Tauri command wrappers in `src/lib/api.ts`. All invoke calls go through this layer.
-- Tailwind classes only — no inline styles, no CSS modules, no `<style>` blocks unless absolutely necessary.
-- Design tokens are in `tailwind.config.js` (colors, fonts). Reference `requirements/DESIGN.md` for the design system.
+These are non-negotiable constraints derived from the PRD:
 
-## Design System
+1. **All I/O happens off the render thread.** GitHub API calls and SQLite writes belong in the Electron main process. The renderer never blocks on the network or disk.
+2. **IPC is the bridge.** Renderer ↔ main communication uses Electron's `ipcRenderer` / `ipcMain`. Prefer typed IPC channels with a clear contract.
+3. **Local-first.** The UI always renders from local SQLite state. Network results populate in place after the fact.
+4. **No write-back to GitHub** except for unsubscribing from a notification thread.
 
-- Font: Inter (400/500/600 weights)
-- Icons: Material Symbols Outlined (loaded via Google Fonts CDN in `app.html`)
-- No 1px borders for section separation — use background color shifts per the "Digital Lithograph" spec
-- Glass panels: `bg-surface-primary/80 backdrop-blur-xl`
-- Color tokens: `surface-primary`, `surface-secondary`, `surface-tertiary`, `accent-blue`, `accent-green`, `accent-amber`, `text-primary`, `text-secondary`, `text-tertiary`
+---
 
-## Project Structure
+## Project Structure (expected)
 
 ```
-src/                    # SvelteKit frontend
-  lib/
-    api.ts              # Tauri invoke wrappers (18 commands)
-    types.ts            # TypeScript data models
-  routes/
-    +layout.svelte      # App shell (sidebar, top bar)
-    +page.svelte        # Dashboard
-    inbox/              # Unmapped notifications
-    projects/[id]/      # Project detail view
-    setup/              # First-time GitHub PAT connection
-    settings/           # Token management, sync config
-src-tauri/              # Rust backend
-  src/
-    commands.rs         # All Tauri command handlers
-    models.rs           # Data structs (Serialize/Deserialize)
-    lib.rs              # Tauri builder + command registration
-    main.rs             # Entry point
-requirements/
-  prd.md                # Product requirements
-  DESIGN.md             # Design system specification
-  milestones.md         # Engineering roadmap (M1–M6)
-  prototypes/           # Original HTML mockups
+src/
+  main/          # Electron main process: IPC handlers, GitHub sync, DB access
+  renderer/      # React app
+    components/
+    hooks/
+    pages/
+  shared/        # Types and constants shared between main and renderer
+db/              # SQLite schema and migrations
+requirements/    # PRD and design docs (not shipped)
 ```
 
-## Current Status
+---
 
-The app is a **UI-first prototype**. All 18 Rust commands are stubbed with hardcoded data. No database, no GitHub API, no persistence. See `requirements/milestones.md` for the build plan.
+## Coding Conventions
 
-## Milestones & Testing Strategy
+- **TypeScript everywhere.** No plain JS files.
+- **Functional React components only.** No class components.
+- **Hooks for state.** Prefer lightweight state (React context or Zustand). Avoid Redux unless complexity demands it.
+- **Strict null checks.** `strictNullChecks: true` in tsconfig.
+- **No `any`.** Use `unknown` when the type is genuinely unknown, then narrow it.
+- **Async/await over `.then()` chains.** All async code uses async/await.
+- **Named exports preferred** over default exports (easier to grep and refactor).
 
-Work follows the milestone order in `requirements/milestones.md`:
-- **M1 (SQLite):** Add `db.rs` unit tests after this milestone
-- **M2 (GitHub Sync):** Add `github.rs` unit tests (mock HTTP)
-- **M3 (Auto-Routing):** Add thread mapping logic tests
-- **No E2E tests** planned for MVP — UI is still evolving
-- **No CI/CD** — solo dev, manual quality checks
+---
 
-## When Generating Code
+## Preferred Libraries
 
-- Keep Rust and TypeScript type definitions in sync when modifying data models.
-- Don't add features, refactoring, or "improvements" beyond what's asked.
-- Don't add error handling for scenarios that can't happen at the current milestone.
-- When adding a new Tauri command: add the Rust handler in `commands.rs`, register it in `lib.rs`, and add the typed wrapper in `api.ts`.
+| Purpose | Library |
+|---|---|
+| GitHub API client | `@octokit/rest` |
+| SQLite | `better-sqlite3` |
+| Schema/migrations | `drizzle-orm` or raw SQL migrations |
+| Component styling | CSS Modules or a utility-first approach (no CSS-in-JS) |
+| Date handling | `date-fns` |
+| Testing | Vitest + React Testing Library |
+
+If a library isn't listed here, check if an existing listed library covers the need before adding a new dependency.
+
+---
+
+## UI / UX Constraints
+
+- Respect native macOS dark/light mode (`prefers-color-scheme`).
+- The UI must feel **crafted**, not utilitarian. Visual quality is a feature.
+- Never show a loading spinner that blocks interaction — async results update in-place.
+- Snoozed projects are collapsed, not deleted or hidden entirely.
+
+---
+
+## Domain Model (quick reference)
+
+- **Project** — primary unit. Has name, notes, next action, todo list, links, GitHub notifications, status (Active/Snoozed).
+- **Inbox** — unmapped notifications that haven't been assigned to a project yet. First-class view.
+- **Notification thread** — belongs to at most one project, or sits in the Inbox.
+- **Routing rules** — thread-level mapping > repo-level rule > inbox (precedence order).
+- **Filters** — suppress notifications globally. Multi-dimensional (author, org, repo, reason, state, type). AND logic. Two-tier type filtering: global (floor) + per-repo (additive only).
+- **Snooze modes** — manual, date-based, notification-triggered.
+
+---
+
+## Out of Scope
+
+Do not implement or suggest:
+- GitHub write-back beyond unsubscribe
+- Multi-user or team features
+- Mobile or non-macOS targets
+- Integrations beyond GitHub
+- Gantt charts, sprints, velocity, or enterprise PM features

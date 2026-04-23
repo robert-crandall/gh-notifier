@@ -1,54 +1,118 @@
-# AGENTS.md — gh-notifier
+# AGENTS.md
 
-## Agent: Implement
+Guidance for AI coding agents working in this repository.
 
-When implementing a feature or fixing a bug, follow this workflow:
+---
 
-1. Read the relevant milestone in `requirements/milestones.md` for context on what phase the project is in.
-2. Make the smallest change that satisfies the request.
-3. Run all three quality gates before considering work done:
-   ```bash
-   cd src-tauri && cargo fmt --check && cargo clippy && cd .. && bun run check
-   ```
-4. Fix any warnings or errors — do not suppress clippy lints without a documented reason.
+## Project Summary
 
-### Rust rules
-- 2-space indentation (not 4). See `src-tauri/rustfmt.toml`.
-- Clippy pedantic is enabled. All warnings must be resolved.
-- All Tauri commands go in `src-tauri/src/commands.rs`. Models in `models.rs`.
-- Return `Result<T, String>` from Tauri commands.
-- When adding a new command, also register it in `lib.rs` and add a typed wrapper in `src/lib/api.ts`.
+**GH Projects** is a macOS Electron app for solo developers. It's a project management tool that surfaces GitHub notifications in the context of the projects they belong to.
 
-### Frontend rules
-- Svelte 5 runes only (`$state`, `$derived`, `$effect`). No legacy reactive `let`.
-- Types in `src/lib/types.ts`. API wrappers in `src/lib/api.ts`.
-- Tailwind classes only — no `<style>` blocks.
-- Follow the design tokens in `tailwind.config.js` and `requirements/DESIGN.md`.
+- **Not** a GitHub notification inbox — projects are the primary unit.
+- Data lives in local SQLite. All network I/O is off the render thread.
+- macOS only. No cross-platform targets.
 
-### Testing rules
-- **Currently (pre-M1):** No unit tests — backend is entirely stubs.
-- **After M1:** Add `#[cfg(test)]` unit tests for `db.rs`.
-- **After M2:** Add unit tests for `github.rs` with mocked HTTP.
-- **After M3:** Add unit tests for thread mapping logic.
-- Never write tests for stub/no-op code.
+See [`requirements/prd.md`](requirements/prd.md) for full product requirements.
 
-## Agent: Review
+---
 
-When reviewing code or a diff:
+## Repo Layout
 
-1. Check that all three quality gates would pass.
-2. Verify Rust uses 2-space indentation and respects `max_width = 100`.
-3. Confirm Rust and TypeScript types stay in sync for any model changes.
-4. Flag any `<style>` blocks, inline styles, or CSS modules — those violate conventions.
-5. Flag any 4-space indentation in Rust files.
-6. Ensure no features, refactors, or scope creep beyond what was requested.
+```
+src/
+  main/          # Electron main process — IPC handlers, GitHub sync, DB access
+  renderer/      # React app (TypeScript, functional components only)
+    components/
+    hooks/
+    pages/
+  shared/        # Types and constants shared between main and renderer
+db/              # SQLite schema and migrations
+requirements/    # PRD and design docs — not shipped in the app bundle
+.github/
+  copilot-instructions.md   # Always-on context for Copilot
+```
 
-## Agent: Plan
+> The source tree above reflects the intended structure. If folders don't exist yet, they will be created as features are implemented.
 
-When planning work or breaking down a task:
+---
 
-1. Read `requirements/milestones.md` to understand the current phase.
-2. Read `requirements/prd.md` for product requirements.
-3. Read `requirements/DESIGN.md` for design system constraints.
-4. Break work into the smallest shippable increments that follow the milestone order.
-5. Each increment must leave all quality gates passing.
+## Build & Dev
+
+> **Package manager:** `bun` is the only available runtime — use `bun run <script>` instead of `npm run <script>`.
+> `better-sqlite3` is a native module and must be compiled against Electron's ABI. Use the setup command below on first install.
+
+```bash
+# First-time setup (installs deps + rebuilds native module for Electron)
+bun run setup
+
+# Start dev server (Electron + Vite hot reload)
+bun run dev
+
+# Build the macOS app bundle
+bun run build
+
+# Package as a distributable .dmg
+bun run dist
+
+# Re-run native module rebuild after Electron version changes
+bun run rebuild
+```
+
+---
+
+## Testing
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Type-check without emitting
+npm run typecheck
+```
+
+Tests use **Vitest** (unit) and **React Testing Library** (component). Main-process logic is tested with Vitest directly (no Electron environment needed for unit tests).
+
+---
+
+## Key Constraints for Agents
+
+1. **Never put I/O in the renderer.** GitHub API calls and SQLite access belong in `src/main/`. Use IPC to expose results to the renderer.
+2. **No `any` in TypeScript.** Use `unknown` and narrow it.
+3. **All async code uses `async/await`.** No `.then()` chains.
+4. **Named exports only.** No default exports.
+5. **No new dependencies without checking `copilot-instructions.md` first.** Prefer libraries already listed there.
+6. **Do not write back to GitHub** except via the explicit unsubscribe IPC channel.
+
+---
+
+## IPC Conventions
+
+All IPC channel names live in `src/shared/ipc-channels.ts` (create if it doesn't exist yet). Channels are typed end-to-end — no untyped `ipcRenderer.send` / `ipcMain.on` calls.
+
+Pattern:
+```
+domain:action         # e.g. notifications:sync, projects:create
+domain:action:reply   # reply channel for invoke/handle patterns
+```
+
+---
+
+## Common Task Patterns
+
+### Adding a new IPC handler
+1. Define the channel name and payload types in `src/shared/ipc-channels.ts`
+2. Register the handler in the appropriate `src/main/` module
+3. Call it from the renderer via a typed wrapper in `src/renderer/hooks/` or a utility module
+
+### Adding a new DB table
+1. Write a migration in `db/migrations/`
+2. Update the schema types in `src/shared/`
+3. Add accessor functions in `src/main/db/`
+
+### Adding a new React view
+1. Create the component in `src/renderer/pages/` or `src/renderer/components/`
+2. Wire data through a hook in `src/renderer/hooks/` that calls IPC
+3. Never fetch data directly in a component body

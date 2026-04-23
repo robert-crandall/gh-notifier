@@ -1,3 +1,7 @@
+# Build output
+out/
+dist/
+
 # Dependencies
 node_modules/
 .pnp
@@ -6,17 +10,6 @@ node_modules/
 # Bun
 .bun/
 bun.lockb
-
-# SvelteKit
-.svelte-kit/
-build/
-.vercel/
-.netlify/
-
-# Tauri
-src-tauri/target/
-src-tauri/WixTools/
-src-tauri/gen/
 
 # Environment
 .env
