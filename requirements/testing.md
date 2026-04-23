@@ -30,7 +30,7 @@ The following must pass on every PR before merge:
 1. `bun run typecheck` — zero TypeScript errors, strict mode
 2. `bun run lint` — zero ESLint errors
 3. `bun run test` — all unit and integration tests pass
-4. No `any` types introduced (enforced by `noImplicitAny` in tsconfig)
+4. No implicit `any` types introduced (enforced by `noImplicitAny` in tsconfig)
 
 ---
 
@@ -83,7 +83,7 @@ Same requirement as projects: row mapper functions must be tested for correct fi
 - Saved theme is read from `localStorage` on mount and applied as `data-theme`
 - System `prefers-color-scheme: dark` is used when no saved theme exists
 - `setTheme()` persists to `localStorage` and updates `data-theme`
-- Calling `setTheme()` with an invalid theme name does not update state
+- `setTheme()` only accepts valid `ThemeId` values; this constraint is enforced by TypeScript type-checking
 
 ---
 

@@ -8,7 +8,7 @@ export default tseslint.config(
   // Base JS rules
   js.configs.recommended,
 
-  // TypeScript rules (type-aware for src/)
+  // TypeScript rules (non-type-checked baseline for src/)
   ...tseslint.configs.recommended,
 
   // React hooks rules (renderer only)
