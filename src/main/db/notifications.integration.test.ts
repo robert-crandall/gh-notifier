@@ -248,6 +248,7 @@ describe('markThreadRead', () => {
     upsertThreads([makeThread({ id: 't-1', unread: true })])
     markThreadRead('t-1')
     const thread = listInboxThreads().find((t) => t.id === 't-1')
+    expect(thread).toBeDefined()
     // listInboxThreads filters by project_id IS NULL but also the thread should still be there
     const row = db
       .prepare('SELECT unread FROM notification_threads WHERE id = ?')
