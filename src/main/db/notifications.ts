@@ -197,7 +197,7 @@ export function upsertThreads(threads: ThreadSyncData[]): void {
       )
 
       // If this is a brand-new thread routed to a project, wake notification-triggered snooze
-      if (existing === undefined && projectId !== null) {
+      if (existing == null && projectId !== null) {
         wakeNotificationSnooze.run(projectId)
       }
     }
@@ -237,12 +237,12 @@ export function assignThread(
     .get(thread.repo_owner, thread.repo_name) as RepoRuleRow | undefined
   if (existingRule) return null
 
-  // Count all threads from this repo and how they're distributed
+  // Count threads from this repo, excluding the one we just assigned
   const allThreads = db
     .prepare(
-      `SELECT project_id FROM notification_threads WHERE repo_owner = ? AND repo_name = ?`
+      `SELECT project_id FROM notification_threads WHERE repo_owner = ? AND repo_name = ? AND id != ?`
     )
-    .all(thread.repo_owner, thread.repo_name) as { project_id: number | null }[]
+    .all(thread.repo_owner, thread.repo_name, threadId) as { project_id: number | null }[]
 
   const mapped = allThreads.filter((t) => t.project_id !== null)
   const uniqueProjects = new Set(mapped.map((t) => t.project_id))

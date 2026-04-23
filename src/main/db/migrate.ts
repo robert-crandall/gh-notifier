@@ -33,7 +33,11 @@ export function runMigrations(db: Database.Database): void {
   for (const file of files) {
     if (!applied.has(file)) {
       const sql = readFileSync(join(migrationsDir, file), 'utf8')
-      db.exec(sql)
+      // Strip SQL comments and skip files that contain no actual statements
+      const strippedSql = sql.replace(/--[^\n]*/g, '').trim()
+      if (strippedSql) {
+        db.exec(sql)
+      }
       db.prepare('INSERT INTO _migrations (filename) VALUES (?)').run(file)
       console.log(`[db] Applied migration: ${file}`)
     }
