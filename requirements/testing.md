@@ -34,7 +34,7 @@ The following must pass on every PR before merge:
 
 ---
 
-## Layer 1 — Unit Tests (Pure Logic)
+## [DONE] Layer 1 — Unit Tests (Pure Logic)
 
 These tests have no I/O dependencies. They run in milliseconds and must cover all non-trivial branching logic.
 
