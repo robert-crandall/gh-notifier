@@ -29,7 +29,7 @@ The following must pass on every PR before merge:
 
 1. `bun run typecheck` — zero TypeScript errors, strict mode
 2. `bun run lint` — zero ESLint errors
-3. `bun test` — all unit and integration tests pass
+3. `bun run test` — all unit and integration tests pass
 4. No `any` types introduced (enforced by `noImplicitAny` in tsconfig)
 
 ---

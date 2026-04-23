@@ -76,7 +76,7 @@ export function deleteFilter(id: number): void {
  * - state:   exact match (case-insensitive) against subjectState (null = no match)
  * - type:    exact match (case-insensitive) against type
  */
-function filterMatches(filter: NotificationFilter, thread: NotificationThread): boolean {
+export function filterMatches(filter: NotificationFilter, thread: NotificationThread): boolean {
   const needle = filter.value.toLowerCase()
 
   switch (filter.dimension) {

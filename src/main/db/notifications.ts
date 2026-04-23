@@ -40,7 +40,7 @@ interface RepoRuleRow {
 
 // ── Row → domain mappers ──────────────────────────────────────────────────────
 
-function toThread(row: ThreadRow): NotificationThread {
+export function toThread(row: ThreadRow): NotificationThread {
   return {
     id: row.id,
     projectId: row.project_id,

@@ -45,7 +45,7 @@ interface LinkRow {
 
 // ── Row → domain mappers ──────────────────────────────────────────────────────
 
-function toProject(row: ProjectRow): Project {
+export function toProject(row: ProjectRow): Project {
   return {
     id: row.id,
     name: row.name,
@@ -61,7 +61,7 @@ function toProject(row: ProjectRow): Project {
   }
 }
 
-function toTodo(row: TodoRow): ProjectTodo {
+export function toTodo(row: TodoRow): ProjectTodo {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -72,7 +72,7 @@ function toTodo(row: TodoRow): ProjectTodo {
   }
 }
 
-function toLink(row: LinkRow): ProjectLink {
+export function toLink(row: LinkRow): ProjectLink {
   return {
     id: row.id,
     projectId: row.project_id,
