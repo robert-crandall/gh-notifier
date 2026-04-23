@@ -8,6 +8,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint src",
     "dist": "bun run build && electron-builder --mac",
     "dist:dir": "bun run build && electron-builder --dir --mac",
     "icons": "bash scripts/generate-icons.sh",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^20.14.0",
@@ -37,8 +39,11 @@
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "^4.2.4",
     "typescript": "^5.5.3",
+    "typescript-eslint": "^8.59.0",
     "vite": "^5.3.0"
   },
   "build": {
