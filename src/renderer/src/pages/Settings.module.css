@@ -107,3 +107,40 @@
 .themeLabel {
   font-weight: 500;
 }
+
+/* ── Sync interval picker ── */
+
+.intervalRow {
+  display: flex;
+  gap: 8px;
+}
+
+.intervalOption {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 80ms, border-color 80ms, color 80ms;
+}
+
+.intervalOption:hover:not(.intervalOptionActive) {
+  background: var(--bg-3, var(--bg-2));
+}
+
+.intervalOptionActive {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: oklch(from var(--blue) l c h / 0.08);
+}
+
+.intervalHint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-3, var(--text-2));
+  opacity: 0.7;
+}

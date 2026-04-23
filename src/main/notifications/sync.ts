@@ -11,9 +11,22 @@ import { getOctokit, isOctokitReady } from '../auth/octokit'
 import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
 import { listFilters, shouldSuppress } from '../db/filters'
 import { getDb } from '../db'
-import type { NotificationType } from '../../shared/ipc-channels'
+import type { NotificationType, SyncIntervalMinutes } from '../../shared/ipc-channels'
+import { DEFAULT_SYNC_INTERVAL_MINUTES, SYNC_INTERVAL_OPTIONS } from '../../shared/ipc-channels'
 
-const POLL_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
+const SYNC_INTERVAL_KEY = 'sync_interval_minutes'
+
+/** Reads the configured sync interval from the DB, falling back to the default. */
+export function getSyncIntervalMinutes(): SyncIntervalMinutes {
+  const row = getDb().prepare('SELECT value FROM sync_metadata WHERE key = ?').get(SYNC_INTERVAL_KEY) as { value: string } | undefined
+  const parsed = row ? parseInt(row.value, 10) : NaN
+  return (SYNC_INTERVAL_OPTIONS.includes(parsed as SyncIntervalMinutes) ? parsed : DEFAULT_SYNC_INTERVAL_MINUTES) as SyncIntervalMinutes
+}
+
+/** Persists the sync interval to the DB. */
+export function setSyncIntervalMinutes(minutes: SyncIntervalMinutes): void {
+  getDb().prepare('INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)').run(SYNC_INTERVAL_KEY, String(minutes))
+}
 
 let pollTimer: NodeJS.Timeout | null = null
 let syncInProgress = false
@@ -29,10 +42,21 @@ export function startNotificationSync(): void {
 /** Schedules the next sync after the current one completes. */
 function scheduleNextSync(): void {
   if (pollTimer !== null) return // already scheduled
+  const intervalMs = getSyncIntervalMinutes() * 60 * 1000
   pollTimer = setTimeout(() => {
     pollTimer = null
     void syncOnceSafe().then(scheduleNextSync)
-  }, POLL_INTERVAL_MS)
+  }, intervalMs)
+}
+
+/**
+ * Clears any pending timer and reschedules using the current interval.
+ * Call this after changing the interval so it takes effect without waiting
+ * for the previous timeout to fire.
+ */
+export function rescheduleSync(): void {
+  stopNotificationSync()
+  scheduleNextSync()
 }
 
 /** Stops the polling loop. */

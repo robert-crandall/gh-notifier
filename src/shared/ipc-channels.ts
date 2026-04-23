@@ -15,6 +15,11 @@ export type ProjectStatus = 'active' | 'snoozed'
 
 export type SnoozeMode = 'manual' | 'date' | 'notification'
 
+/** Valid background sync intervals, in minutes. */
+export type SyncIntervalMinutes = 5 | 15 | 30 | 60
+export const SYNC_INTERVAL_OPTIONS: SyncIntervalMinutes[] = [5, 15, 30, 60]
+export const DEFAULT_SYNC_INTERVAL_MINUTES: SyncIntervalMinutes = 5
+
 export interface Project {
   id: number
   name: string
@@ -294,6 +299,26 @@ export type IpcChannels = {
   /** Triggers an immediate notification sync. Resolves when sync completes. */
   'notifications:sync': {
     args: []
+    result: void
+  }
+
+  /** Returns the ISO 8601 timestamp of the last completed notification sync, or null if never synced. */
+  'notifications:last-sync-time': {
+    args: []
+    result: string | null
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+
+  /** Returns the current background sync interval in minutes. */
+  'settings:get-sync-interval': {
+    args: []
+    result: SyncIntervalMinutes
+  }
+
+  /** Persists the background sync interval and restarts the timer. */
+  'settings:set-sync-interval': {
+    args: [minutes: SyncIntervalMinutes]
     result: void
   }
 

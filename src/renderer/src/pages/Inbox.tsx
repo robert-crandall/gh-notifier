@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { formatDistanceToNow, parseISO } from 'date-fns'
 import styles from './Inbox.module.css'
 import type { NotificationThread, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
 
@@ -12,20 +13,23 @@ export function Inbox({ onAssigned }: Props) {
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [suggestion, setSuggestion] = useState<(RepoRuleSuggestion & { threadId: string }) | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [inbox, projectList, authStatus] = await Promise.all([
+      const [inbox, projectList, authStatus, syncTime] = await Promise.all([
         window.electron.ipc.invoke('notifications:inbox'),
         window.electron.ipc.invoke('projects:list'),
         window.electron.ipc.invoke('auth:status'),
+        window.electron.ipc.invoke('notifications:last-sync-time'),
       ])
       setThreads(inbox)
       setProjects(projectList.filter((p) => p.status === 'active'))
       setIsAuthenticated(authStatus.authenticated)
+      setLastSyncTime(syncTime)
     } catch (err) {
       console.error('[Inbox] Failed to load:', err)
     } finally {
@@ -114,14 +118,31 @@ export function Inbox({ onAssigned }: Props) {
     <div className={styles.main}>
       <header className={styles.toolbar}>
         <span className={styles.toolbarTitle}>Inbox</span>
-        <button
-          className={styles.syncButton}
-          onClick={() => void handleSync()}
-          disabled={isSyncing}
-          aria-label="Sync notifications"
-        >
-          {isSyncing ? 'Syncing…' : 'Sync'}
-        </button>
+        <div className={styles.syncControls}>
+          {lastSyncTime && (
+            <span className={styles.lastSyncTime}>
+              {(() => {
+                try {
+                  const parsed = parseISO(lastSyncTime)
+                  if (!isNaN(parsed.getTime())) {
+                    return formatDistanceToNow(parsed, { addSuffix: true })
+                  }
+                } catch {
+                  // Fall through to fallback
+                }
+                return 'recently'
+              })()}
+            </span>
+          )}
+          <button
+            className={styles.syncButton}
+            onClick={() => void handleSync()}
+            disabled={isSyncing}
+            aria-label="Sync notifications"
+          >
+            {isSyncing ? 'Syncing…' : 'Sync'}
+          </button>
+        </div>
       </header>
 
       {/* Repo rule suggestion banner */}
