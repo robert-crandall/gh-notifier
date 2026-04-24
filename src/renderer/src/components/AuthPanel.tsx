@@ -49,7 +49,7 @@ export function AuthPanel({ status, isLoading, error, onSavePat, onLogout }: Pro
         >
           Personal Access Token
         </button>{' '}
-        with <code>notifications</code> and <code>read:user</code> scopes.
+        with <code>notifications</code>, <code>repo</code>, and <code>read:user</code> scopes.
       </p>
       <div className={styles.inputRow}>
         <input
