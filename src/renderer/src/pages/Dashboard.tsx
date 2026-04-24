@@ -18,6 +18,7 @@ export function Dashboard({ projects, onSelectProject, onCreateProject, onUpdate
 
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
+  const [originalEditName, setOriginalEditName] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const editInputRef = useRef<HTMLInputElement>(null)
 
@@ -54,12 +55,13 @@ export function Dashboard({ projects, onSelectProject, onCreateProject, onUpdate
     setConfirmDeleteId(null)
     setEditingId(p.id)
     setEditName(p.name)
+    setOriginalEditName(p.name)
   }
 
   const handleEditSave = async (id: number) => {
     const name = editName.trim()
     setEditingId(null)
-    if (name) {
+    if (name && name !== originalEditName) {
       await onUpdateProject(id, { name })
     }
   }

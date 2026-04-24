@@ -71,9 +71,13 @@ export function App() {
           projectId={view.id}
           onBack={() => setView({ page: 'dashboard' })}
           onProjectChanged={refreshProjects}
-          onDelete={() => {
-            void deleteProject(view.id)
-            setView({ page: 'dashboard' })
+          onDelete={async () => {
+            try {
+              await deleteProject(view.id)
+              setView({ page: 'dashboard' })
+            } catch (err) {
+              console.error('[App] Failed to delete project:', err)
+            }
           }}
         />
       )}

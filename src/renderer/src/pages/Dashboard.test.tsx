@@ -154,4 +154,143 @@ describe('Dashboard', () => {
       expect(onCreateProject).toHaveBeenCalledWith('Widget')
     })
   })
+
+  describe('rename project', () => {
+    it('shows the inline input when the rename button is clicked', async () => {
+      const project = makeProject({ id: 1, name: 'Original Name' })
+      render(
+        <Dashboard
+          projects={[project]}
+          onSelectProject={vi.fn()}
+          onCreateProject={vi.fn()}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={vi.fn()}
+        />
+      )
+      const renameButton = screen.getByRole('button', { name: /rename original name/i })
+      await userEvent.click(renameButton)
+      const input = screen.getByDisplayValue('Original Name')
+      expect(input).toBeInTheDocument()
+      expect(input).toHaveFocus()
+    })
+
+    it('calls onUpdateProject with new name when Enter is pressed', async () => {
+      const project = makeProject({ id: 1, name: 'Original Name' })
+      const onUpdateProject = vi.fn().mockResolvedValue({ ...project, name: 'New Name' })
+      render(
+        <Dashboard
+          projects={[project]}
+          onSelectProject={vi.fn()}
+          onCreateProject={vi.fn()}
+          onUpdateProject={onUpdateProject}
+          onDeleteProject={vi.fn()}
+        />
+      )
+      const renameButton = screen.getByRole('button', { name: /rename original name/i })
+      await userEvent.click(renameButton)
+      const input = screen.getByDisplayValue('Original Name')
+      await userEvent.clear(input)
+      await userEvent.type(input, 'New Name{Enter}')
+      expect(onUpdateProject).toHaveBeenCalledWith(1, { name: 'New Name' })
+    })
+
+    it('calls onUpdateProject with new name when input loses focus', async () => {
+      const project = makeProject({ id: 1, name: 'Original Name' })
+      const onUpdateProject = vi.fn().mockResolvedValue({ ...project, name: 'Changed' })
+      render(
+        <Dashboard
+          projects={[project]}
+          onSelectProject={vi.fn()}
+          onCreateProject={vi.fn()}
+          onUpdateProject={onUpdateProject}
+          onDeleteProject={vi.fn()}
+        />
+      )
+      const renameButton = screen.getByRole('button', { name: /rename original name/i })
+      await userEvent.click(renameButton)
+      const input = screen.getByDisplayValue('Original Name')
+      await userEvent.clear(input)
+      await userEvent.type(input, 'Changed')
+      input.blur()
+      expect(onUpdateProject).toHaveBeenCalledWith(1, { name: 'Changed' })
+    })
+
+    it('does not call onUpdateProject when name is unchanged', async () => {
+      const project = makeProject({ id: 1, name: 'Same Name' })
+      const onUpdateProject = vi.fn()
+      render(
+        <Dashboard
+          projects={[project]}
+          onSelectProject={vi.fn()}
+          onCreateProject={vi.fn()}
+          onUpdateProject={onUpdateProject}
+          onDeleteProject={vi.fn()}
+        />
+      )
+      const renameButton = screen.getByRole('button', { name: /rename same name/i })
+      await userEvent.click(renameButton)
+      const input = screen.getByDisplayValue('Same Name')
+      await userEvent.type(input, '{Enter}')
+      expect(onUpdateProject).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('delete project', () => {
+    it('shows confirmation dialog when delete button is clicked', async () => {
+      const project = makeProject({ id: 1, name: 'To Delete' })
+      render(
+        <Dashboard
+          projects={[project]}
+          onSelectProject={vi.fn()}
+          onCreateProject={vi.fn()}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={vi.fn()}
+        />
+      )
+      const deleteButton = screen.getByRole('button', { name: /delete to delete/i })
+      await userEvent.click(deleteButton)
+      expect(screen.getByText(/to delete/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
+    })
+
+    it('calls onDeleteProject when delete is confirmed', async () => {
+      const project = makeProject({ id: 1, name: 'To Delete' })
+      const onDeleteProject = vi.fn().mockResolvedValue(undefined)
+      render(
+        <Dashboard
+          projects={[project]}
+          onSelectProject={vi.fn()}
+          onCreateProject={vi.fn()}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={onDeleteProject}
+        />
+      )
+      const deleteButton = screen.getByRole('button', { name: /delete to delete/i })
+      await userEvent.click(deleteButton)
+      const confirmButton = screen.getByRole('button', { name: /^delete$/i })
+      await userEvent.click(confirmButton)
+      expect(onDeleteProject).toHaveBeenCalledWith(1)
+    })
+
+    it('does not call onDeleteProject when delete is cancelled', async () => {
+      const project = makeProject({ id: 1, name: 'To Delete' })
+      const onDeleteProject = vi.fn()
+      render(
+        <Dashboard
+          projects={[project]}
+          onSelectProject={vi.fn()}
+          onCreateProject={vi.fn()}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={onDeleteProject}
+        />
+      )
+      const deleteButton = screen.getByRole('button', { name: /delete to delete/i })
+      await userEvent.click(deleteButton)
+      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      await userEvent.click(cancelButton)
+      expect(onDeleteProject).not.toHaveBeenCalled()
+      expect(screen.queryByText(/delete "to delete"\?/i)).not.toBeInTheDocument()
+    })
+  })
 })

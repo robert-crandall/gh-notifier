@@ -170,7 +170,8 @@
   border-radius: 8px;
 }
 
-.projectItem:hover .rowActions {
+.projectItem:hover .rowActions,
+.projectItem:focus-within .rowActions {
   opacity: 1;
 }
 

@@ -204,6 +204,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
                 if (e.key === 'Enter') void handleNameSave()
                 if (e.key === 'Escape') { setEditingName(false); setNameDraft('') }
               }}
+              aria-label="Project name"
             />
           ) : (
             <button
