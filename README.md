@@ -10,7 +10,7 @@ macOS only.
 
 - [Bun](https://bun.sh) — the only supported package manager/runtime (`npm`/`node` are not required)
 - Xcode Command Line Tools — required to compile `better-sqlite3` (`xcode-select --install`)
-- A GitHub Personal Access Token — create one at https://github.com/settings/tokens/new with `notifications` and `read:user` scopes. The token is stored locally using Electron's safeStorage (OS-level encryption).
+- A GitHub Personal Access Token — create one at https://github.com/settings/tokens/new with `notifications`, `repo`, and `read:user` scopes. The token is stored locally using Electron's safeStorage (OS-level encryption).
 
 ---
 
@@ -57,12 +57,6 @@ bun run typecheck
 ## Resetting the notification sync cursor
 
 If notifications go missing (e.g., after debugging or a sync race), clear the stored `since` timestamp so the next sync does a full re-fetch:
-
-```bash
-bun run reset:sync
-```
-
-Or directly:
 
 ```bash
 sqlite3 ~/Library/Application\ Support/gh-projects/gh-projects.db \
