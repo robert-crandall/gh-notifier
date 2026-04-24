@@ -134,14 +134,14 @@ describe('listThreadsByProject', () => {
     expect(p1Threads[0].id).toBe('t-1')
   })
 
-  it('excludes threads suppressed by a matching filter', () => {
+  it('excludes threads suppressed by a matching suppress rule', () => {
     const p = createProject('P')
     upsertThreads([makeThread({ id: 't-1', type: 'PullRequest' })])
     db.prepare(`UPDATE notification_threads SET project_id = ? WHERE id = 't-1'`).run(p.id)
 
-    // Create a global filter that suppresses PullRequest threads
+    // Create a suppress routing rule that hides PullRequest threads
     db.prepare(
-      `INSERT INTO filters (dimension, value, scope) VALUES ('type', 'PullRequest', 'global')`
+      `INSERT INTO routing_rules (action, match_type) VALUES ('suppress', 'PullRequest')`
     ).run()
 
     expect(listThreadsByProject(p.id)).toHaveLength(0)
@@ -163,7 +163,7 @@ describe('listInboxThreads', () => {
 
   it('excludes suppressed threads', () => {
     upsertThreads([makeThread({ id: 't-1', type: 'Issue' })])
-    db.prepare(`INSERT INTO filters (dimension, value, scope) VALUES ('type', 'Issue', 'global')`).run()
+    db.prepare(`INSERT INTO routing_rules (action, match_type) VALUES ('suppress', 'Issue')`).run()
     expect(listInboxThreads()).toHaveLength(0)
   })
 })

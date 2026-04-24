@@ -7,7 +7,6 @@ import type {
   UnreadCount,
 } from '../../shared/ipc-channels'
 import { getDb } from './index'
-import { listFilters, shouldSuppress } from './filters'
 import { listSuppressRules, routingRuleMatches } from './routing-rules'
 
 // ── Row types (SQLite returns snake_case column names) ────────────────────────
@@ -93,13 +92,8 @@ export function listThreadsByProject(projectId: number): NotificationThread[] {
     )
     .all(projectId) as ThreadRow[]
   const threads = rows.map(toThread)
-  const filters = listFilters()
   const suppressRules = listSuppressRules()
-  return threads.filter(
-    (t) =>
-      !shouldSuppress(t, filters) &&
-      !suppressRules.some((r) => routingRuleMatches(r, t))
-  )
+  return threads.filter((t) => !suppressRules.some((r) => routingRuleMatches(r, t)))
 }
 
 export function listInboxThreads(): NotificationThread[] {
@@ -111,13 +105,8 @@ export function listInboxThreads(): NotificationThread[] {
     )
     .all() as ThreadRow[]
   const threads = rows.map(toThread)
-  const filters = listFilters()
   const suppressRules = listSuppressRules()
-  return threads.filter(
-    (t) =>
-      !shouldSuppress(t, filters) &&
-      !suppressRules.some((r) => routingRuleMatches(r, t))
-  )
+  return threads.filter((t) => !suppressRules.some((r) => routingRuleMatches(r, t)))
 }
 
 export function getUnreadCounts(): UnreadCount[] {
