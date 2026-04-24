@@ -56,6 +56,8 @@ export function ThreadedNotificationList({
   emptyMessage = 'No notifications.',
 }: ThreadedNotificationListProps) {
   const [assigningId, setAssigningId] = useState<string | null>(null)
+  const [collapsedRepos, setCollapsedRepos] = useState<Set<string>>(new Set())
+  const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set())
 
   if (threads.length === 0) {
     return <div className={styles.empty}>{emptyMessage}</div>
@@ -63,23 +65,87 @@ export function ThreadedNotificationList({
 
   const groups = groupThreads(threads)
 
+  const toggleRepo = (repoKey: string) => {
+    setCollapsedRepos((prev) => {
+      const next = new Set(prev)
+      next.has(repoKey) ? next.delete(repoKey) : next.add(repoKey)
+      return next
+    })
+  }
+
+  const toggleType = (typeKey: string) => {
+    setCollapsedTypes((prev) => {
+      const next = new Set(prev)
+      next.has(typeKey) ? next.delete(typeKey) : next.add(typeKey)
+      return next
+    })
+  }
+
+  const markAllRead = async (threadList: NotificationThread[]) => {
+    await Promise.allSettled(
+      threadList.filter((t) => t.unread).map((t) => onMarkRead(t.id))
+    )
+  }
+
   return (
     <div className={styles.root}>
-      {Array.from(groups.entries()).map(([repoKey, typeGroups]) => (
+      {Array.from(groups.entries()).map(([repoKey, typeGroups]) => {
+        const repoThreads = Array.from(typeGroups.values()).flat()
+        const repoCollapsed = collapsedRepos.has(repoKey)
+        const repoHasUnread = repoThreads.some((t) => t.unread)
+
+        return (
         <div key={repoKey} className={styles.repoGroup}>
           <div className={styles.repoHeader}>
+            <button
+              className={styles.collapseBtn}
+              onClick={() => toggleRepo(repoKey)}
+              aria-label={repoCollapsed ? 'Expand' : 'Collapse'}
+            >
+              <ChevronIcon collapsed={repoCollapsed} />
+            </button>
             <span className={styles.repoLabel}>{repoKey}</span>
             <div className={styles.repoDivider} />
+            {repoHasUnread && (
+              <button
+                className={styles.markAllBtn}
+                onClick={() => void markAllRead(repoThreads)}
+                title="Mark all as read"
+              >
+                Mark all read
+              </button>
+            )}
           </div>
 
-          {Array.from(typeGroups.entries()).map(([type, typeThreads]) => (
+          {!repoCollapsed && Array.from(typeGroups.entries()).map(([type, typeThreads]) => {
+            const typeKey = `${repoKey}:${type}`
+            const typeCollapsed = collapsedTypes.has(typeKey)
+            const typeHasUnread = typeThreads.some((t) => t.unread)
+
+            return (
             <div key={type} className={styles.typeGroup}>
               <div className={styles.typeHeader}>
+                <button
+                  className={styles.collapseBtn}
+                  onClick={() => toggleType(typeKey)}
+                  aria-label={typeCollapsed ? 'Expand' : 'Collapse'}
+                >
+                  <ChevronIcon collapsed={typeCollapsed} />
+                </button>
                 <span className={styles.typeLabel}>{typeLabel(type)}</span>
                 <span className={styles.typeCount}>{typeThreads.length}</span>
+                {typeHasUnread && (
+                  <button
+                    className={styles.markAllBtn}
+                    onClick={() => void markAllRead(typeThreads)}
+                    title="Mark all as read"
+                  >
+                    Mark all read
+                  </button>
+                )}
               </div>
 
-              {typeThreads.map((thread) => (
+              {!typeCollapsed && typeThreads.map((thread) => (
                 <div key={thread.id} className={styles.threadRow}>
                   <div className={styles.threadDot} data-unread={thread.unread} />
 
@@ -167,9 +233,11 @@ export function ThreadedNotificationList({
                 </div>
               ))}
             </div>
-          ))}
+            )
+          })}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -181,6 +249,21 @@ function StateChip({ state }: { state: SubjectState }) {
   if (state === 'merged') classes.push(styles.stateMerged)
   else if (state === 'closed') classes.push(styles.stateClosed)
   return <span className={classes.join(' ')}>{state}</span>
+}
+
+function ChevronIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      aria-hidden="true"
+      className={collapsed ? styles.chevronCollapsed : styles.chevronExpanded}
+    >
+      <path d="M2.5 3.5 5 6l2.5-2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
 function ExternalLinkIcon() {

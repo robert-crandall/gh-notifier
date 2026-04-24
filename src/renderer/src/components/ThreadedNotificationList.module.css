@@ -24,8 +24,14 @@
 .repoHeader {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 14px 0 6px;
+}
+
+.repoHeader:hover .markAllBtn,
+.repoHeader:focus-within .markAllBtn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .repoLabel {
@@ -59,8 +65,14 @@
   padding: 5px 0 3px;
 }
 
+.typeHeader:hover .markAllBtn,
+.typeHeader:focus-within .markAllBtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .typeLabel {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-3);
   text-transform: uppercase;
@@ -140,6 +152,59 @@
 
 .threadNameLink:hover {
   text-decoration: underline;
+}
+
+/* ── Collapse button ── */
+.collapseBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 0;
+  transition: background 80ms, color 80ms;
+}
+
+.collapseBtn:hover {
+  background: var(--bg-2);
+  color: var(--text-2);
+}
+
+.chevronExpanded {
+  transition: transform 150ms ease;
+  transform: rotate(0deg);
+}
+
+.chevronCollapsed {
+  transition: transform 150ms ease;
+  transform: rotate(-90deg);
+}
+
+/* ── Mark all read button ── */
+.markAllBtn {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--blue);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms, background 80ms;
+}
+
+.markAllBtn:hover {
+  background: rgba(82, 130, 255, 0.08);
 }
 
 /* ── State chips ── */
