@@ -292,6 +292,12 @@ export type IpcChannels = {
     result: void
   }
 
+  /** Marks multiple notification threads as read in one transaction. No write-back to GitHub. */
+  'notifications:mark-read-many': {
+    args: [threadIds: string[]]
+    result: void
+  }
+
   /**
    * Unsubscribes from a GitHub notification thread via the API,
    * then removes the thread from local storage.

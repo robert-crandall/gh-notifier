@@ -14,6 +14,7 @@ import {
   getUnreadCounts,
   assignThread,
   markThreadRead,
+  markThreadsReadMany,
   deleteThread,
   listRepoRules,
   createRepoRule,
@@ -118,6 +119,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('notifications:mark-read', (_event, threadId: string) => {
     markThreadRead(threadId)
     // Emit update event so unread badges refresh immediately
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
+  })
+  ipcMain.handle('notifications:mark-read-many', (_event, threadIds: string[]) => {
+    markThreadsReadMany(threadIds)
+    // Emit a single update event after bulk operation
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })

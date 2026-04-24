@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import styles from './Inbox.module.css'
+import { ThreadedNotificationList } from '../components/ThreadedNotificationList'
 import type { NotificationThread, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
-import { buildThreadUrl } from '@shared/thread-url'
 
 interface Props {
   onAssigned: () => void
@@ -16,7 +16,6 @@ export function Inbox({ onAssigned }: Props) {
   const [syncError, setSyncError] = useState<string | null>(null)
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const [assigningId, setAssigningId] = useState<string | null>(null)
   const [suggestion, setSuggestion] = useState<(RepoRuleSuggestion & { threadId: string }) | null>(null)
 
   const load = useCallback(async () => {
@@ -74,7 +73,6 @@ export function Inbox({ onAssigned }: Props) {
     } catch (err) {
       console.error('[Inbox] Assign failed:', err)
     }
-    setAssigningId(null)
   }
 
   const handleAcceptRepoRule = async () => {
@@ -102,6 +100,15 @@ export function Inbox({ onAssigned }: Props) {
       setThreads((prev) => prev.map((t) => t.id === threadId ? { ...t, unread: false } : t))
     } catch (err) {
       console.error('[Inbox] Mark read failed:', err)
+    }
+  }
+
+  const handleMarkReadMany = async (threadIds: string[]) => {
+    try {
+      await window.electron.ipc.invoke('notifications:mark-read-many', threadIds)
+      setThreads((prev) => prev.map((t) => threadIds.includes(t.id) ? { ...t, unread: false } : t))
+    } catch (err) {
+      console.error('[Inbox] Mark read many failed:', err)
     }
   }
 
@@ -189,138 +196,16 @@ export function Inbox({ onAssigned }: Props) {
         )}
 
         {!isLoading && threads.length > 0 && (
-          <ul className={styles.list}>
-            {threads.map((thread) => (
-              <li key={thread.id} className={styles.threadRow}>
-                <div className={styles.threadDot} data-unread={thread.unread} />
-                <div className={styles.threadBody}>
-                  <div className={styles.threadTitle}>
-                    <button
-                      className={`${styles.threadName} ${styles.threadNameLink}`}
-                      data-unread={thread.unread}
-                      onClick={() => window.electron.openExternal(buildThreadUrl(thread))}
-                      title="Open in browser"
-                    >
-                      {thread.title}
-                    </button>
-                    <TypeChip type={thread.type} />
-                    {thread.subjectState && thread.subjectState !== 'open' && (
-                      <StateChip state={thread.subjectState} />
-                    )}
-                  </div>
-                  <div className={styles.threadMeta}>
-                    <span className={styles.threadRepo}>
-                      {thread.repoOwner}/{thread.repoName}
-                    </span>
-                  </div>
-                </div>
-
-                <div className={styles.threadActions}>
-                  <div className={styles.threadIconGroup}>
-                    <button
-                      className={styles.iconBtn}
-                      title="Open in GitHub"
-                      aria-label="Open in GitHub"
-                      onClick={() => window.electron.openExternal(buildThreadUrl(thread))}
-                    >
-                      <ExternalLinkIcon />
-                    </button>
-                    <button
-                      className={styles.iconBtn}
-                      title="Mark as read"
-                      aria-label="Mark as read"
-                      disabled={!thread.unread}
-                      onClick={() => void handleMarkRead(thread.id)}
-                    >
-                      <MarkReadIcon />
-                    </button>
-                    <button
-                      className={styles.iconBtn}
-                      title="Unsubscribe"
-                      aria-label="Unsubscribe"
-                      onClick={() => void handleUnsubscribe(thread.id)}
-                    >
-                      <UnsubscribeIcon />
-                    </button>
-                  </div>
-                  {assigningId === thread.id ? (
-                    <select
-                      className={styles.projectSelect}
-                      autoFocus
-                      defaultValue=""
-                      onChange={(e) => {
-                        const val = e.target.value
-                        if (val) void handleAssign(thread.id, parseInt(val, 10))
-                      }}
-                      onBlur={() => setAssigningId(null)}
-                    >
-                      <option value="" disabled>Assign to…</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <button
-                      className={styles.assignBtn}
-                      onClick={() => setAssigningId(thread.id)}
-                    >
-                      Assign
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <ThreadedNotificationList
+            threads={threads}
+            projects={projects}
+            onMarkRead={handleMarkRead}
+            onMarkReadMany={handleMarkReadMany}
+            onUnsubscribe={handleUnsubscribe}
+            onAssign={handleAssign}
+          />
         )}
       </div>
     </div>
   )
-}
-
-function ExternalLinkIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 1.5H11.5V5M11.5 1.5 5.5 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function MarkReadIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M2 6.5l3.5 3.5 5.5-5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function UnsubscribeIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M6.5 1v.5M5 11a1.5 1.5 0 0 0 3 0M3 9.5h7L9 8V5.5a2.5 2.5 0 0 0-5 0V8L3 9.5Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-      <line x1="2" y1="2" x2="11" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function TypeChip({ type }: { type: string }) {
-  const classes = [styles.typeChip]
-  if (type === 'PullRequest') classes.push(styles.typePR)
-  else if (type === 'Issue') classes.push(styles.typeIssue)
-  else if (type === 'Release') classes.push(styles.typeRelease)
-  else classes.push(styles.typeOther)
-
-  const label =
-    type === 'PullRequest' ? 'PR'
-    : type === 'CheckSuite' ? 'CI'
-    : type
-
-  return <span className={classes.join(' ')}>{label}</span>
-}
-
-function StateChip({ state }: { state: string }) {
-  const classes = [styles.stateChip]
-  if (state === 'merged') classes.push(styles.stateMerged)
-  else if (state === 'closed') classes.push(styles.stateClosed)
-  return <span className={classes.join(' ')}>{state}</span>
 }
