@@ -277,18 +277,16 @@ export async function prefetchThreadContent(): Promise<void> {
             return
           }
 
-          if (status === 403 || status === 404 || status === 410 || status === 451) {
-            // 403: PAT lacks permission for this repo
-            // 404/410/451: deleted, gone, or legally unavailable
-            // In all cases the thread will never be fetchable; remove it
-            const reason = status === 403 ? 'token lacks permission' : `HTTP ${status}`
-            console.log(`[notifications] Removing thread ${candidate.id} (${reason} on subject URL)`)
+          if (status === 404 || status === 410 || status === 451) {
+            // Deleted, gone, or legally unavailable; the thread will never be fetchable
+            console.log(`[notifications] Removing thread ${candidate.id} (HTTP ${status} on subject URL)`)
             deleteThread(candidate.id)
             anyChanged = true
             return
           }
 
-          // Transient error — leave content_fetched_at unset so it retries next sync
+          // Transient or ambiguous error (including 403) — leave content_fetched_at unset
+          // so it retries next sync rather than deleting on a potentially temporary failure.
           console.error(`[notifications] Failed to prefetch thread ${candidate.id} (HTTP ${status ?? 'unknown'}):`, err)
         } finally {
           completed++
@@ -296,6 +294,12 @@ export async function prefetchThreadContent(): Promise<void> {
         }
       })
     )
+  }
+
+  // Emit final "done" progress even if we aborted early due to rate limiting
+  // so the UI can clear the progress indicator
+  if (completed < total) {
+    emitProgress(total)
   }
 
   if (anyChanged) {
