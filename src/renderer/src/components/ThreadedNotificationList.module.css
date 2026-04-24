@@ -1,0 +1,274 @@
+/* ── Root ── */
+.root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Empty state ── */
+.empty {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ── Repo group ── */
+.repoGroup {
+  margin-bottom: 4px;
+}
+
+.repoGroup:last-child {
+  margin-bottom: 0;
+}
+
+.repoHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 6px;
+}
+
+.repoLabel {
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.01em;
+}
+
+.repoDivider {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Type group ── */
+.typeGroup {
+  padding-left: 12px;
+  margin-bottom: 2px;
+}
+
+.typeGroup:last-child {
+  margin-bottom: 0;
+}
+
+.typeHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0 3px;
+}
+
+.typeLabel {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.typeCount {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: var(--bg-2);
+  border-radius: 10px;
+  padding: 0 5px;
+  min-width: 16px;
+  text-align: center;
+  line-height: 16px;
+}
+
+/* ── Thread row ── */
+.threadRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.threadRow:last-child {
+  border-bottom: none;
+}
+
+.threadDot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-2);
+}
+
+.threadDot[data-unread='true'] {
+  background: var(--orange);
+}
+
+.threadBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.threadTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.threadName {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.threadName[data-unread='true'] {
+  font-weight: 500;
+}
+
+.threadNameLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font);
+  cursor: pointer;
+  text-align: left;
+}
+
+.threadNameLink:hover {
+  text-decoration: underline;
+}
+
+/* ── State chips ── */
+.stateChip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 5px;
+  text-transform: lowercase;
+}
+
+.stateMerged {
+  background: rgba(130, 80, 255, 0.1);
+  color: var(--purple, #a78bfa);
+}
+
+.stateClosed {
+  background: rgba(220, 60, 60, 0.1);
+  color: var(--red, #f87171);
+}
+
+/* ── Type chips (used externally if needed) ── */
+.typeChip {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.typePR {
+  background: rgba(82, 130, 255, 0.1);
+  color: var(--blue-mid);
+}
+
+.typeIssue {
+  background: rgba(212, 82, 29, 0.1);
+  color: var(--orange);
+}
+
+.typeRelease {
+  background: rgba(50, 180, 100, 0.1);
+  color: var(--green);
+}
+
+.typeOther {
+  background: var(--bg-2);
+  color: var(--text-3);
+}
+
+/* ── Thread actions ── */
+.threadActions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Icon group — fades in on row hover */
+.threadIconGroup {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 100ms, visibility 0ms linear 100ms;
+}
+
+.threadRow:hover .threadIconGroup,
+.threadRow:focus-within .threadIconGroup {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 100ms, visibility 0ms linear 0ms;
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 80ms, color 80ms;
+  flex-shrink: 0;
+}
+
+.iconBtn:hover {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+.iconBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ── Assign controls ── */
+.assignBtn {
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--blue);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 80ms;
+}
+
+.assignBtn:hover {
+  background: rgba(82, 130, 255, 0.06);
+}
+
+.projectSelect {
+  font-family: var(--font);
+  font-size: 13px;
+  border: 1px solid var(--border-2);
+  border-radius: 5px;
+  padding: 3px 6px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}

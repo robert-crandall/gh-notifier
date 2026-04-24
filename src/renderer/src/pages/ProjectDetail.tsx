@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
-import type { NotificationThread, NotificationType, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
+import { ThreadedNotificationList } from '../components/ThreadedNotificationList'
+import type { NotificationThread, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
 
 type Tab = 'todos' | 'notes' | 'notifications'
 
@@ -529,146 +530,12 @@ interface NotificationsTabProps {
 }
 
 function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: NotificationsTabProps) {
-  if (notifications.length === 0) {
-    return (
-      <div className={styles.notificationsEmpty}>
-        <p>No notifications for this project.</p>
-      </div>
-    )
-  }
-
-  // Group by repo
-  const groups = new Map<string, NotificationThread[]>()
-  for (const n of notifications) {
-    const key = `${n.repoOwner}/${n.repoName}`
-    const existing = groups.get(key) ?? []
-    existing.push(n)
-    groups.set(key, existing)
-  }
-
   return (
-    <div className={styles.notificationsList}>
-      {Array.from(groups.entries()).map(([repoKey, threads]) => (
-        <div key={repoKey} className={styles.notificationGroup}>
-          <div className={styles.notificationGroupHeader}>
-            <span>{repoKey}</span>
-            <div className={styles.notificationGroupDivider} />
-          </div>
-          {threads.map((n) => (
-            <div key={n.id} className={styles.notificationRow}>
-              <div
-                className={styles.notificationDot}
-                data-unread={n.unread}
-              />
-              <div className={styles.notificationBody}>
-                <div className={styles.notificationTitle}>
-                  {n.htmlUrl ? (
-                    <button
-                      className={`${styles.notificationName} ${styles.notificationNameLink}`}
-                      data-unread={n.unread}
-                      onClick={() => window.electron.openExternal(n.htmlUrl!)}
-                      title="Open in browser"
-                    >
-                      {n.title}
-                    </button>
-                  ) : (
-                    <span className={styles.notificationName} data-unread={n.unread}>
-                      {n.title}
-                    </span>
-                  )}
-                  <NotificationTypeChip type={n.type} />
-                  {n.subjectState && n.subjectState !== 'open' && (
-                    <NotificationStateChip state={n.subjectState} />
-                  )}
-                </div>
-                <div className={styles.notificationMeta}>
-                  <span className={styles.notificationRepo}>
-                    {n.repoOwner}/{n.repoName}
-                  </span>
-                </div>
-              </div>
-              <div className={styles.notificationIconGroup}>
-                    {n.htmlUrl && (
-                      <button
-                        className={styles.notificationIconBtn}
-                        title="Open in GitHub"
-                        aria-label="Open in GitHub"
-                        onClick={() => window.electron.openExternal(n.htmlUrl!)}
-                      >
-                        <ExternalLinkIcon />
-                      </button>
-                    )}
-                    <button
-                      className={styles.notificationIconBtn}
-                      title="Mark as read"
-                      aria-label="Mark as read"
-                      disabled={!n.unread}
-                      onClick={() => void onMarkRead(n.id)}
-                    >
-                      <MarkReadIcon />
-                    </button>
-                    <button
-                      className={styles.notificationIconBtn}
-                      title="Unsubscribe"
-                      aria-label="Unsubscribe"
-                      onClick={() => void onUnsubscribe(n.id)}
-                    >
-                      <UnsubscribeIcon />
-                    </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
+    <ThreadedNotificationList
+      threads={notifications}
+      onMarkRead={onMarkRead}
+      onUnsubscribe={onUnsubscribe}
+      emptyMessage="No notifications for this project."
+    />
   )
-}
-
-function ExternalLinkIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M8 1.5H11.5V5M11.5 1.5 5.5 7.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function MarkReadIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M2 6.5l3.5 3.5 5.5-5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function UnsubscribeIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-      <path d="M6.5 1v.5M5 11a1.5 1.5 0 0 0 3 0M3 9.5h7L9 8V5.5a2.5 2.5 0 0 0-5 0V8L3 9.5Z" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-      <line x1="2" y1="2" x2="11" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function NotificationTypeChip({ type }: { type: NotificationType }) {
-  const chipClass =
-    type === 'PullRequest' ? styles.typeChipPR
-    : type === 'Issue' ? styles.typeChipIssue
-    : type === 'Release' ? styles.typeChipRelease
-    : styles.typeChipOther
-
-  const label =
-    type === 'PullRequest' ? 'PR'
-    : type === 'CheckSuite' ? 'CI'
-    : type
-
-  return <span className={`${styles.typeChip} ${chipClass}`}>{label}</span>
-}
-
-function NotificationStateChip({ state }: { state: string }) {
-  const stateClass =
-    state === 'merged' ? styles.stateChipMerged
-    : state === 'closed' ? styles.stateChipClosed
-    : styles.stateChipOpen
-  return <span className={`${styles.stateChip} ${stateClass}`}>{state}</span>
 }
