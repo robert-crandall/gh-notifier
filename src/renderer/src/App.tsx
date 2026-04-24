@@ -51,6 +51,8 @@ export function App() {
         inboxSelected={view.page === 'inbox'}
         onSelectSettings={() => setView({ page: 'settings' })}
         settingsSelected={view.page === 'settings'}
+        onSelectDashboard={() => setView({ page: 'dashboard' })}
+        dashboardSelected={view.page === 'dashboard'}
       />
 
       {view.page === 'dashboard' ? (

@@ -11,9 +11,11 @@ interface Props {
   inboxSelected: boolean
   onSelectSettings: () => void
   settingsSelected: boolean
+  onSelectDashboard: () => void
+  dashboardSelected: boolean
 }
 
-export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectInbox, inboxSelected, onSelectSettings, settingsSelected }: Props) {
+export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectInbox, inboxSelected, onSelectSettings, settingsSelected, onSelectDashboard, dashboardSelected }: Props) {
   const active = projects.filter((p) => p.status === 'active')
   const snoozed = projects.filter((p) => p.status === 'snoozed')
   const prefetchProgress = usePrefetchProgress()
@@ -42,7 +44,12 @@ export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectIn
 
         <div className={styles.divider} />
 
-        <span className={styles.sectionHeader}>PROJECTS</span>
+        <button
+          className={`${styles.sectionHeader} ${styles.sectionHeaderBtn} ${dashboardSelected ? styles.sectionHeaderSelected : ''}`}
+          onClick={onSelectDashboard}
+        >
+          PROJECTS
+        </button>
 
         <ul className={styles.list}>
           {active.map((p) => (
