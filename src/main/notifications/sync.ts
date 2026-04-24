@@ -91,6 +91,12 @@ export async function syncOnce(): Promise<void> {
     const db = getDb()
     const lastSyncRow = db.prepare('SELECT value FROM sync_metadata WHERE key = ?').get('last_notification_sync') as { value: string } | undefined
     const since = lastSyncRow?.value
+
+    // Capture the fetch start time BEFORE the API call so that any
+    // notifications arriving during pagination are not missed. Using the
+    // end-of-sync time as `since` would create a race window where a
+    // notification updated during pagination could never be retrieved.
+    const fetchStartedAt = new Date().toISOString()
     
     // Fetch all notifications with pagination
     const notifications = await octokit.paginate(
@@ -137,9 +143,9 @@ export async function syncOnce(): Promise<void> {
 
     upsertThreads(filteredThreads)
     
-    // Update last sync timestamp
-    const now = new Date().toISOString()
-    db.prepare('INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)').run('last_notification_sync', now)
+    // Persist the fetch start time (not end time) so that notifications
+    // arriving during pagination are caught on the next sync cycle.
+    db.prepare('INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)').run('last_notification_sync', fetchStartedAt)
 
     // Notify renderer that data has changed so it can re-fetch
     BrowserWindow.getAllWindows().forEach((win) => {

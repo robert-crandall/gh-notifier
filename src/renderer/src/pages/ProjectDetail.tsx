@@ -9,9 +9,10 @@ interface Props {
   projectId: number
   onBack: () => void
   onProjectChanged: () => void
+  onDelete: () => void
 }
 
-export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
+export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }: Props) {
   const {
     detail,
     isLoading,
@@ -43,6 +44,11 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false)
   const [snoozeDateDraft, setSnoozeDateDraft] = useState('')
   const snoozeMenuRef = useRef<HTMLDivElement>(null)
+
+  const [editingName, setEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const [notifications, setNotifications] = useState<NotificationThread[]>([])
 
@@ -117,6 +123,13 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
   }, [editingAction])
 
   useEffect(() => {
+    if (editingName && nameInputRef.current) {
+      nameInputRef.current.focus()
+      nameInputRef.current.select()
+    }
+  }, [editingName])
+
+  useEffect(() => {
     localStorage.setItem(`tab:${projectId}`, activeTab)
   }, [activeTab, projectId])
 
@@ -148,6 +161,19 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
     setNotesDraft(null)
   }
 
+  const handleNameSave = async () => {
+    setEditingName(false)
+    const name = nameDraft.trim()
+    if (name && name !== detail.name) {
+      await updateProject({ name })
+    }
+  }
+
+  const handleDeleteConfirm = async () => {
+    setConfirmingDelete(false)
+    onDelete()
+  }
+
   const handleLinkAdd = async () => {
     const label = linkLabel.trim()
     const url = linkUrl.trim()
@@ -167,7 +193,28 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
             Projects
           </button>
           <span className={styles.breadcrumbSep}>/</span>
-          <span className={styles.breadcrumbCurrent}>{detail.name}</span>
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              className={styles.nameInput}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={() => void handleNameSave()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleNameSave()
+                if (e.key === 'Escape') { setEditingName(false); setNameDraft('') }
+              }}
+              aria-label="Project name"
+            />
+          ) : (
+            <button
+              className={styles.breadcrumbCurrent}
+              onClick={() => { setNameDraft(detail.name); setEditingName(true) }}
+              title="Click to rename"
+            >
+              {detail.name}
+            </button>
+          )}
         </div>
         <div className={styles.toolbarActions}>
           {detail.status === 'snoozed' ? (
@@ -246,6 +293,20 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged }: Props) {
                 </div>
               )}
             </div>
+          )}
+          {confirmingDelete ? (
+            <div className={styles.deleteConfirmInline}>
+              <span className={styles.deleteConfirmLabel}>Delete project?</span>
+              <button className={styles.actionButton} onClick={() => setConfirmingDelete(false)}>Cancel</button>
+              <button className={styles.deleteConfirmBtn} onClick={() => void handleDeleteConfirm()}>Delete</button>
+            </div>
+          ) : (
+            <button
+              className={`${styles.actionButton} ${styles.actionButtonDanger}`}
+              onClick={() => setConfirmingDelete(true)}
+            >
+              Delete
+            </button>
           )}
         </div>
       </header>
