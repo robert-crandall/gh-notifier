@@ -116,6 +116,34 @@ export interface ProjectDetail extends Project {
   links: ProjectLink[]
 }
 
+// ── Routing rule types ────────────────────────────────────────────────────────
+
+/**
+ * A routing rule routes matching inbox threads to a specific project.
+ * All non-null match_* conditions must match (AND semantics).
+ * Rules are evaluated in creation order; the first match wins.
+ */
+export interface RoutingRule {
+  id: number
+  projectId: number
+  projectName: string
+  matchType: string | null
+  matchReason: string | null
+  matchRepoOwner: string | null
+  matchRepoName: string | null
+  matchOrg: string | null
+  createdAt: string
+}
+
+export interface CreateRoutingRulePayload {
+  projectId: number
+  matchType?: string
+  matchReason?: string
+  matchRepoOwner?: string
+  matchRepoName?: string
+  matchOrg?: string
+}
+
 // ── Filter types (M7) ─────────────────────────────────────────────────────────
 
 /** The notification dimension this filter operates on. */
@@ -394,6 +422,39 @@ export type IpcChannels = {
   'filters:delete': {
     args: [id: number]
     result: void
+  }
+
+  // ── Routing rules ──────────────────────────────────────────────────────────
+
+  /** Returns all routing rules ordered by creation date. */
+  'routing-rules:list': {
+    args: []
+    result: RoutingRule[]
+  }
+
+  /**
+   * Creates a routing rule. At least one match_* condition must be set.
+   * Throws if no conditions are provided.
+   */
+  'routing-rules:create': {
+    args: [payload: CreateRoutingRulePayload]
+    result: RoutingRule
+  }
+
+  /** Deletes a routing rule by id. */
+  'routing-rules:delete': {
+    args: [id: number]
+    result: void
+  }
+
+  /**
+   * Applies all routing rules to inbox threads (project_id IS NULL).
+   * Rules are evaluated in creation order; first match wins.
+   * Returns the number of threads that were routed.
+   */
+  'routing-rules:apply-to-inbox': {
+    args: []
+    result: { matched: number }
   }
 }
 
