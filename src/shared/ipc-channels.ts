@@ -118,15 +118,19 @@ export interface ProjectDetail extends Project {
 
 // ── Routing rule types ────────────────────────────────────────────────────────
 
+export type RoutingRuleAction = 'route' | 'suppress'
+
 /**
- * A routing rule routes matching inbox threads to a specific project.
+ * A routing rule routes matching inbox threads to a specific project,
+ * or suppresses them from all views (hide).
  * All non-null match_* conditions must match (AND semantics).
  * Rules are evaluated in creation order; the first match wins.
  */
 export interface RoutingRule {
   id: number
-  projectId: number
-  projectName: string
+  action: RoutingRuleAction
+  projectId: number | null
+  projectName: string | null
   matchType: string | null
   matchReason: string | null
   matchRepoOwner: string | null
@@ -136,7 +140,9 @@ export interface RoutingRule {
 }
 
 export interface CreateRoutingRulePayload {
-  projectId: number
+  action: RoutingRuleAction
+  /** Required when action='route'. */
+  projectId?: number
   matchType?: string
   matchReason?: string
   matchRepoOwner?: string

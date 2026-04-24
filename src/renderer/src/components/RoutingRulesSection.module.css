@@ -59,6 +59,13 @@
   text-overflow: ellipsis;
 }
 
+.ruleTargetSuppress {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--orange, #f97316);
+  white-space: nowrap;
+}
+
 .ruleRemove {
   display: flex;
   align-items: center;
@@ -85,6 +92,55 @@
 .ruleRemove:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ── Action toggle ── */
+
+.actionToggle {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-3, var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px;
+}
+
+.actionOption {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.actionOption:hover {
+  color: var(--text);
+}
+
+.actionOptionActive {
+  background: var(--blue);
+  color: #fff;
+}
+
+.actionOptionActive:hover {
+  background: var(--blue);
+  color: #fff;
+}
+
+.actionOptionActiveSuppress {
+  background: var(--orange, #f97316);
+  color: #fff;
+}
+
+.actionOptionActiveSuppress:hover {
+  background: var(--orange, #f97316);
+  color: #fff;
 }
 
 /* ── Add rule form ── */

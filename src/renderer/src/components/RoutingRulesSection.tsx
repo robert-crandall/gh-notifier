@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { RoutingRule, CreateRoutingRulePayload, Project } from '@shared/ipc-channels'
+import type { RoutingRule, RoutingRuleAction, CreateRoutingRulePayload, Project } from '@shared/ipc-channels'
 import styles from './RoutingRulesSection.module.css'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -56,13 +56,17 @@ function RuleCard({ rule, onRemove }: RuleCardProps) {
           </span>
         ))}
         <span className={styles.ruleArrow}>→</span>
-        <span className={styles.ruleTarget}>{rule.projectName}</span>
+        {rule.action === 'suppress' ? (
+          <span className={styles.ruleTargetSuppress}>Hide</span>
+        ) : (
+          <span className={styles.ruleTarget}>{rule.projectName}</span>
+        )}
       </div>
       <button
         type="button"
         className={styles.ruleRemove}
         onClick={() => void handleRemove()}
-        aria-label={`Remove routing rule for ${rule.projectName}`}
+        aria-label={`Remove routing rule`}
         disabled={isRemoving}
       >
         ×
@@ -80,6 +84,7 @@ interface AddRuleFormProps {
 }
 
 function AddRuleForm({ projects, onAdd, onCancel }: AddRuleFormProps) {
+  const [action, setAction] = useState<RoutingRuleAction>('route')
   const [projectId, setProjectId] = useState<number | ''>(projects[0]?.id ?? '')
   const [useType, setUseType] = useState(false)
   const [matchType, setMatchType] = useState(TYPE_OPTIONS[0])
@@ -97,7 +102,7 @@ function AddRuleForm({ projects, onAdd, onCancel }: AddRuleFormProps) {
     e.preventDefault()
     setError(null)
 
-    if (projectId === '') {
+    if (action === 'route' && projectId === '') {
       setError('Select a project to route to.')
       return
     }
@@ -115,7 +120,8 @@ function AddRuleForm({ projects, onAdd, onCancel }: AddRuleFormProps) {
     }
 
     const payload: CreateRoutingRulePayload = {
-      projectId: projectId as number,
+      action,
+      ...(action === 'route' ? { projectId: projectId as number } : {}),
       ...(useType ? { matchType } : {}),
       ...(useReason ? { matchReason } : {}),
       ...(useRepo && matchRepoOwner.trim() ? { matchRepoOwner: matchRepoOwner.trim() } : {}),
@@ -135,21 +141,44 @@ function AddRuleForm({ projects, onAdd, onCancel }: AddRuleFormProps) {
 
   return (
     <form className={styles.addForm} onSubmit={(e) => void handleSubmit(e)}>
-      {/* Project selector */}
+      {/* Action selector */}
       <div className={styles.formRow}>
-        <label className={styles.formLabel}>Route to</label>
-        <select
-          className={styles.select}
-          value={projectId}
-          onChange={(e) => setProjectId(Number(e.target.value))}
-        >
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
+        <label className={styles.formLabel}>Action</label>
+        <div className={styles.actionToggle}>
+          <button
+            type="button"
+            className={`${styles.actionOption} ${action === 'route' ? styles.actionOptionActive : ''}`}
+            onClick={() => setAction('route')}
+          >
+            Route to project
+          </button>
+          <button
+            type="button"
+            className={`${styles.actionOption} ${action === 'suppress' ? styles.actionOptionActiveSuppress : ''}`}
+            onClick={() => setAction('suppress')}
+          >
+            Hide notification
+          </button>
+        </div>
       </div>
+
+      {/* Project selector — only for route action */}
+      {action === 'route' && (
+        <div className={styles.formRow}>
+          <label className={styles.formLabel}>Route to</label>
+          <select
+            className={styles.select}
+            value={projectId}
+            onChange={(e) => setProjectId(Number(e.target.value))}
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Conditions */}
       <div className={styles.conditionsSection}>
@@ -339,11 +368,10 @@ export function RoutingRulesSection({ rules, projects, onAdd, onRemove, onApplyT
               setApplyResult(null)
               setShowForm(true)
             }}
-            disabled={projects.length === 0}
           >
             + Add Rule
           </button>
-          {rules.length > 0 && (
+          {rules.some((r) => r.action === 'route') && (
             <button
               type="button"
               className={styles.applyButton}

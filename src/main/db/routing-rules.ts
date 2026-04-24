@@ -1,13 +1,13 @@
-import type { RoutingRule, CreateRoutingRulePayload, NotificationThread } from '../../shared/ipc-channels'
+import type { RoutingRule, RoutingRuleAction, CreateRoutingRulePayload, NotificationThread } from '../../shared/ipc-channels'
 import { getDb } from './index'
-import { assignThread } from './notifications'
 
 // ── Row types ─────────────────────────────────────────────────────────────────
 
 interface RoutingRuleRow {
   id: number
-  project_id: number
-  project_name: string
+  project_id: number | null
+  action: string
+  project_name: string | null
   match_type: string | null
   match_reason: string | null
   match_repo_owner: string | null
@@ -21,6 +21,7 @@ interface RoutingRuleRow {
 function toRoutingRule(row: RoutingRuleRow): RoutingRule {
   return {
     id: row.id,
+    action: row.action as RoutingRuleAction,
     projectId: row.project_id,
     projectName: row.project_name,
     matchType: row.match_type,
@@ -39,7 +40,20 @@ export function listRoutingRules(): RoutingRule[] {
     .prepare(
       `SELECT rr.*, p.name AS project_name
        FROM routing_rules rr
-       JOIN projects p ON p.id = rr.project_id
+       LEFT JOIN projects p ON p.id = rr.project_id
+       ORDER BY rr.created_at ASC`
+    )
+    .all() as RoutingRuleRow[]
+  return rows.map(toRoutingRule)
+}
+
+/** Returns only suppress rules — used for read-time filtering in notification lists. */
+export function listSuppressRules(): RoutingRule[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT rr.*, NULL AS project_name
+       FROM routing_rules rr
+       WHERE rr.action = 'suppress'
        ORDER BY rr.created_at ASC`
     )
     .all() as RoutingRuleRow[]
@@ -57,17 +71,21 @@ export function createRoutingRule(payload: CreateRoutingRulePayload): RoutingRul
   if (!hasCondition) {
     throw new Error('A routing rule must have at least one match condition.')
   }
+  if (payload.action === 'route' && payload.projectId == null) {
+    throw new Error("A 'route' rule requires a projectId.")
+  }
 
   const db = getDb()
   const inserted = db
     .prepare(
       `INSERT INTO routing_rules
-         (project_id, match_type, match_reason, match_repo_owner, match_repo_name, match_org)
-       VALUES (?, ?, ?, ?, ?, ?)
+         (action, project_id, match_type, match_reason, match_repo_owner, match_repo_name, match_org)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
        RETURNING *`
     )
     .get(
-      payload.projectId,
+      payload.action,
+      payload.action === 'route' ? (payload.projectId ?? null) : null,
       payload.matchType?.trim() ?? null,
       payload.matchReason?.trim() ?? null,
       payload.matchRepoOwner?.trim() ?? null,
@@ -75,11 +93,15 @@ export function createRoutingRule(payload: CreateRoutingRulePayload): RoutingRul
       payload.matchOrg?.trim() ?? null,
     ) as Omit<RoutingRuleRow, 'project_name'>
 
-  const project = db
-    .prepare('SELECT name FROM projects WHERE id = ?')
-    .get(payload.projectId) as { name: string }
+  let projectName: string | null = null
+  if (payload.action === 'route' && payload.projectId != null) {
+    const project = db
+      .prepare('SELECT name FROM projects WHERE id = ?')
+      .get(payload.projectId) as { name: string } | undefined
+    projectName = project?.name ?? null
+  }
 
-  return toRoutingRule({ ...inserted, project_name: project.name })
+  return toRoutingRule({ ...inserted, project_name: projectName })
 }
 
 export function deleteRoutingRule(id: number): void {
@@ -133,15 +155,16 @@ export function routingRuleMatches(rule: RoutingRule, thread: NotificationThread
 // ── Apply to inbox ────────────────────────────────────────────────────────────
 
 /**
- * Evaluates all routing rules against every inbox thread (project_id IS NULL).
- * Rules are evaluated in creation order; the first matching rule wins.
+ * Evaluates 'route' rules against every inbox thread (project_id IS NULL).
+ * 'suppress' rules are read-time and do not need to be applied here.
+ * Rules are evaluated in creation order; the first matching route rule wins.
  * Returns the number of threads that were routed.
  */
 export function applyRoutingRulesToInbox(): { matched: number } {
-  const rules = listRoutingRules()
+  const db = getDb()
+  const rules = listRoutingRules().filter((r) => r.action === 'route')
   if (rules.length === 0) return { matched: 0 }
 
-  const db = getDb()
   const inboxRows = db
     .prepare(
       `SELECT id, project_id, repo_owner, repo_name, title, type, reason, unread,
@@ -166,6 +189,15 @@ export function applyRoutingRulesToInbox(): { matched: number } {
       html_url: string | null
     }>
 
+  const updateThread = db.prepare(
+    `UPDATE notification_threads SET project_id = ? WHERE id = ?`
+  )
+  const wakeSnooze = db.prepare(
+    `UPDATE projects
+     SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
+     WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
+  )
+
   let matched = 0
 
   for (const row of inboxRows) {
@@ -188,7 +220,10 @@ export function applyRoutingRulesToInbox(): { matched: number } {
 
     for (const rule of rules) {
       if (routingRuleMatches(rule, thread)) {
-        assignThread(thread.id, rule.projectId)
+        updateThread.run(rule.projectId, thread.id)
+        if (rule.projectId != null) {
+          wakeSnooze.run(rule.projectId)
+        }
         matched++
         break // first match wins
       }
