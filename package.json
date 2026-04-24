@@ -16,7 +16,8 @@
     "icons": "bash scripts/generate-icons.sh",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "setup": "bun install --ignore-scripts && bun run rebuild",
-    "install-app": "bash scripts/install-app.sh"
+    "install-app": "bash scripts/install-app.sh",
+    "reset:sync": "sqlite3 ~/Library/Application\ Support/gh-projects/gh-projects.db \"DELETE FROM sync_metadata WHERE key = 'last_notification_sync';\""
   },
   "keywords": [],
   "author": "robert-crandall",

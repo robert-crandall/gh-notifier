@@ -54,6 +54,25 @@ bun run typecheck
 
 ---
 
+## Resetting the notification sync cursor
+
+If notifications go missing (e.g., after debugging or a sync race), clear the stored `since` timestamp so the next sync does a full re-fetch:
+
+```bash
+bun run reset:sync
+```
+
+Or directly:
+
+```bash
+sqlite3 ~/Library/Application\ Support/gh-projects/gh-projects.db \
+  "DELETE FROM sync_metadata WHERE key = 'last_notification_sync';"
+```
+
+The app must be closed (or will re-sync automatically on the next poll cycle) after running this.
+
+---
+
 ## After updating Electron
 
 If you bump the `electron` version in `package.json`, rebuild the native module:
