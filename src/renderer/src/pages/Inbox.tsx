@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import styles from './Inbox.module.css'
 import type { NotificationThread, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
+import { buildThreadUrl } from '@shared/thread-url'
 
 interface Props {
   onAssigned: () => void
@@ -194,20 +195,14 @@ export function Inbox({ onAssigned }: Props) {
                 <div className={styles.threadDot} data-unread={thread.unread} />
                 <div className={styles.threadBody}>
                   <div className={styles.threadTitle}>
-                    {thread.htmlUrl ? (
-                      <button
-                        className={`${styles.threadName} ${styles.threadNameLink}`}
-                        data-unread={thread.unread}
-                        onClick={() => window.electron.openExternal(thread.htmlUrl!)}
-                        title="Open in browser"
-                      >
-                        {thread.title}
-                      </button>
-                    ) : (
-                      <span className={styles.threadName} data-unread={thread.unread}>
-                        {thread.title}
-                      </span>
-                    )}
+                    <button
+                      className={`${styles.threadName} ${styles.threadNameLink}`}
+                      data-unread={thread.unread}
+                      onClick={() => window.electron.openExternal(buildThreadUrl(thread))}
+                      title="Open in browser"
+                    >
+                      {thread.title}
+                    </button>
                     <TypeChip type={thread.type} />
                     {thread.subjectState && thread.subjectState !== 'open' && (
                       <StateChip state={thread.subjectState} />
@@ -222,16 +217,14 @@ export function Inbox({ onAssigned }: Props) {
 
                 <div className={styles.threadActions}>
                   <div className={styles.threadIconGroup}>
-                    {thread.htmlUrl && (
-                      <button
-                        className={styles.iconBtn}
-                        title="Open in GitHub"
-                        aria-label="Open in GitHub"
-                        onClick={() => window.electron.openExternal(thread.htmlUrl!)}
-                      >
-                        <ExternalLinkIcon />
-                      </button>
-                    )}
+                    <button
+                      className={styles.iconBtn}
+                      title="Open in GitHub"
+                      aria-label="Open in GitHub"
+                      onClick={() => window.electron.openExternal(buildThreadUrl(thread))}
+                    >
+                      <ExternalLinkIcon />
+                    </button>
                     <button
                       className={styles.iconBtn}
                       title="Mark as read"

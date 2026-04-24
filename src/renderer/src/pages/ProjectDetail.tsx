@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
 import type { NotificationThread, NotificationType, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
+import { buildThreadUrl } from '@shared/thread-url'
 
 type Tab = 'todos' | 'notes' | 'notifications'
 
@@ -562,20 +563,14 @@ function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: Notifica
               />
               <div className={styles.notificationBody}>
                 <div className={styles.notificationTitle}>
-                  {n.htmlUrl ? (
-                    <button
-                      className={`${styles.notificationName} ${styles.notificationNameLink}`}
-                      data-unread={n.unread}
-                      onClick={() => window.electron.openExternal(n.htmlUrl!)}
-                      title="Open in browser"
-                    >
-                      {n.title}
-                    </button>
-                  ) : (
-                    <span className={styles.notificationName} data-unread={n.unread}>
-                      {n.title}
-                    </span>
-                  )}
+                  <button
+                    className={`${styles.notificationName} ${styles.notificationNameLink}`}
+                    data-unread={n.unread}
+                    onClick={() => window.electron.openExternal(buildThreadUrl(n))}
+                    title="Open in browser"
+                  >
+                    {n.title}
+                  </button>
                   <NotificationTypeChip type={n.type} />
                   {n.subjectState && n.subjectState !== 'open' && (
                     <NotificationStateChip state={n.subjectState} />
@@ -588,16 +583,14 @@ function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: Notifica
                 </div>
               </div>
               <div className={styles.notificationIconGroup}>
-                    {n.htmlUrl && (
-                      <button
-                        className={styles.notificationIconBtn}
-                        title="Open in GitHub"
-                        aria-label="Open in GitHub"
-                        onClick={() => window.electron.openExternal(n.htmlUrl!)}
-                      >
-                        <ExternalLinkIcon />
-                      </button>
-                    )}
+                    <button
+                      className={styles.notificationIconBtn}
+                      title="Open in GitHub"
+                      aria-label="Open in GitHub"
+                      onClick={() => window.electron.openExternal(buildThreadUrl(n))}
+                    >
+                      <ExternalLinkIcon />
+                    </button>
                     <button
                       className={styles.notificationIconBtn}
                       title="Mark as read"

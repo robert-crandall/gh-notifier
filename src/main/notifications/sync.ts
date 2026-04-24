@@ -11,10 +11,11 @@ import { getOctokit, isOctokitReady } from '../auth/octokit'
 import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
 import { listFilters, shouldSuppress } from '../db/filters'
 import { getDb } from '../db'
-import type { NotificationType, SyncIntervalMinutes } from '../../shared/ipc-channels'
-import { DEFAULT_SYNC_INTERVAL_MINUTES, SYNC_INTERVAL_OPTIONS } from '../../shared/ipc-channels'
+import type { NotificationType, SyncIntervalMinutes, MaxSyncDays } from '../../shared/ipc-channels'
+import { DEFAULT_SYNC_INTERVAL_MINUTES, SYNC_INTERVAL_OPTIONS, DEFAULT_MAX_SYNC_DAYS, MAX_SYNC_DAYS_OPTIONS } from '../../shared/ipc-channels'
 
 const SYNC_INTERVAL_KEY = 'sync_interval_minutes'
+const MAX_SYNC_DAYS_KEY = 'max_sync_days'
 
 /** Reads the configured sync interval from the DB, falling back to the default. */
 export function getSyncIntervalMinutes(): SyncIntervalMinutes {
@@ -26,6 +27,18 @@ export function getSyncIntervalMinutes(): SyncIntervalMinutes {
 /** Persists the sync interval to the DB. */
 export function setSyncIntervalMinutes(minutes: SyncIntervalMinutes): void {
   getDb().prepare('INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)').run(SYNC_INTERVAL_KEY, String(minutes))
+}
+
+/** Reads the configured max sync look-back window from the DB, falling back to the default. */
+export function getMaxSyncDays(): MaxSyncDays {
+  const row = getDb().prepare('SELECT value FROM sync_metadata WHERE key = ?').get(MAX_SYNC_DAYS_KEY) as { value: string } | undefined
+  const parsed = row ? parseInt(row.value, 10) : NaN
+  return (MAX_SYNC_DAYS_OPTIONS.includes(parsed as MaxSyncDays) ? parsed : DEFAULT_MAX_SYNC_DAYS) as MaxSyncDays
+}
+
+/** Persists the max sync look-back window to the DB. */
+export function setMaxSyncDays(days: MaxSyncDays): void {
+  getDb().prepare('INSERT OR REPLACE INTO sync_metadata (key, value) VALUES (?, ?)').run(MAX_SYNC_DAYS_KEY, String(days))
 }
 
 let pollTimer: NodeJS.Timeout | null = null
@@ -90,7 +103,11 @@ export async function syncOnce(): Promise<void> {
     // Get last sync timestamp to fetch notifications since then
     const db = getDb()
     const lastSyncRow = db.prepare('SELECT value FROM sync_metadata WHERE key = ?').get('last_notification_sync') as { value: string } | undefined
-    const since = lastSyncRow?.value
+
+    // Floor the look-back window to maxSyncDays so we never fetch arbitrarily
+    // far into the past (e.g., on first run or after a DB reset).
+    const maxDaysAgo = new Date(Date.now() - getMaxSyncDays() * 24 * 60 * 60 * 1000).toISOString()
+    const since = lastSyncRow?.value && lastSyncRow.value > maxDaysAgo ? lastSyncRow.value : maxDaysAgo
 
     // Capture the fetch start time BEFORE the API call so that any
     // notifications arriving during pagination are not missed. Using the
@@ -196,10 +213,20 @@ export async function prefetchThreadContent(): Promise<void> {
   const candidates = getThreadsNeedingPrefetch()
   if (candidates.length === 0) return
 
-  console.log(`[notifications] Prefetching content for ${candidates.length} thread(s)`)
+  const total = candidates.length
+  console.log(`[notifications] Prefetching content for ${total} thread(s)`)
+
+  const emitProgress = (completed: number) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('prefetch:progress', { completed, total })
+    })
+  }
+
+  emitProgress(0)
 
   const octokit = getOctokit()
   let anyChanged = false
+  let completed = 0
 
   // Process in small batches to avoid hammering the API
   let rateLimited = false
@@ -243,7 +270,7 @@ export async function prefetchThreadContent(): Promise<void> {
         } catch (err) {
           const status = (err as { status?: number }).status
 
-          if (status === 403 || status === 429) {
+          if (status === 429) {
             // Rate-limited — stop all prefetching until the next sync cycle
             console.warn(`[notifications] Rate limited during prefetch, aborting batch`)
             rateLimited = true
@@ -251,18 +278,28 @@ export async function prefetchThreadContent(): Promise<void> {
           }
 
           if (status === 404 || status === 410 || status === 451) {
-            // Deleted repo / gone / unavailable — thread will never be fetchable; remove it
+            // Deleted, gone, or legally unavailable; the thread will never be fetchable
             console.log(`[notifications] Removing thread ${candidate.id} (HTTP ${status} on subject URL)`)
             deleteThread(candidate.id)
             anyChanged = true
             return
           }
 
-          // Transient error — leave content_fetched_at unset so it retries next sync
+          // Transient or ambiguous error (including 403) — leave content_fetched_at unset
+          // so it retries next sync rather than deleting on a potentially temporary failure.
           console.error(`[notifications] Failed to prefetch thread ${candidate.id} (HTTP ${status ?? 'unknown'}):`, err)
+        } finally {
+          completed++
+          emitProgress(completed)
         }
       })
     )
+  }
+
+  // Emit final "done" progress even if we aborted early due to rate limiting
+  // so the UI can clear the progress indicator
+  if (completed < total) {
+    emitProgress(total)
   }
 
   if (anyChanged) {
