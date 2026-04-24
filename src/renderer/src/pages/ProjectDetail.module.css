@@ -60,6 +60,18 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: 5px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background 80ms;
+}
+
+.breadcrumbCurrent:hover {
+  background: var(--bg-2);
 }
 
 .toolbarActions {
@@ -197,7 +209,61 @@
   cursor: not-allowed;
 }
 
+/* ── Editable project name ── */
+.nameInput {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--blue);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-family: var(--font);
+  outline: none;
+  box-shadow: 0 0 0 2px oklch(53% 0.185 255 / 0.18);
+  user-select: text;
+  min-width: 120px;
+  max-width: 260px;
+}
 
+/* ── Delete confirmation in toolbar ── */
+.deleteConfirmInline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deleteConfirmLabel {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.deleteConfirmBtn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-error);
+  color: var(--color-error-content);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.deleteConfirmBtn:hover {
+  opacity: 0.88;
+}
+
+.actionButtonDanger {
+  color: var(--text-3);
+}
+
+.actionButtonDanger:hover {
+  color: var(--color-error);
+  border-color: color-mix(in oklch, var(--color-error) 40%, transparent);
+  background: color-mix(in oklch, var(--color-error) 8%, transparent);
+}
 
 /* ── Scrollable content ── */
 .content {

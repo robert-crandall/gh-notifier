@@ -163,6 +163,135 @@
   gap: 2px;
 }
 
+.projectItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.projectItem:hover .rowActions {
+  opacity: 1;
+}
+
+.projectItem .projectRow {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowActions {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 80ms;
+}
+
+.rowActionBtn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 80ms, color 80ms;
+}
+
+.rowActionBtn:hover {
+  background: var(--bg-2);
+  color: var(--text-2);
+}
+
+.rowActionDelete:hover {
+  background: color-mix(in oklch, var(--color-error) 12%, transparent);
+  color: var(--color-error);
+}
+
+/* ── Inline rename form ── */
+.renameForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--blue);
+  background: var(--bg-2);
+  width: 100%;
+}
+
+.renameInput {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  outline: none;
+  user-select: text;
+}
+
+.renameInput:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px oklch(53% 0.185 255 / 0.18);
+}
+
+.renameActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── Delete confirmation ── */
+.deleteConfirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklch, var(--color-error) 30%, transparent);
+  background: color-mix(in oklch, var(--color-error) 6%, transparent);
+  width: 100%;
+}
+
+.deleteConfirmText {
+  font-size: 13px;
+  color: var(--text-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deleteConfirmActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.deleteButton {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-error);
+  color: var(--color-error-content);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.deleteButton:hover {
+  opacity: 0.88;
+}
+
 .projectRow {
   width: 100%;
   display: flex;

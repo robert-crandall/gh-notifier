@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Project } from '@shared/ipc-channels'
+import type { Project, ProjectPatch } from '@shared/ipc-channels'
 
 interface UseProjectsResult {
   projects: Project[]
   isLoading: boolean
   createProject: (name: string) => Promise<Project>
+  updateProject: (id: number, patch: ProjectPatch) => Promise<Project>
   deleteProject: (id: number) => Promise<void>
   refreshProjects: () => Promise<void>
 }
@@ -37,10 +38,16 @@ export function useProjects(): UseProjectsResult {
     return project
   }, [])
 
+  const updateProject = useCallback(async (id: number, patch: ProjectPatch): Promise<Project> => {
+    const updated = await window.electron.ipc.invoke('projects:update', id, patch)
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...updated } : p))
+    return updated
+  }, [])
+
   const deleteProject = useCallback(async (id: number): Promise<void> => {
     await window.electron.ipc.invoke('projects:delete', id)
     setProjects((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
-  return { projects, isLoading, createProject, deleteProject, refreshProjects: loadProjects }
+  return { projects, isLoading, createProject, updateProject, deleteProject, refreshProjects: loadProjects }
 }

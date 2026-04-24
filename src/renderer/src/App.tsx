@@ -11,7 +11,7 @@ import { useTheme } from './hooks/useTheme'
 type View = { page: 'dashboard' } | { page: 'project'; id: number } | { page: 'inbox' } | { page: 'settings' }
 
 export function App() {
-  const { projects, isLoading, createProject, refreshProjects } = useProjects()
+  const { projects, isLoading, createProject, updateProject, deleteProject, refreshProjects } = useProjects()
   const { theme, setTheme } = useTheme()
   const [view, setView] = useState<View>({ page: 'dashboard' })
   const [inboxCount, setInboxCount] = useState(0)
@@ -57,8 +57,8 @@ export function App() {
         <Dashboard
           projects={projects}
           onSelectProject={(id) => setView({ page: 'project', id })}
-          onCreateProject={createProject}
-        />
+          onCreateProject={createProject}          onUpdateProject={updateProject}
+          onDeleteProject={deleteProject}        />
       ) : view.page === 'inbox' ? (
         <Inbox
           onAssigned={() => { void refreshProjects(); void loadInboxCount() }}
@@ -71,6 +71,10 @@ export function App() {
           projectId={view.id}
           onBack={() => setView({ page: 'dashboard' })}
           onProjectChanged={refreshProjects}
+          onDelete={() => {
+            void deleteProject(view.id)
+            setView({ page: 'dashboard' })
+          }}
         />
       )}
     </div>
