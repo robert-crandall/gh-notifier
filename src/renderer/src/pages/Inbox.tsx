@@ -3,7 +3,6 @@ import { formatDistanceToNow, parseISO } from 'date-fns'
 import styles from './Inbox.module.css'
 import { ThreadedNotificationList } from '../components/ThreadedNotificationList'
 import type { NotificationThread, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
-import { buildThreadUrl } from '@shared/thread-url'
 
 interface Props {
   onAssigned: () => void

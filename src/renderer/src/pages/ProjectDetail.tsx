@@ -2,8 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
 import { ThreadedNotificationList } from '../components/ThreadedNotificationList'
-import type { NotificationThread, NotificationType, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
-import { buildThreadUrl } from '@shared/thread-url'
+import type { NotificationThread, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
 
 type Tab = 'todos' | 'notes' | 'notifications'
 
