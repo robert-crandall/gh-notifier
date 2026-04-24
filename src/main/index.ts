@@ -22,11 +22,11 @@ import {
   invalidateOpenThreadPrefetch,
 } from './db/notifications'
 import { listFilters, createFilter, deleteFilter } from './db/filters'
-import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync } from './notifications/sync'
+import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync, getMaxSyncDays, setMaxSyncDays } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
 import { getDb } from './db'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope, SyncIntervalMinutes } from '../shared/ipc-channels'
-import { SYNC_INTERVAL_OPTIONS } from '../shared/ipc-channels'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope, SyncIntervalMinutes, MaxSyncDays } from '../shared/ipc-channels'
+import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -163,6 +163,17 @@ app.whenReady().then(async () => {
     }
     setSyncIntervalMinutes(minutes as SyncIntervalMinutes)
     rescheduleSync()
+  })
+
+  ipcMain.handle('settings:get-max-sync-days', () => getMaxSyncDays())
+  ipcMain.handle('settings:set-max-sync-days', (_event, days) => {
+    if (typeof days !== 'number' || !Number.isFinite(days) || !Number.isInteger(days) || days <= 0) {
+      return
+    }
+    if (!MAX_SYNC_DAYS_OPTIONS.includes(days as MaxSyncDays)) {
+      return
+    }
+    setMaxSyncDays(days as MaxSyncDays)
   })
 
   // Repo rule handlers

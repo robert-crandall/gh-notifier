@@ -155,6 +155,37 @@
   border-top: 1px solid var(--sidebar-border);
 }
 
+/* ── Prefetch progress ── */
+.prefetchProgress {
+  flex-shrink: 0;
+  padding: 6px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prefetchLabel {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prefetchTrack {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--sidebar-border);
+  overflow: hidden;
+}
+
+.prefetchBar {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--blue);
+  transition: width 200ms ease;
+}
+
 /* ── Bottom nav (Settings) ── */
 .bottomNav {
   flex-shrink: 0;

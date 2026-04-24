@@ -20,6 +20,11 @@ export type SyncIntervalMinutes = 5 | 15 | 30 | 60
 export const SYNC_INTERVAL_OPTIONS: SyncIntervalMinutes[] = [5, 15, 30, 60]
 export const DEFAULT_SYNC_INTERVAL_MINUTES: SyncIntervalMinutes = 5
 
+/** Maximum number of days to look back when fetching notifications. */
+export type MaxSyncDays = 1 | 3 | 7 | 14 | 30
+export const MAX_SYNC_DAYS_OPTIONS: MaxSyncDays[] = [1, 3, 7, 14, 30]
+export const DEFAULT_MAX_SYNC_DAYS: MaxSyncDays = 7
+
 export interface Project {
   id: number
   name: string
@@ -328,6 +333,18 @@ export type IpcChannels = {
     result: void
   }
 
+  /** Returns the current maximum number of days to look back when syncing. */
+  'settings:get-max-sync-days': {
+    args: []
+    result: MaxSyncDays
+  }
+
+  /** Persists the maximum sync look-back window in days. */
+  'settings:set-max-sync-days': {
+    args: [days: MaxSyncDays]
+    result: void
+  }
+
   // ── Repo rules ─────────────────────────────────────────────────────────────
 
   /** Returns all repo routing rules. */
@@ -383,6 +400,11 @@ export type IpcChannels = {
 export type IpcChannelName = keyof IpcChannels
 
 // ── Window augmentation ──────────────────────────────────────────────────────
+export interface PrefetchProgress {
+  completed: number
+  total: number
+}
+
 // The preload script exposes this API on window.electron via contextBridge.
 
 export interface ElectronApi {
@@ -395,6 +417,8 @@ export interface ElectronApi {
   openExternal: (url: string) => Promise<void>
   /** Registers a callback that fires whenever a notification sync completes. Returns an unsubscribe fn. */
   onNotificationsUpdated: (callback: () => void) => () => void
+  /** Registers a callback for thread content prefetch progress. Returns an unsubscribe fn. */
+  onPrefetchProgress: (callback: (progress: PrefetchProgress) => void) => () => void
 }
 
 declare global {
