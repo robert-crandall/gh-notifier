@@ -9,6 +9,7 @@ export interface ThreadedNotificationListProps {
   /** Provide projects to show the Assign button per thread. Omit for project-scoped views. */
   projects?: Project[]
   onMarkRead: (threadId: string) => Promise<void>
+  onMarkReadMany?: (threadIds: string[]) => Promise<void>
   onUnsubscribe: (threadId: string) => Promise<void>
   /** Called when a thread is assigned to a project. Requires `projects` to be set. */
   onAssign?: (threadId: string, projectId: number) => Promise<void>
@@ -51,6 +52,7 @@ export function ThreadedNotificationList({
   threads,
   projects,
   onMarkRead,
+  onMarkReadMany,
   onUnsubscribe,
   onAssign,
   emptyMessage = 'No notifications.',
@@ -58,6 +60,8 @@ export function ThreadedNotificationList({
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [collapsedRepos, setCollapsedRepos] = useState<Set<string>>(new Set())
   const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set())
+  const [markingAllRepoKey, setMarkingAllRepoKey] = useState<string | null>(null)
+  const [markingAllTypeKey, setMarkingAllTypeKey] = useState<string | null>(null)
 
   if (threads.length === 0) {
     return <div className={styles.empty}>{emptyMessage}</div>
@@ -68,7 +72,11 @@ export function ThreadedNotificationList({
   const toggleRepo = (repoKey: string) => {
     setCollapsedRepos((prev) => {
       const next = new Set(prev)
-      next.has(repoKey) ? next.delete(repoKey) : next.add(repoKey)
+      if (next.has(repoKey)) {
+        next.delete(repoKey)
+      } else {
+        next.add(repoKey)
+      }
       return next
     })
   }
@@ -76,15 +84,25 @@ export function ThreadedNotificationList({
   const toggleType = (typeKey: string) => {
     setCollapsedTypes((prev) => {
       const next = new Set(prev)
-      next.has(typeKey) ? next.delete(typeKey) : next.add(typeKey)
+      if (next.has(typeKey)) {
+        next.delete(typeKey)
+      } else {
+        next.add(typeKey)
+      }
       return next
     })
   }
 
   const markAllRead = async (threadList: NotificationThread[]) => {
-    await Promise.allSettled(
-      threadList.filter((t) => t.unread).map((t) => onMarkRead(t.id))
-    )
+    const unreadThreads = threadList.filter((t) => t.unread)
+    if (unreadThreads.length === 0) return
+
+    // Use bulk API if available, otherwise fall back to individual calls
+    if (onMarkReadMany) {
+      await onMarkReadMany(unreadThreads.map((t) => t.id))
+    } else {
+      await Promise.allSettled(unreadThreads.map((t) => onMarkRead(t.id)))
+    }
   }
 
   return (
@@ -94,13 +112,17 @@ export function ThreadedNotificationList({
         const repoCollapsed = collapsedRepos.has(repoKey)
         const repoHasUnread = repoThreads.some((t) => t.unread)
 
+        const repoSectionId = `repo-section-${repoKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+
         return (
-        <div key={repoKey} className={styles.repoGroup}>
+        <div key={repoKey} id={repoSectionId} className={styles.repoGroup}>
           <div className={styles.repoHeader}>
             <button
               className={styles.collapseBtn}
               onClick={() => toggleRepo(repoKey)}
-              aria-label={repoCollapsed ? 'Expand' : 'Collapse'}
+              aria-label={`${repoCollapsed ? 'Expand' : 'Collapse'} ${repoKey}`}
+              aria-expanded={!repoCollapsed}
+              aria-controls={repoSectionId}
             >
               <ChevronIcon collapsed={repoCollapsed} />
             </button>
@@ -109,7 +131,12 @@ export function ThreadedNotificationList({
             {repoHasUnread && (
               <button
                 className={styles.markAllBtn}
-                onClick={() => void markAllRead(repoThreads)}
+                onClick={async () => {
+                  setMarkingAllRepoKey(repoKey)
+                  await markAllRead(repoThreads)
+                  setMarkingAllRepoKey(null)
+                }}
+                disabled={markingAllRepoKey === repoKey}
                 title="Mark all as read"
               >
                 Mark all read
@@ -121,14 +148,17 @@ export function ThreadedNotificationList({
             const typeKey = `${repoKey}:${type}`
             const typeCollapsed = collapsedTypes.has(typeKey)
             const typeHasUnread = typeThreads.some((t) => t.unread)
+            const typeRegionId = `type-group-${repoKey}-${type}`.replace(/[^a-zA-Z0-9_-]/g, '-')
 
             return (
-            <div key={type} className={styles.typeGroup}>
+            <div key={type} id={typeRegionId} className={styles.typeGroup}>
               <div className={styles.typeHeader}>
                 <button
                   className={styles.collapseBtn}
                   onClick={() => toggleType(typeKey)}
-                  aria-label={typeCollapsed ? 'Expand' : 'Collapse'}
+                  aria-label={`${typeCollapsed ? 'Expand' : 'Collapse'} ${repoKey} ${typeLabel(type)}`}
+                  aria-expanded={!typeCollapsed}
+                  aria-controls={typeRegionId}
                 >
                   <ChevronIcon collapsed={typeCollapsed} />
                 </button>
@@ -137,7 +167,12 @@ export function ThreadedNotificationList({
                 {typeHasUnread && (
                   <button
                     className={styles.markAllBtn}
-                    onClick={() => void markAllRead(typeThreads)}
+                    onClick={async () => {
+                      setMarkingAllTypeKey(typeKey)
+                      await markAllRead(typeThreads)
+                      setMarkingAllTypeKey(null)
+                    }}
+                    disabled={markingAllTypeKey === typeKey}
                     title="Mark all as read"
                   >
                     Mark all read

@@ -103,6 +103,15 @@ export function Inbox({ onAssigned }: Props) {
     }
   }
 
+  const handleMarkReadMany = async (threadIds: string[]) => {
+    try {
+      await window.electron.ipc.invoke('notifications:mark-read-many', threadIds)
+      setThreads((prev) => prev.map((t) => threadIds.includes(t.id) ? { ...t, unread: false } : t))
+    } catch (err) {
+      console.error('[Inbox] Mark read many failed:', err)
+    }
+  }
+
   const handleUnsubscribe = async (threadId: string) => {
     try {
       await window.electron.ipc.invoke('notifications:unsubscribe', threadId)
@@ -191,6 +200,7 @@ export function Inbox({ onAssigned }: Props) {
             threads={threads}
             projects={projects}
             onMarkRead={handleMarkRead}
+            onMarkReadMany={handleMarkReadMany}
             onUnsubscribe={handleUnsubscribe}
             onAssign={handleAssign}
           />

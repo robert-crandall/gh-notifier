@@ -530,10 +530,20 @@ interface NotificationsTabProps {
 }
 
 function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: NotificationsTabProps) {
+  const handleMarkReadMany = async (threadIds: string[]) => {
+    try {
+      await window.electron.ipc.invoke('notifications:mark-read-many', threadIds)
+      // Parent will refresh via onNotificationsUpdated listener
+    } catch (err) {
+      console.error('[NotificationsTab] Mark read many failed:', err)
+    }
+  }
+
   return (
     <ThreadedNotificationList
       threads={notifications}
       onMarkRead={onMarkRead}
+      onMarkReadMany={handleMarkReadMany}
       onUnsubscribe={onUnsubscribe}
       emptyMessage="No notifications for this project."
     />

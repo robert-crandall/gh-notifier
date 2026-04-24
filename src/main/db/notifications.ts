@@ -288,6 +288,17 @@ export function markThreadRead(threadId: string): void {
     .run(threadId)
 }
 
+/** Marks multiple threads as read in one transaction. */
+export function markThreadsReadMany(threadIds: string[]): void {
+  if (threadIds.length === 0) return
+  
+  const db = getDb()
+  const placeholders = threadIds.map(() => '?').join(',')
+  db.prepare(
+    `UPDATE notification_threads SET unread = 0, last_read_at = datetime('now') WHERE id IN (${placeholders})`
+  ).run(...threadIds)
+}
+
 /** Removes a thread from local storage (called after unsubscribe). */
 export function deleteThread(threadId: string): void {
   getDb()
