@@ -203,6 +203,7 @@ export function ThreadedNotificationList({
                       {thread.subjectState && thread.subjectState !== 'open' && (
                         <StateChip state={thread.subjectState} />
                       )}
+                      <ReasonPill reason={thread.reason} />
                     </div>
                   </div>
 
@@ -325,6 +326,45 @@ function UnsubscribeIcon() {
       <line x1="2" y1="2" x2="11" y2="11" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
     </svg>
   )
+}
+
+function ReasonPill({ reason }: { reason: string }) {
+  const labelMap: Record<string, string> = {
+    assign: 'assigned',
+    author: 'author',
+    comment: 'comment',
+    invitation: 'invite',
+    manual: 'manual',
+    mention: 'mention',
+    review_requested: 'review',
+    security_alert: 'security',
+    state_change: 'state change',
+    subscribed: 'subscribed',
+    team_mention: 'team mention',
+    ci_activity: 'CI',
+    your_activity: 'you',
+  }
+
+  const classMap: Record<string, string> = {
+    assign: styles.reasonAssign,
+    author: styles.reasonAuthor,
+    comment: styles.reasonComment,
+    invitation: styles.reasonInvitation,
+    manual: styles.reasonManual,
+    mention: styles.reasonMention,
+    review_requested: styles.reasonReview,
+    security_alert: styles.reasonSecurity,
+    state_change: styles.reasonStateChange,
+    subscribed: styles.reasonSubscribed,
+    team_mention: styles.reasonTeamMention,
+    ci_activity: styles.reasonCi,
+    your_activity: styles.reasonYourActivity,
+  }
+
+  const label = labelMap[reason] ?? reason.replace(/_/g, ' ')
+  const cls = classMap[reason] ?? styles.reasonDefault
+
+  return <span className={`${styles.reasonPill} ${cls}`}>{label}</span>
 }
 
 // TypeChip is exported for use if callers need it (e.g. in flat list fallbacks)

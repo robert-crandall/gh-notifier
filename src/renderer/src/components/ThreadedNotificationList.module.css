@@ -227,6 +227,82 @@
   color: var(--red, #f87171);
 }
 
+/* ── Reason pills ── */
+.reasonPill {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 5px;
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* mention → blue */
+.reasonMention {
+  background: rgba(82, 130, 255, 0.12);
+  color: var(--blue, #5282ff);
+}
+
+/* team_mention → indigo/violet */
+.reasonTeamMention {
+  background: rgba(130, 80, 255, 0.12);
+  color: var(--purple, #a78bfa);
+}
+
+/* review_requested → amber/orange */
+.reasonReview {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+/* assign → green */
+.reasonAssign {
+  background: rgba(50, 180, 100, 0.12);
+  color: var(--green, #34d399);
+}
+
+/* comment → teal */
+.reasonComment {
+  background: rgba(20, 184, 166, 0.12);
+  color: #14b8a6;
+}
+
+/* security_alert → red */
+.reasonSecurity {
+  background: rgba(220, 60, 60, 0.12);
+  color: var(--red, #f87171);
+}
+
+/* state_change → yellow */
+.reasonStateChange {
+  background: rgba(234, 179, 8, 0.12);
+  color: #eab308;
+}
+
+/* ci_activity → sky blue */
+.reasonCi {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
+/* invitation → pink/fuchsia */
+.reasonInvitation {
+  background: rgba(236, 72, 153, 0.12);
+  color: #ec4899;
+}
+
+/* author, manual, subscribed, your_activity → muted */
+.reasonAuthor,
+.reasonManual,
+.reasonSubscribed,
+.reasonYourActivity,
+.reasonDefault {
+  background: var(--bg-2);
+  color: var(--text-3);
+}
+
 /* ── Type chips (used externally if needed) ── */
 .typeChip {
   flex-shrink: 0;
