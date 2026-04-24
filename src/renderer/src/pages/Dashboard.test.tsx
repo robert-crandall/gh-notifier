@@ -33,7 +33,7 @@ describe('Dashboard', () => {
   describe('no projects', () => {
     it('renders an empty state message', () => {
       render(
-        <Dashboard projects={[]} onSelectProject={vi.fn()} onCreateProject={vi.fn()} />
+        <Dashboard projects={[]} onSelectProject={vi.fn()} onCreateProject={vi.fn()} onUpdateProject={vi.fn()} onDeleteProject={vi.fn()} />
       )
       expect(screen.getByText(/no projects yet/i)).toBeInTheDocument()
     })
@@ -47,6 +47,8 @@ describe('Dashboard', () => {
           projects={[project]}
           onSelectProject={vi.fn()}
           onCreateProject={vi.fn()}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={vi.fn()}
         />
       )
       const banner = screen.getByRole('button', { name: /focus now · alpha/i })
@@ -61,6 +63,8 @@ describe('Dashboard', () => {
           projects={[project]}
           onSelectProject={vi.fn()}
           onCreateProject={vi.fn()}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={vi.fn()}
         />
       )
       expect(screen.queryByText(/focus now/i)).not.toBeInTheDocument()
@@ -75,7 +79,7 @@ describe('Dashboard', () => {
         makeProject({ id: 3, name: 'Third', sortOrder: 3 }),
       ]
       render(
-        <Dashboard projects={projects} onSelectProject={vi.fn()} onCreateProject={vi.fn()} />
+        <Dashboard projects={projects} onSelectProject={vi.fn()} onCreateProject={vi.fn()} onUpdateProject={vi.fn()} onDeleteProject={vi.fn()} />
       )
       const items = screen.getAllByRole('listitem')
       expect(items[0]).toHaveTextContent('First')
@@ -93,6 +97,8 @@ describe('Dashboard', () => {
           projects={[active, snoozed]}
           onSelectProject={vi.fn()}
           onCreateProject={vi.fn()}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={vi.fn()}
         />
       )
       // Snoozed section summary is shown
@@ -107,7 +113,7 @@ describe('Dashboard', () => {
   describe('new project form', () => {
     it('shows the inline input when the New project button is clicked', async () => {
       render(
-        <Dashboard projects={[]} onSelectProject={vi.fn()} onCreateProject={vi.fn()} />
+        <Dashboard projects={[]} onSelectProject={vi.fn()} onCreateProject={vi.fn()} onUpdateProject={vi.fn()} onDeleteProject={vi.fn()} />
       )
       await userEvent.click(screen.getByRole('button', { name: /\+ new project/i }))
       expect(screen.getByPlaceholderText(/project name/i)).toBeInTheDocument()
@@ -121,6 +127,8 @@ describe('Dashboard', () => {
           projects={[]}
           onSelectProject={vi.fn()}
           onCreateProject={onCreateProject}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={vi.fn()}
         />
       )
       await userEvent.click(screen.getByRole('button', { name: /\+ new project/i }))
@@ -137,6 +145,8 @@ describe('Dashboard', () => {
           projects={[]}
           onSelectProject={vi.fn()}
           onCreateProject={onCreateProject}
+          onUpdateProject={vi.fn()}
+          onDeleteProject={vi.fn()}
         />
       )
       await userEvent.click(screen.getByRole('button', { name: /\+ new project/i }))
