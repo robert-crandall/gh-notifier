@@ -5,7 +5,7 @@ import { FilterSection } from '../components/FilterSection'
 import { useAuth } from '../hooks/useAuth'
 import { useFilters } from '../hooks/useFilters'
 import { THEMES, type ThemeId } from '../hooks/useTheme'
-import { SYNC_INTERVAL_OPTIONS, type SyncIntervalMinutes } from '@shared/ipc-channels'
+import { SYNC_INTERVAL_OPTIONS, type SyncIntervalMinutes, MAX_SYNC_DAYS_OPTIONS, type MaxSyncDays } from '@shared/ipc-channels'
 
 interface SettingsProps {
   theme: ThemeId
@@ -16,17 +16,25 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
   const { status, isLoading, error, savePat, logout } = useAuth()
   const { filters, isLoading: filtersLoading, addFilter, removeFilter } = useFilters()
   const [syncInterval, setSyncInterval] = useState<SyncIntervalMinutes | null>(null)
+  const [maxSyncDays, setMaxSyncDays] = useState<MaxSyncDays | null>(null)
 
   useEffect(() => {
     void (async () => {
       const minutes = await window.electron.ipc.invoke('settings:get-sync-interval')
       setSyncInterval(minutes)
+      const days = await window.electron.ipc.invoke('settings:get-max-sync-days')
+      setMaxSyncDays(days)
     })()
   }, [])
 
   const handleSyncIntervalChange = async (minutes: SyncIntervalMinutes) => {
     await window.electron.ipc.invoke('settings:set-sync-interval', minutes)
     setSyncInterval(minutes)
+  }
+
+  const handleMaxSyncDaysChange = async (days: MaxSyncDays) => {
+    await window.electron.ipc.invoke('settings:set-max-sync-days', days)
+    setMaxSyncDays(days)
   }
 
   return (
@@ -76,6 +84,25 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
               ))}
             </div>
             <p className={styles.intervalHint}>How often to check GitHub for new notifications in the background.</p>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Max Sync Days</h2>
+          <div className={styles.sectionBody}>
+            <div className={styles.intervalRow}>
+              {MAX_SYNC_DAYS_OPTIONS.map((days) => (
+                <button
+                  key={days}
+                  className={`${styles.intervalOption} ${maxSyncDays === days ? styles.intervalOptionActive : ''}`}
+                  onClick={() => void handleMaxSyncDaysChange(days)}
+                  aria-pressed={maxSyncDays === days}
+                >
+                  {days}d
+                </button>
+              ))}
+            </div>
+            <p className={styles.intervalHint}>How far back to look for notifications. Older notifications will not be fetched.</p>
           </div>
         </section>
 

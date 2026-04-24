@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ElectronApi, IpcChannelName, IpcChannels } from '../shared/ipc-channels'
+import type { ElectronApi, IpcChannelName, IpcChannels, PrefetchProgress } from '../shared/ipc-channels'
 
 const api: ElectronApi = {
   ipc: {
@@ -15,6 +15,11 @@ const api: ElectronApi = {
     const handler = () => callback()
     ipcRenderer.on('notifications:updated', handler)
     return () => { ipcRenderer.removeListener('notifications:updated', handler) }
+  },
+  onPrefetchProgress: (callback: (progress: PrefetchProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: PrefetchProgress) => callback(progress)
+    ipcRenderer.on('prefetch:progress', handler)
+    return () => { ipcRenderer.removeListener('prefetch:progress', handler) }
   }
 }
 

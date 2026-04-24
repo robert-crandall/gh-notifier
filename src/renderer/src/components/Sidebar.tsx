@@ -1,5 +1,6 @@
 import styles from './Sidebar.module.css'
 import type { Project } from '@shared/ipc-channels'
+import { usePrefetchProgress } from '../hooks/usePrefetchProgress'
 
 interface Props {
   projects: Project[]
@@ -15,6 +16,7 @@ interface Props {
 export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectInbox, inboxSelected, onSelectSettings, settingsSelected }: Props) {
   const active = projects.filter((p) => p.status === 'active')
   const snoozed = projects.filter((p) => p.status === 'snoozed')
+  const prefetchProgress = usePrefetchProgress()
 
   return (
     <aside className={styles.sidebar}>
@@ -80,6 +82,21 @@ export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectIn
           </div>
         )}
       </nav>
+
+      {/* Prefetch progress indicator */}
+      {prefetchProgress !== null && (
+        <div className={styles.prefetchProgress}>
+          <div className={styles.prefetchLabel}>
+            Checking threads&hellip; {prefetchProgress.completed}/{prefetchProgress.total}
+          </div>
+          <div className={styles.prefetchTrack}>
+            <div
+              className={styles.prefetchBar}
+              style={{ width: `${(prefetchProgress.completed / prefetchProgress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Settings pinned to bottom */}
       <div className={styles.bottomNav}>
