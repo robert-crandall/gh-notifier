@@ -116,27 +116,38 @@ export interface ProjectDetail extends Project {
   links: ProjectLink[]
 }
 
-// ── Filter types (M7) ─────────────────────────────────────────────────────────
+// ── Routing rule types ────────────────────────────────────────────────────────
 
-/** The notification dimension this filter operates on. */
-export type FilterDimension = 'author' | 'org' | 'repo' | 'reason' | 'state' | 'type'
+export type RoutingRuleAction = 'route' | 'suppress'
 
 /**
- * Filter scope.
- * - 'global': applies to all notifications.
- * - 'repo': applies only to notifications from the specified repo.
- *   Only valid for the 'type' dimension (per PRD two-tier type filtering).
+ * A routing rule routes matching inbox threads to a specific project,
+ * or suppresses them from all views (hide).
+ * All non-null match_* conditions must match (AND semantics).
+ * Rules are evaluated in creation order; the first match wins.
  */
-export type FilterScope = 'global' | 'repo'
-
-export interface NotificationFilter {
+export interface RoutingRule {
   id: number
-  dimension: FilterDimension
-  value: string
-  scope: FilterScope
-  scopeOwner: string | null
-  scopeRepo: string | null
+  action: RoutingRuleAction
+  projectId: number | null
+  projectName: string | null
+  matchType: string | null
+  matchReason: string | null
+  matchRepoOwner: string | null
+  matchRepoName: string | null
+  matchOrg: string | null
   createdAt: string
+}
+
+export interface CreateRoutingRulePayload {
+  action: RoutingRuleAction
+  /** Required when action='route'. */
+  projectId?: number
+  matchType?: string
+  matchReason?: string
+  matchRepoOwner?: string
+  matchRepoName?: string
+  matchOrg?: string
 }
 
 // ── Request-response channels ─────────────────────────────────────────────────
@@ -365,35 +376,37 @@ export type IpcChannels = {
     result: void
   }
 
-  // ── Filters (M7) ──────────────────────────────────────────────────────────
+  // ── Routing rules ──────────────────────────────────────────────────────────
 
-  /** Returns all active notification filters. */
-  'filters:list': {
+  /** Returns all routing rules ordered by creation date. */
+  'routing-rules:list': {
     args: []
-    result: NotificationFilter[]
+    result: RoutingRule[]
   }
 
   /**
-   * Creates a new notification filter.
-   * For scope='repo', scopeOwner and scopeRepo must be provided.
-   * Repo scope is only valid for dimensions that support repo-scoping under
-   * FilterScope; currently, that means the `type` dimension.
+   * Creates a routing rule. At least one match_* condition must be set.
+   * Throws if no conditions are provided.
    */
-  'filters:create': {
-    args: [
-      dimension: FilterDimension,
-      value: string,
-      scope?: FilterScope,
-      scopeOwner?: string,
-      scopeRepo?: string,
-    ]
-    result: NotificationFilter
+  'routing-rules:create': {
+    args: [payload: CreateRoutingRulePayload]
+    result: RoutingRule
   }
 
-  /** Deletes a notification filter by id. */
-  'filters:delete': {
+  /** Deletes a routing rule by id. */
+  'routing-rules:delete': {
     args: [id: number]
     result: void
+  }
+
+  /**
+   * Applies all routing rules to inbox threads (project_id IS NULL).
+   * Rules are evaluated in creation order; first match wins.
+   * Returns the number of threads that were routed.
+   */
+  'routing-rules:apply-to-inbox': {
+    args: []
+    result: { matched: number }
   }
 }
 

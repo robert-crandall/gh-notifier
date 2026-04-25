@@ -1,9 +1,9 @@
 import styles from './Settings.module.css'
 import { useState, useEffect } from 'react'
 import { AuthPanel } from '../components/AuthPanel'
-import { FilterSection } from '../components/FilterSection'
+import { RoutingRulesSection } from '../components/RoutingRulesSection'
 import { useAuth } from '../hooks/useAuth'
-import { useFilters } from '../hooks/useFilters'
+import { useRoutingRules } from '../hooks/useRoutingRules'
 import { THEMES, type ThemeId } from '../hooks/useTheme'
 import { SYNC_INTERVAL_OPTIONS, type SyncIntervalMinutes, MAX_SYNC_DAYS_OPTIONS, type MaxSyncDays } from '@shared/ipc-channels'
 
@@ -14,7 +14,7 @@ interface SettingsProps {
 
 export function Settings({ theme, onThemeChange }: SettingsProps) {
   const { status, isLoading, error, savePat, logout } = useAuth()
-  const { filters, isLoading: filtersLoading, addFilter, removeFilter } = useFilters()
+  const { rules, projects, isLoading: rulesLoading, addRule, removeRule, applyToInbox } = useRoutingRules()
   const [syncInterval, setSyncInterval] = useState<SyncIntervalMinutes | null>(null)
   const [maxSyncDays, setMaxSyncDays] = useState<MaxSyncDays | null>(null)
 
@@ -120,13 +120,15 @@ export function Settings({ theme, onThemeChange }: SettingsProps) {
         </section>
 
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Notification Filters</h2>
+          <h2 className={styles.sectionTitle}>Routing Rules</h2>
           <div className={styles.sectionBody}>
-            <FilterSection
-              filters={filters}
-              onAdd={addFilter}
-              onRemove={removeFilter}
-              isLoading={filtersLoading}
+            <RoutingRulesSection
+              rules={rules}
+              projects={projects}
+              onAdd={addRule}
+              onRemove={removeRule}
+              onApplyToInbox={applyToInbox}
+              isLoading={rulesLoading}
             />
           </div>
         </section>

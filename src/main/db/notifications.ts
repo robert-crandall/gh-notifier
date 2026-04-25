@@ -7,7 +7,7 @@ import type {
   UnreadCount,
 } from '../../shared/ipc-channels'
 import { getDb } from './index'
-import { listFilters, shouldSuppress } from './filters'
+import { listSuppressRules, routingRuleMatches } from './routing-rules'
 
 // ── Row types (SQLite returns snake_case column names) ────────────────────────
 
@@ -92,8 +92,8 @@ export function listThreadsByProject(projectId: number): NotificationThread[] {
     )
     .all(projectId) as ThreadRow[]
   const threads = rows.map(toThread)
-  const filters = listFilters()
-  return filters.length === 0 ? threads : threads.filter((t) => !shouldSuppress(t, filters))
+  const suppressRules = listSuppressRules()
+  return threads.filter((t) => !suppressRules.some((r) => routingRuleMatches(r, t)))
 }
 
 export function listInboxThreads(): NotificationThread[] {
@@ -105,20 +105,34 @@ export function listInboxThreads(): NotificationThread[] {
     )
     .all() as ThreadRow[]
   const threads = rows.map(toThread)
-  const filters = listFilters()
-  return filters.length === 0 ? threads : threads.filter((t) => !shouldSuppress(t, filters))
+  const suppressRules = listSuppressRules()
+  return threads.filter((t) => !suppressRules.some((r) => routingRuleMatches(r, t)))
 }
 
 export function getUnreadCounts(): UnreadCount[] {
-  const rows = getDb()
+  const db = getDb()
+  const rows = db
     .prepare(
-      `SELECT project_id AS projectId, COUNT(*) AS count
+      `SELECT id, project_id, repo_owner, repo_name, title, type, reason, unread,
+              updated_at, last_read_at, api_url, subject_url, subject_state, html_url
        FROM notification_threads
-       WHERE unread = 1 AND project_id IS NOT NULL
-       GROUP BY project_id`
+       WHERE unread = 1 AND project_id IS NOT NULL`
     )
-    .all() as { projectId: number; count: number }[]
-  return rows
+    .all() as ThreadRow[]
+  
+  const threads = rows.map(toThread)
+  const suppressRules = listSuppressRules()
+  const nonSuppressedThreads = threads.filter((t) => !suppressRules.some((r) => routingRuleMatches(r, t)))
+  
+  // Group by projectId and count
+  const counts = new Map<number, number>()
+  for (const thread of nonSuppressedThreads) {
+    if (thread.projectId != null) {
+      counts.set(thread.projectId, (counts.get(thread.projectId) ?? 0) + 1)
+    }
+  }
+  
+  return Array.from(counts.entries()).map(([projectId, count]) => ({ projectId, count }))
 }
 
 /** Shape of sync data passed in from the GitHub Notifications API response. */

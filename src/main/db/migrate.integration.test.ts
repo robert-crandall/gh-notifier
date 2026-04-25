@@ -39,7 +39,7 @@ describe('runMigrations', () => {
     expect(tables).toContain('notification_threads')
     expect(tables).toContain('repo_rules')
     expect(tables).toContain('sync_metadata')
-    expect(tables).toContain('filters')
+    expect(tables).toContain('routing_rules')
     expect(tables).toContain('_migrations')
   })
 
@@ -55,7 +55,7 @@ describe('runMigrations', () => {
     expect(applied.length).toBeGreaterThan(0)
     applied.forEach((f) => expect(f).toMatch(/\.sql$/))
     // Spot-check a known migration
-    expect(applied).toContain('006_filters.sql')
+    expect(applied).toContain('007_routing_rules.sql')
   })
 
   it('is idempotent — running migrations twice does not throw or duplicate entries', () => {

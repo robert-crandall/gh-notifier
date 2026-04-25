@@ -21,11 +21,11 @@ import {
   deleteRepoRule,
   invalidateOpenThreadPrefetch,
 } from './db/notifications'
-import { listFilters, createFilter, deleteFilter } from './db/filters'
+import { listRoutingRules, createRoutingRule, deleteRoutingRule, applyRoutingRulesToInbox } from './db/routing-rules'
 import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync, getMaxSyncDays, setMaxSyncDays } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
 import { getDb } from './db'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, FilterDimension, FilterScope, SyncIntervalMinutes, MaxSyncDays } from '../shared/ipc-channels'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
 function createWindow(): void {
@@ -183,20 +183,20 @@ app.whenReady().then(async () => {
   )
   ipcMain.handle('repo-rules:delete', (_event, id: number) => deleteRepoRule(id))
 
-  // Filter handlers (M7)
-  ipcMain.handle('filters:list', () => listFilters())
-  ipcMain.handle(
-    'filters:create',
-    (
-      _event,
-      dimension: FilterDimension,
-      value: string,
-      scope: FilterScope = 'global',
-      scopeOwner?: string,
-      scopeRepo?: string,
-    ) => createFilter(dimension, value, scope, scopeOwner, scopeRepo)
+  // Routing rule handlers
+  ipcMain.handle('routing-rules:list', () => listRoutingRules())
+  ipcMain.handle('routing-rules:create', (_event, payload: CreateRoutingRulePayload) =>
+    createRoutingRule(payload)
   )
-  ipcMain.handle('filters:delete', (_event, id: number) => deleteFilter(id))
+  ipcMain.handle('routing-rules:delete', (_event, id: number) => deleteRoutingRule(id))
+  ipcMain.handle('routing-rules:apply-to-inbox', () => {
+    const result = applyRoutingRulesToInbox()
+    // Emit update event so inbox and project views refresh
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('notifications:updated')
+    })
+    return result
+  })
 
   startNotificationSync()
   startSnoozeWatcher()

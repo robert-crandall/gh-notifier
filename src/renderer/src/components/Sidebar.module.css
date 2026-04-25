@@ -34,6 +34,26 @@
   padding: 4px 8px 6px;
 }
 
+.sectionHeaderBtn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: color 80ms, background 80ms;
+}
+
+.sectionHeaderBtn:hover {
+  color: var(--text-2);
+  background: var(--sidebar-item-hover, rgba(255,255,255,0.05));
+}
+
+.sectionHeaderSelected {
+  color: var(--text-2);
+}
+
 .divider {
   height: 1px;
   background: var(--sidebar-border);
