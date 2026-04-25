@@ -62,11 +62,11 @@ export function listSuppressRules(): RoutingRule[] {
 
 export function createRoutingRule(payload: CreateRoutingRulePayload): RoutingRule {
   const hasCondition =
-    payload.matchType != null ||
-    payload.matchReason != null ||
-    payload.matchRepoOwner != null ||
-    payload.matchRepoName != null ||
-    payload.matchOrg != null
+    (payload.matchType?.trim().length ?? 0) > 0 ||
+    (payload.matchReason?.trim().length ?? 0) > 0 ||
+    (payload.matchRepoOwner?.trim().length ?? 0) > 0 ||
+    (payload.matchRepoName?.trim().length ?? 0) > 0 ||
+    (payload.matchOrg?.trim().length ?? 0) > 0
 
   if (!hasCondition) {
     throw new Error('A routing rule must have at least one match condition.')
@@ -76,6 +76,13 @@ export function createRoutingRule(payload: CreateRoutingRulePayload): RoutingRul
   }
 
   const db = getDb()
+  
+  // Normalize whitespace-only values to NULL
+  const normalizeValue = (val: string | null | undefined): string | null => {
+    const trimmed = val?.trim() ?? ''
+    return trimmed.length > 0 ? trimmed : null
+  }
+  
   const inserted = db
     .prepare(
       `INSERT INTO routing_rules
@@ -86,11 +93,11 @@ export function createRoutingRule(payload: CreateRoutingRulePayload): RoutingRul
     .get(
       payload.action,
       payload.action === 'route' ? (payload.projectId ?? null) : null,
-      payload.matchType?.trim() ?? null,
-      payload.matchReason?.trim() ?? null,
-      payload.matchRepoOwner?.trim() ?? null,
-      payload.matchRepoName?.trim() ?? null,
-      payload.matchOrg?.trim() ?? null,
+      normalizeValue(payload.matchType),
+      normalizeValue(payload.matchReason),
+      normalizeValue(payload.matchRepoOwner),
+      normalizeValue(payload.matchRepoName),
+      normalizeValue(payload.matchOrg),
     ) as Omit<RoutingRuleRow, 'project_name'>
 
   let projectName: string | null = null
@@ -165,70 +172,72 @@ export function applyRoutingRulesToInbox(): { matched: number } {
   const rules = listRoutingRules().filter((r) => r.action === 'route')
   if (rules.length === 0) return { matched: 0 }
 
-  const inboxRows = db
-    .prepare(
-      `SELECT id, project_id, repo_owner, repo_name, title, type, reason, unread,
-              updated_at, last_read_at, api_url, subject_url, subject_state, html_url
-       FROM notification_threads
-       WHERE project_id IS NULL`
+  return db.transaction(() => {
+    const inboxRows = db
+      .prepare(
+        `SELECT id, project_id, repo_owner, repo_name, title, type, reason, unread,
+                updated_at, last_read_at, api_url, subject_url, subject_state, html_url
+         FROM notification_threads
+         WHERE project_id IS NULL`
+      )
+      .all() as Array<{
+        id: string
+        project_id: number | null
+        repo_owner: string
+        repo_name: string
+        title: string
+        type: string
+        reason: string
+        unread: number
+        updated_at: string
+        last_read_at: string | null
+        api_url: string
+        subject_url: string | null
+        subject_state: string | null
+        html_url: string | null
+      }>
+
+    const updateThread = db.prepare(
+      `UPDATE notification_threads SET project_id = ? WHERE id = ?`
     )
-    .all() as Array<{
-      id: string
-      project_id: number | null
-      repo_owner: string
-      repo_name: string
-      title: string
-      type: string
-      reason: string
-      unread: number
-      updated_at: string
-      last_read_at: string | null
-      api_url: string
-      subject_url: string | null
-      subject_state: string | null
-      html_url: string | null
-    }>
+    const wakeSnooze = db.prepare(
+      `UPDATE projects
+       SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
+       WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
+    )
 
-  const updateThread = db.prepare(
-    `UPDATE notification_threads SET project_id = ? WHERE id = ?`
-  )
-  const wakeSnooze = db.prepare(
-    `UPDATE projects
-     SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
-     WHERE id = ? AND status = 'snoozed' AND snooze_mode = 'notification'`
-  )
+    let matched = 0
 
-  let matched = 0
+    for (const row of inboxRows) {
+      const thread: NotificationThread = {
+        id: row.id,
+        projectId: null,
+        repoOwner: row.repo_owner,
+        repoName: row.repo_name,
+        title: row.title,
+        type: row.type as NotificationThread['type'],
+        reason: row.reason,
+        unread: row.unread === 1,
+        updatedAt: row.updated_at,
+        lastReadAt: row.last_read_at,
+        apiUrl: row.api_url,
+        subjectUrl: row.subject_url,
+        subjectState: row.subject_state as NotificationThread['subjectState'],
+        htmlUrl: row.html_url,
+      }
 
-  for (const row of inboxRows) {
-    const thread: NotificationThread = {
-      id: row.id,
-      projectId: null,
-      repoOwner: row.repo_owner,
-      repoName: row.repo_name,
-      title: row.title,
-      type: row.type as NotificationThread['type'],
-      reason: row.reason,
-      unread: row.unread === 1,
-      updatedAt: row.updated_at,
-      lastReadAt: row.last_read_at,
-      apiUrl: row.api_url,
-      subjectUrl: row.subject_url,
-      subjectState: row.subject_state as NotificationThread['subjectState'],
-      htmlUrl: row.html_url,
-    }
-
-    for (const rule of rules) {
-      if (routingRuleMatches(rule, thread)) {
-        updateThread.run(rule.projectId, thread.id)
-        if (rule.projectId != null) {
-          wakeSnooze.run(rule.projectId)
+      for (const rule of rules) {
+        if (routingRuleMatches(rule, thread)) {
+          updateThread.run(rule.projectId, thread.id)
+          if (rule.projectId != null) {
+            wakeSnooze.run(rule.projectId)
+          }
+          matched++
+          break // first match wins
         }
-        matched++
-        break // first match wins
       }
     }
-  }
 
-  return { matched }
+    return { matched }
+  })()
 }

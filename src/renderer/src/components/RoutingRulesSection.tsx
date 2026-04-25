@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import type { RoutingRule, RoutingRuleAction, CreateRoutingRulePayload, Project } from '@shared/ipc-channels'
 import styles from './RoutingRulesSection.module.css'
 
@@ -98,7 +98,7 @@ function AddRuleForm({ projects, onAdd, onCancel }: AddRuleFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
 

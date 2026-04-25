@@ -5,16 +5,22 @@ export function useRoutingRules() {
   const [rules, setRules] = useState<RoutingRule[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
-      const [loadedRules, loadedProjects] = await Promise.all([
-        window.electron.ipc.invoke('routing-rules:list'),
-        window.electron.ipc.invoke('projects:list'),
-      ])
-      setRules(loadedRules)
-      setProjects(loadedProjects)
-      setIsLoading(false)
+      try {
+        const [loadedRules, loadedProjects] = await Promise.all([
+          window.electron.ipc.invoke('routing-rules:list'),
+          window.electron.ipc.invoke('projects:list'),
+        ])
+        setRules(loadedRules)
+        setProjects(loadedProjects)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load routing rules')
+      } finally {
+        setIsLoading(false)
+      }
     })()
   }, [])
 
@@ -32,5 +38,5 @@ export function useRoutingRules() {
     return window.electron.ipc.invoke('routing-rules:apply-to-inbox')
   }
 
-  return { rules, projects, isLoading, addRule, removeRule, applyToInbox }
+  return { rules, projects, isLoading, error, addRule, removeRule, applyToInbox }
 }
