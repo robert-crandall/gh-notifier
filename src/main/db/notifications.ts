@@ -379,7 +379,7 @@ export function invalidateOpenThreadPrefetch(): void {
   getDb()
     .prepare(
       `UPDATE notification_threads
-       SET content_fetched_at = NULL
+       SET content_fetched_at = NULL, state_checked_at = NULL
        WHERE subject_state IS NULL OR subject_state = 'open'`
     )
     .run()
@@ -396,7 +396,15 @@ export function getThreadsNeedingPrefetch(): PrefetchCandidate[] {
       `SELECT id, subject_url AS subjectUrl, type
        FROM notification_threads
        WHERE subject_url IS NOT NULL
-         AND (content_fetched_at IS NULL OR updated_at > content_fetched_at)`
+         AND (
+           content_fetched_at IS NULL
+           OR updated_at > content_fetched_at
+           OR subject_state IS NULL
+           OR (
+             subject_state = 'open'
+             AND (state_checked_at IS NULL OR state_checked_at < datetime('now', '-2 hours'))
+           )
+         )`
     )
     .all() as PrefetchCandidate[]
   return rows
@@ -415,8 +423,8 @@ export function updateThreadContent(
   getDb()
     .prepare(
       `UPDATE notification_threads
-       SET subject_state = ?, html_url = ?, content_fetched_at = ?
+       SET subject_state = ?, html_url = ?, content_fetched_at = ?, state_checked_at = ?
        WHERE id = ?`
     )
-    .run(subjectState, htmlUrl, now, threadId)
+    .run(subjectState, htmlUrl, now, now, threadId)
 }

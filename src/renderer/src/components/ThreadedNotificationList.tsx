@@ -14,6 +14,8 @@ export interface ThreadedNotificationListProps {
   /** Called when a thread is assigned to a project. Requires `projects` to be set. */
   onAssign?: (threadId: string, projectId: number) => Promise<void>
   emptyMessage?: string
+  /** When true, read threads appear in a collapsible "Read" section below active threads. */
+  showReadSection?: boolean
 }
 
 // ── Grouping helpers ─────────────────────────────────────────────────────────
@@ -56,18 +58,23 @@ export function ThreadedNotificationList({
   onUnsubscribe,
   onAssign,
   emptyMessage = 'No notifications.',
+  showReadSection = false,
 }: ThreadedNotificationListProps) {
   const [assigningId, setAssigningId] = useState<string | null>(null)
   const [collapsedRepos, setCollapsedRepos] = useState<Set<string>>(new Set())
   const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set())
   const [markingAllRepoKey, setMarkingAllRepoKey] = useState<string | null>(null)
   const [markingAllTypeKey, setMarkingAllTypeKey] = useState<string | null>(null)
+  const [readCollapsed, setReadCollapsed] = useState(true)
 
   if (threads.length === 0) {
     return <div className={styles.empty}>{emptyMessage}</div>
   }
 
-  const groups = groupThreads(threads)
+  const activeThreads = showReadSection ? threads.filter((t) => t.unread) : threads
+  const readThreads = showReadSection ? threads.filter((t) => !t.unread) : []
+  const groups = groupThreads(activeThreads)
+  const readGroups = groupThreads(readThreads)
 
   const toggleRepo = (repoKey: string) => {
     setCollapsedRepos((prev) => {
@@ -105,21 +112,22 @@ export function ThreadedNotificationList({
     }
   }
 
-  return (
-    <div className={styles.root}>
-      {Array.from(groups.entries()).map(([repoKey, typeGroups]) => {
-        const repoThreads = Array.from(typeGroups.values()).flat()
-        const repoCollapsed = collapsedRepos.has(repoKey)
-        const repoHasUnread = repoThreads.some((t) => t.unread)
+  // Renders a map of repo → type → threads. keyPrefix avoids React key collisions
+  // between the active section and the Read section when the same repo appears in both.
+  const renderRepoGroups = (groupMap: RepoGroups, keyPrefix: string) =>
+    Array.from(groupMap.entries()).map(([repoKey, typeGroups]) => {
+      const fullRepoKey = keyPrefix ? `${keyPrefix}:${repoKey}` : repoKey
+      const repoThreads = Array.from(typeGroups.values()).flat()
+      const repoCollapsed = collapsedRepos.has(fullRepoKey)
+      const repoHasUnread = repoThreads.some((t) => t.unread)
+      const repoSectionId = `repo-section-${fullRepoKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
 
-        const repoSectionId = `repo-section-${repoKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`
-
-        return (
-        <div key={repoKey} id={repoSectionId} className={styles.repoGroup}>
+      return (
+        <div key={fullRepoKey} id={repoSectionId} className={styles.repoGroup}>
           <div className={styles.repoHeader}>
             <button
               className={styles.collapseBtn}
-              onClick={() => toggleRepo(repoKey)}
+              onClick={() => toggleRepo(fullRepoKey)}
               aria-label={`${repoCollapsed ? 'Expand' : 'Collapse'} ${repoKey}`}
               aria-expanded={!repoCollapsed}
               aria-controls={repoSectionId}
@@ -132,11 +140,11 @@ export function ThreadedNotificationList({
               <button
                 className={styles.markAllBtn}
                 onClick={async () => {
-                  setMarkingAllRepoKey(repoKey)
+                  setMarkingAllRepoKey(fullRepoKey)
                   await markAllRead(repoThreads)
                   setMarkingAllRepoKey(null)
                 }}
-                disabled={markingAllRepoKey === repoKey}
+                disabled={markingAllRepoKey === fullRepoKey}
                 title="Mark all as read"
               >
                 Mark all read
@@ -145,135 +153,159 @@ export function ThreadedNotificationList({
           </div>
 
           {!repoCollapsed && Array.from(typeGroups.entries()).map(([type, typeThreads]) => {
-            const typeKey = `${repoKey}:${type}`
+            const typeKey = `${fullRepoKey}:${type}`
             const typeCollapsed = collapsedTypes.has(typeKey)
             const typeHasUnread = typeThreads.some((t) => t.unread)
-            const typeRegionId = `type-group-${repoKey}-${type}`.replace(/[^a-zA-Z0-9_-]/g, '-')
+            const typeRegionId = `type-group-${typeKey}`.replace(/[^a-zA-Z0-9_-]/g, '-')
 
             return (
-            <div key={type} id={typeRegionId} className={styles.typeGroup}>
-              <div className={styles.typeHeader}>
-                <button
-                  className={styles.collapseBtn}
-                  onClick={() => toggleType(typeKey)}
-                  aria-label={`${typeCollapsed ? 'Expand' : 'Collapse'} ${repoKey} ${typeLabel(type)}`}
-                  aria-expanded={!typeCollapsed}
-                  aria-controls={typeRegionId}
-                >
-                  <ChevronIcon collapsed={typeCollapsed} />
-                </button>
-                <span className={styles.typeLabel}>{typeLabel(type)}</span>
-                <span className={styles.typeCount}>{typeThreads.length}</span>
-                {typeHasUnread && (
+              <div key={type} id={typeRegionId} className={styles.typeGroup}>
+                <div className={styles.typeHeader}>
                   <button
-                    className={styles.markAllBtn}
-                    onClick={async () => {
-                      setMarkingAllTypeKey(typeKey)
-                      await markAllRead(typeThreads)
-                      setMarkingAllTypeKey(null)
-                    }}
-                    disabled={markingAllTypeKey === typeKey}
-                    title="Mark all as read"
+                    className={styles.collapseBtn}
+                    onClick={() => toggleType(typeKey)}
+                    aria-label={`${typeCollapsed ? 'Expand' : 'Collapse'} ${repoKey} ${typeLabel(type)}`}
+                    aria-expanded={!typeCollapsed}
+                    aria-controls={typeRegionId}
                   >
-                    Mark all read
+                    <ChevronIcon collapsed={typeCollapsed} />
                   </button>
-                )}
-              </div>
+                  <span className={styles.typeLabel}>{typeLabel(type)}</span>
+                  <span className={styles.typeCount}>{typeThreads.length}</span>
+                  {typeHasUnread && (
+                    <button
+                      className={styles.markAllBtn}
+                      onClick={async () => {
+                        setMarkingAllTypeKey(typeKey)
+                        await markAllRead(typeThreads)
+                        setMarkingAllTypeKey(null)
+                      }}
+                      disabled={markingAllTypeKey === typeKey}
+                      title="Mark all as read"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
 
-              {!typeCollapsed && typeThreads.map((thread) => (
-                <div key={thread.id} className={styles.threadRow}>
-                  <div className={styles.threadDot} data-unread={thread.unread} />
+                {!typeCollapsed && typeThreads.map((thread) => (
+                  <div key={thread.id} className={styles.threadRow}>
+                    <div className={styles.threadDot} data-unread={thread.unread} />
 
-                  <div className={styles.threadBody}>
-                    <div className={styles.threadTitle}>
-                      {thread.htmlUrl ? (
-                        <button
-                          className={`${styles.threadName} ${styles.threadNameLink}`}
-                          data-unread={thread.unread}
-                          onClick={() => window.electron.openExternal(thread.htmlUrl!)}
-                          title="Open in browser"
-                        >
-                          {thread.title}
-                        </button>
-                      ) : (
-                        <span className={styles.threadName} data-unread={thread.unread}>
-                          {thread.title}
-                        </span>
-                      )}
-                      {thread.subjectState && thread.subjectState !== 'open' && (
-                        <StateChip state={thread.subjectState} />
-                      )}
-                      <ReasonPill reason={thread.reason} />
+                    <div className={styles.threadBody}>
+                      <div className={styles.threadTitle}>
+                        {thread.htmlUrl ? (
+                          <button
+                            className={`${styles.threadName} ${styles.threadNameLink}`}
+                            data-unread={thread.unread}
+                            onClick={() => window.electron.openExternal(thread.htmlUrl!)}
+                            title="Open in browser"
+                          >
+                            {thread.title}
+                          </button>
+                        ) : (
+                          <span className={styles.threadName} data-unread={thread.unread}>
+                            {thread.title}
+                          </span>
+                        )}
+                        {thread.subjectState && thread.subjectState !== 'open' && (
+                          <StateChip state={thread.subjectState} />
+                        )}
+                        <ReasonPill reason={thread.reason} />
+                      </div>
                     </div>
-                  </div>
 
-                  <div className={styles.threadActions}>
-                    <div className={styles.threadIconGroup}>
-                      {thread.htmlUrl && (
+                    <div className={styles.threadActions}>
+                      <div className={styles.threadIconGroup}>
+                        {thread.htmlUrl && (
+                          <button
+                            className={styles.iconBtn}
+                            title="Open in GitHub"
+                            aria-label="Open in GitHub"
+                            onClick={() => window.electron.openExternal(thread.htmlUrl!)}
+                          >
+                            <ExternalLinkIcon />
+                          </button>
+                        )}
                         <button
                           className={styles.iconBtn}
-                          title="Open in GitHub"
-                          aria-label="Open in GitHub"
-                          onClick={() => window.electron.openExternal(thread.htmlUrl!)}
+                          title="Mark as read"
+                          aria-label="Mark as read"
+                          disabled={!thread.unread}
+                          onClick={() => void onMarkRead(thread.id)}
                         >
-                          <ExternalLinkIcon />
+                          <MarkReadIcon />
                         </button>
-                      )}
-                      <button
-                        className={styles.iconBtn}
-                        title="Mark as read"
-                        aria-label="Mark as read"
-                        disabled={!thread.unread}
-                        onClick={() => void onMarkRead(thread.id)}
-                      >
-                        <MarkReadIcon />
-                      </button>
-                      <button
-                        className={styles.iconBtn}
-                        title="Unsubscribe"
-                        aria-label="Unsubscribe"
-                        onClick={() => void onUnsubscribe(thread.id)}
-                      >
-                        <UnsubscribeIcon />
-                      </button>
-                    </div>
-
-                    {projects && onAssign && (
-                      assigningId === thread.id ? (
-                        <select
-                          className={styles.projectSelect}
-                          autoFocus
-                          defaultValue=""
-                          onChange={(e) => {
-                            const val = e.target.value
-                            if (val) void onAssign(thread.id, parseInt(val, 10))
-                            setAssigningId(null)
-                          }}
-                          onBlur={() => setAssigningId(null)}
-                        >
-                          <option value="" disabled>Assign to…</option>
-                          {projects.map((p) => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
-                      ) : (
                         <button
-                          className={styles.assignBtn}
-                          onClick={() => setAssigningId(thread.id)}
+                          className={styles.iconBtn}
+                          title="Unsubscribe"
+                          aria-label="Unsubscribe"
+                          onClick={() => void onUnsubscribe(thread.id)}
                         >
-                          Assign
+                          <UnsubscribeIcon />
                         </button>
-                      )
-                    )}
+                      </div>
+
+                      {projects && onAssign && (
+                        assigningId === thread.id ? (
+                          <select
+                            className={styles.projectSelect}
+                            autoFocus
+                            defaultValue=""
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val) void onAssign(thread.id, parseInt(val, 10))
+                              setAssigningId(null)
+                            }}
+                            onBlur={() => setAssigningId(null)}
+                          >
+                            <option value="" disabled>Assign to…</option>
+                            {projects.map((p) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            className={styles.assignBtn}
+                            onClick={() => setAssigningId(thread.id)}
+                          >
+                            Assign
+                          </button>
+                        )
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             )
           })}
         </div>
-        )
-      })}
+      )
+    })
+
+  return (
+    <div className={styles.root}>
+      {renderRepoGroups(groups, '')}
+      {showReadSection && readThreads.length > 0 && (
+        <div className={styles.readSection}>
+          <div
+            className={styles.readSectionHeader}
+            onClick={() => setReadCollapsed((c) => !c)}
+          >
+            <button
+              className={styles.collapseBtn}
+              aria-label={readCollapsed ? 'Expand read notifications' : 'Collapse read notifications'}
+              aria-expanded={!readCollapsed}
+            >
+              <ChevronIcon collapsed={readCollapsed} />
+            </button>
+            <span className={styles.readSectionLabel}>Read</span>
+            <span className={styles.typeCount}>{readThreads.length}</span>
+            <div className={styles.repoDivider} />
+          </div>
+          {!readCollapsed && renderRepoGroups(readGroups, 'read')}
+        </div>
+      )}
     </div>
   )
 }

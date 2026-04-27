@@ -128,23 +128,6 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
     return unsub
   }, [loadNotifications])
 
-  // Mark all notifications as read when the notifications tab is opened
-  useEffect(() => {
-    if (activeTab !== 'notifications') return
-    
-    const unread = notifications.filter((n) => n.unread)
-    if (unread.length === 0) return
-    
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
-    
-    void (async () => {
-      await Promise.allSettled(
-        unread.map((n) => window.electron.ipc.invoke('notifications:mark-read', n.id))
-      )
-      onProjectChanged()
-    })()
-  }, [activeTab, notifications, onProjectChanged])
-
   useEffect(() => {
     if (editingAction && actionRef.current) {
       actionRef.current.focus()
@@ -531,7 +514,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
               onMarkRead={async (id) => {
                 try {
                   await window.electron.ipc.invoke('notifications:mark-read', id)
-                  setNotifications((prev) => prev.filter((n) => n.id !== id))
+                  setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, unread: false } : n))
                   onProjectChanged()
                 } catch (err) {
                   console.error('[ProjectDetail] Mark read failed:', err)
@@ -541,7 +524,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
                 try {
                   await window.electron.ipc.invoke('notifications:mark-read-many', ids)
                   const idSet = new Set(ids)
-                  setNotifications((prev) => prev.filter((n) => !idSet.has(n.id)))
+                  setNotifications((prev) => prev.map((n) => idSet.has(n.id) ? { ...n, unread: false } : n))
                   onProjectChanged()
                 } catch (err) {
                   console.error('[ProjectDetail] Mark read many failed:', err)
@@ -580,6 +563,7 @@ function NotificationsTab({ notifications, onMarkRead, onMarkReadMany, onUnsubsc
       onMarkReadMany={onMarkReadMany}
       onUnsubscribe={onUnsubscribe}
       emptyMessage="No notifications for this project."
+      showReadSection={true}
     />
   )
 }
