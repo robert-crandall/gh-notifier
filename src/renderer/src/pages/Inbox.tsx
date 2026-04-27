@@ -97,7 +97,7 @@ export function Inbox({ onAssigned }: Props) {
   const handleMarkRead = async (threadId: string) => {
     try {
       await window.electron.ipc.invoke('notifications:mark-read', threadId)
-      setThreads((prev) => prev.map((t) => t.id === threadId ? { ...t, unread: false } : t))
+      setThreads((prev) => prev.filter((t) => t.id !== threadId))
     } catch (err) {
       console.error('[Inbox] Mark read failed:', err)
     }
@@ -106,7 +106,7 @@ export function Inbox({ onAssigned }: Props) {
   const handleMarkReadMany = async (threadIds: string[]) => {
     try {
       await window.electron.ipc.invoke('notifications:mark-read-many', threadIds)
-      setThreads((prev) => prev.map((t) => threadIds.includes(t.id) ? { ...t, unread: false } : t))
+      setThreads((prev) => prev.filter((t) => !threadIds.includes(t.id)))
     } catch (err) {
       console.error('[Inbox] Mark read many failed:', err)
     }

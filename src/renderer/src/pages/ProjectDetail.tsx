@@ -530,10 +530,19 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
               onMarkRead={async (id) => {
                 try {
                   await window.electron.ipc.invoke('notifications:mark-read', id)
-                  setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, unread: false } : n))
+                  setNotifications((prev) => prev.filter((n) => n.id !== id))
                   onProjectChanged()
                 } catch (err) {
                   console.error('[ProjectDetail] Mark read failed:', err)
+                }
+              }}
+              onMarkReadMany={async (ids) => {
+                try {
+                  await window.electron.ipc.invoke('notifications:mark-read-many', ids)
+                  setNotifications((prev) => prev.filter((n) => !ids.includes(n.id)))
+                  onProjectChanged()
+                } catch (err) {
+                  console.error('[ProjectDetail] Mark read many failed:', err)
                 }
               }}
               onUnsubscribe={async (id) => {
@@ -557,24 +566,16 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
 interface NotificationsTabProps {
   notifications: NotificationThread[]
   onMarkRead: (id: string) => Promise<void>
+  onMarkReadMany: (ids: string[]) => Promise<void>
   onUnsubscribe: (id: string) => Promise<void>
 }
 
-function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: NotificationsTabProps) {
-  const handleMarkReadMany = async (threadIds: string[]) => {
-    try {
-      await window.electron.ipc.invoke('notifications:mark-read-many', threadIds)
-      // Parent will refresh via onNotificationsUpdated listener
-    } catch (err) {
-      console.error('[NotificationsTab] Mark read many failed:', err)
-    }
-  }
-
+function NotificationsTab({ notifications, onMarkRead, onMarkReadMany, onUnsubscribe }: NotificationsTabProps) {
   return (
     <ThreadedNotificationList
       threads={notifications}
       onMarkRead={onMarkRead}
-      onMarkReadMany={handleMarkReadMany}
+      onMarkReadMany={onMarkReadMany}
       onUnsubscribe={onUnsubscribe}
       emptyMessage="No notifications for this project."
     />
