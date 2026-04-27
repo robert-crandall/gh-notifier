@@ -19,14 +19,15 @@ function renderTodoText(text: string): ReactNode {
     }
     const url = match[0]
     parts.push(
-      <a
+      <button
         key={match.index}
+        type="button"
         className={styles.todoLink}
         onClick={(e) => { e.stopPropagation(); window.electron.openExternal(url) }}
         title={url}
       >
         {url}
-      </a>
+      </button>
     )
     lastIndex = match.index + url.length
   }

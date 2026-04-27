@@ -132,7 +132,20 @@ export function getProject(id: number): ProjectDetail {
       .all(id) as LinkRow[]
   ).map(toLink)
 
-  return { ...toProject(row), todos, links }
+  // Compute counts from the data we just fetched
+  const unreadCount = db.prepare(
+    'SELECT COUNT(*) as cnt FROM notification_threads WHERE project_id = ? AND unread = 1'
+  ).get(id) as { cnt: number } | undefined
+  
+  const activeTodoCount = todos.filter((t) => !t.done).length
+
+  return { 
+    ...toProject(row), 
+    todos, 
+    links,
+    unreadCount: unreadCount?.cnt ?? 0,
+    activeTodoCount
+  }
 }
 
 export function createProject(name: string): Project {
@@ -145,7 +158,8 @@ export function createProject(name: string): Project {
       "INSERT INTO projects (name, sort_order) VALUES (?, ?) RETURNING *"
     )
     .get(name, m + 1) as ProjectRow
-  return toProject(row)
+  // New project has no todos or notifications yet
+  return { ...toProject(row), unreadCount: 0, activeTodoCount: 0 }
 }
 
 export function updateProject(id: number, patch: ProjectPatch): Project {
@@ -175,7 +189,21 @@ export function updateProject(id: number, patch: ProjectPatch): Project {
        RETURNING *`
     )
     .get(name, notes, nextAction, status, sortOrder, snoozeUntil, snoozeMode, id) as ProjectRow
-  return toProject(row)
+  
+  // Compute counts
+  const unreadCount = db.prepare(
+    'SELECT COUNT(*) as cnt FROM notification_threads WHERE project_id = ? AND unread = 1'
+  ).get(id) as { cnt: number } | undefined
+  
+  const activeTodoCount = db.prepare(
+    'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0'
+  ).get(id) as { cnt: number } | undefined
+  
+  return { 
+    ...toProject(row), 
+    unreadCount: unreadCount?.cnt ?? 0,
+    activeTodoCount: activeTodoCount?.cnt ?? 0
+  }
 }
 
 export function deleteProject(id: number): void {
@@ -192,7 +220,8 @@ export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Pro
     throw new Error('snooze_until should only be provided when mode is "date"')
   }
 
-  const row = getDb()
+  const db = getDb()
+  const row = db
     .prepare(
       `UPDATE projects
        SET status = 'snoozed', snooze_mode = ?, snooze_until = ?, updated_at = datetime('now')
@@ -201,7 +230,21 @@ export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Pro
     )
     .get(mode, until ?? null, id) as ProjectRow | undefined
   if (!row) throw new Error(`Project not found: ${id}`)
-  return toProject(row)
+  
+  // Compute counts
+  const unreadCount = db.prepare(
+    'SELECT COUNT(*) as cnt FROM notification_threads WHERE project_id = ? AND unread = 1'
+  ).get(id) as { cnt: number } | undefined
+  
+  const activeTodoCount = db.prepare(
+    'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0'
+  ).get(id) as { cnt: number } | undefined
+  
+  return { 
+    ...toProject(row), 
+    unreadCount: unreadCount?.cnt ?? 0,
+    activeTodoCount: activeTodoCount?.cnt ?? 0
+  }
 }
 
 /**

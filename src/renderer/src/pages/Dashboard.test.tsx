@@ -16,6 +16,7 @@ const makeProject = (overrides: Partial<Project> = {}): Project => ({
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   unreadCount: 0,
+  activeTodoCount: 0,
   snoozeMode: null,
   snoozeUntil: null,
   ...overrides,
