@@ -179,4 +179,120 @@ describe('Inbox', () => {
       })
     })
   })
+
+  describe('mark as read', () => {
+    it('removes a single thread from the list when marked as read', async () => {
+      const threads = [
+        makeThread({ id: 'thread-1', title: 'First thread' }),
+        makeThread({ id: 'thread-2', title: 'Second thread' }),
+      ]
+      setupElectron({
+        authStatus: { authenticated: true, login: 'octocat', avatarUrl: '' },
+        inbox: threads,
+      })
+      render(<Inbox onAssigned={vi.fn()} />)
+      await waitFor(() => {
+        expect(screen.getByText('First thread')).toBeInTheDocument()
+        expect(screen.getByText('Second thread')).toBeInTheDocument()
+      })
+
+      // Find and click the mark as read button for the first thread
+      const markReadButtons = screen.getAllByLabelText('Mark as read')
+      await userEvent.click(markReadButtons[0])
+
+      // Wait for the mark read to complete
+      await waitFor(() => {
+        expect(screen.queryByText('First thread')).not.toBeInTheDocument()
+      })
+      expect(screen.getByText('Second thread')).toBeInTheDocument()
+    })
+
+    it('removes multiple threads from the list when marked as read in bulk', async () => {
+      const threads = [
+        makeThread({ id: 'thread-1', title: 'First thread', repoName: 'repo1' }),
+        makeThread({ id: 'thread-2', title: 'Second thread', repoName: 'repo1' }),
+        makeThread({ id: 'thread-3', title: 'Third thread', repoName: 'repo1' }),
+      ]
+      setupElectron({
+        authStatus: { authenticated: true, login: 'octocat', avatarUrl: '' },
+        inbox: threads,
+      })
+      render(<Inbox onAssigned={vi.fn()} />)
+      await waitFor(() => {
+        expect(screen.getByText('First thread')).toBeInTheDocument()
+        expect(screen.getByText('Second thread')).toBeInTheDocument()
+        expect(screen.getByText('Third thread')).toBeInTheDocument()
+      })
+
+      // Find and click the first "Mark all read" button (for the repo)
+      const markAllReadButtons = screen.getAllByTitle('Mark all as read')
+      await userEvent.click(markAllReadButtons[0])
+
+      // Verify all threads were removed from the list
+      await waitFor(() => {
+        expect(screen.queryByText('First thread')).not.toBeInTheDocument()
+        expect(screen.queryByText('Second thread')).not.toBeInTheDocument()
+        expect(screen.queryByText('Third thread')).not.toBeInTheDocument()
+      })
+    })
+
+    it('keeps threads removed after a simulated notifications:updated refresh', async () => {
+      const threads = [
+        makeThread({ id: 'thread-1', title: 'First thread' }),
+        makeThread({ id: 'thread-2', title: 'Second thread' }),
+      ]
+      let inboxResponse = threads
+      let onNotificationsUpdatedCallback: (() => void) | undefined
+      const mockInvoke = vi.fn((channel: string) => {
+        switch (channel) {
+          case 'notifications:inbox':
+            return Promise.resolve(inboxResponse)
+          case 'projects:list': return Promise.resolve([])
+          case 'auth:status': return Promise.resolve({ authenticated: true, login: 'octocat', avatarUrl: '' })
+          case 'notifications:last-sync-time': return Promise.resolve(null)
+          case 'notifications:mark-read':
+            // Simulate backend filtering out the marked thread
+            inboxResponse = threads.filter((t) => t.id !== 'thread-1')
+            return Promise.resolve(undefined)
+          default: return Promise.resolve(null)
+        }
+      })
+
+      ;(window as unknown as Record<string, unknown>).electron = {
+        ipc: { invoke: mockInvoke },
+        openExternal: vi.fn(),
+        onNotificationsUpdated: vi.fn((callback: () => void) => {
+          onNotificationsUpdatedCallback = callback
+          return vi.fn()
+        }),
+      }
+
+      render(<Inbox onAssigned={vi.fn()} />)
+      await waitFor(() => {
+        expect(screen.getByText('First thread')).toBeInTheDocument()
+        expect(screen.getByText('Second thread')).toBeInTheDocument()
+      })
+
+      // Mark first thread as read
+      const markReadButtons = screen.getAllByLabelText('Mark as read')
+      await userEvent.click(markReadButtons[0])
+
+      await waitFor(() => {
+        expect(screen.queryByText('First thread')).not.toBeInTheDocument()
+      })
+
+      // Simulate notifications:updated event
+      onNotificationsUpdatedCallback?.()
+
+      // Wait for potential re-render
+      await waitFor(() => {
+        // Ensure load() was called again
+        expect(mockInvoke).toHaveBeenCalledWith('notifications:inbox')
+      })
+
+      // Verify thread is still not in the list (because backend now filters it)
+      expect(screen.queryByText('First thread')).not.toBeInTheDocument()
+      expect(screen.getByText('Second thread')).toBeInTheDocument()
+    })
+  })
 })

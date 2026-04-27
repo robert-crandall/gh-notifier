@@ -114,7 +114,8 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
   const loadNotifications = useCallback(async () => {
     try {
       const threads = await window.electron.ipc.invoke('notifications:list', projectId)
-      setNotifications(threads)
+      // Filter to unread threads so that marking threads as read removes them persistently
+      setNotifications(threads.filter((t) => t.unread))
     } catch (err) {
       console.error('[ProjectDetail] Failed to load notifications:', err)
       // Notifications table may not be ready on first launch, but log unexpected errors
@@ -539,7 +540,8 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
               onMarkReadMany={async (ids) => {
                 try {
                   await window.electron.ipc.invoke('notifications:mark-read-many', ids)
-                  setNotifications((prev) => prev.filter((n) => !ids.includes(n.id)))
+                  const idSet = new Set(ids)
+                  setNotifications((prev) => prev.filter((n) => !idSet.has(n.id)))
                   onProjectChanged()
                 } catch (err) {
                   console.error('[ProjectDetail] Mark read many failed:', err)
