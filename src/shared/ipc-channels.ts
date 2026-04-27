@@ -35,6 +35,7 @@ export interface Project {
   createdAt: string
   updatedAt: string
   unreadCount: number
+  activeTodoCount: number
   snoozeMode: SnoozeMode | null
   snoozeUntil: string | null
 }

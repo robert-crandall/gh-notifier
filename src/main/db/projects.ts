@@ -56,6 +56,7 @@ export function toProject(row: ProjectRow): Project {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     unreadCount: 0,
+    activeTodoCount: 0,
     snoozeMode: (row.snooze_mode as SnoozeMode) ?? null,
     snoozeUntil: row.snooze_until ?? null,
   }
@@ -88,7 +89,8 @@ export function listProjects(): Project[] {
   const rows = getDb()
     .prepare(`
       SELECT p.*,
-             COALESCE(nc.cnt, 0) AS unread_count
+             COALESCE(nc.cnt, 0) AS unread_count,
+             COALESCE(tc.cnt, 0) AS active_todo_count
       FROM projects p
       LEFT JOIN (
         SELECT project_id, COUNT(*) AS cnt
@@ -96,10 +98,16 @@ export function listProjects(): Project[] {
         WHERE unread = 1 AND project_id IS NOT NULL
         GROUP BY project_id
       ) nc ON nc.project_id = p.id
+      LEFT JOIN (
+        SELECT project_id, COUNT(*) AS cnt
+        FROM project_todos
+        WHERE done = 0
+        GROUP BY project_id
+      ) tc ON tc.project_id = p.id
       ORDER BY p.sort_order ASC, p.id ASC
     `)
-    .all() as (ProjectRow & { unread_count: number })[]
-  return rows.map((r) => ({ ...toProject(r), unreadCount: r.unread_count }))
+    .all() as (ProjectRow & { unread_count: number; active_todo_count: number })[]
+  return rows.map((r) => ({ ...toProject(r), unreadCount: r.unread_count, activeTodoCount: r.active_todo_count }))
 }
 
 export function getProject(id: number): ProjectDetail {
