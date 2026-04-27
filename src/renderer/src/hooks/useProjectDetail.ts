@@ -92,7 +92,8 @@ export function useProjectDetail(
     setDetail((prev) =>
       prev ? { ...prev, todos: prev.todos.map((t) => (t.id === id ? updated : t)) } : null
     )
-  }, [])
+    onProjectChanged?.()
+  }, [onProjectChanged])
 
   const deleteTodo = useCallback(async (id: number): Promise<void> => {
     await window.electron.ipc.invoke('todos:delete', id)

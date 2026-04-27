@@ -31,6 +31,7 @@ describe('toProject', () => {
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-02T00:00:00Z',
       unreadCount: 0,
+      activeTodoCount: 0,
       snoozeMode: null,
       snoozeUntil: null,
     })
@@ -43,6 +44,7 @@ describe('toProject', () => {
       snooze_until: null as string | null, snooze_mode: null as string | null,
     }
     expect(toProject(row).unreadCount).toBe(0)
+    expect(toProject(row).activeTodoCount).toBe(0)
   })
 
   it('maps snooze fields when present', () => {

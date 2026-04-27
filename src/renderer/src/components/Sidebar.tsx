@@ -59,8 +59,15 @@ export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectIn
                 onClick={() => onSelect(p.id)}
               >
                 <span className={styles.projectName}>{p.name}</span>
-                {p.unreadCount > 0 && (
-                  <span className={styles.badge}>{p.unreadCount}</span>
+                {(p.activeTodoCount > 0 || p.unreadCount > 0) && (
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    {p.activeTodoCount > 0 && (
+                      <span className={styles.todoBadge}>{p.activeTodoCount}</span>
+                    )}
+                    {p.unreadCount > 0 && (
+                      <span className={styles.badge}>{p.unreadCount}</span>
+                    )}
+                  </span>
                 )}
               </button>
             </li>

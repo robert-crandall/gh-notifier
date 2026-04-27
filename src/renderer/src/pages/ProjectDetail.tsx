@@ -1,10 +1,41 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
 import { ThreadedNotificationList } from '../components/ThreadedNotificationList'
 import type { NotificationThread, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
 
 type Tab = 'todos' | 'notes' | 'notifications'
+
+const URL_REGEX = /https?:\/\/[^\s)\]>"']+/g
+
+function renderTodoText(text: string): ReactNode {
+  const parts: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  URL_REGEX.lastIndex = 0
+  while ((match = URL_REGEX.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const url = match[0]
+    parts.push(
+      <button
+        key={match.index}
+        type="button"
+        className={styles.todoLink}
+        onClick={(e) => { e.stopPropagation(); window.electron.openExternal(url) }}
+        title={url}
+      >
+        {url}
+      </button>
+    )
+    lastIndex = match.index + url.length
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+  return parts
+}
 
 interface Props {
   projectId: number
@@ -435,7 +466,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
                     onClick={() => updateTodo(todo.id, { done: true })}
                     aria-label="Mark complete"
                   />
-                  <span className={styles.todoText}>{todo.text}</span>
+                  <span className={styles.todoText}>{renderTodoText(todo.text)}</span>
                   <button
                     className={styles.todoDelete}
                     onClick={() => deleteTodo(todo.id)}
@@ -457,7 +488,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
                       <path d="M1 3l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
-                  <span className={`${styles.todoText} ${styles.todoTextDone}`}>{todo.text}</span>
+                  <span className={`${styles.todoText} ${styles.todoTextDone}`}>{renderTodoText(todo.text)}</span>
                   <button
                     className={styles.todoDelete}
                     onClick={() => deleteTodo(todo.id)}

@@ -581,6 +581,17 @@
   flex: 1;
   font-size: 15px;
   color: var(--text);
+  user-select: text;
+}
+
+.todoLink {
+  color: var(--accent, #4A90D9);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.todoLink:hover {
+  text-decoration: underline;
 }
 
 .done .todoText {
