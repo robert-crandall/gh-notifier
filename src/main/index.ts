@@ -116,19 +116,35 @@ app.whenReady().then(async () => {
       win.webContents.send('notifications:updated')
     })
   })
-  ipcMain.handle('notifications:mark-read', (_event, threadId: string) => {
+  ipcMain.handle('notifications:mark-read', async (_event, threadId: string) => {
     markThreadRead(threadId)
     // Emit update event so unread badges refresh immediately
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Best-effort: mark read on GitHub so the next sync doesn't re-surface it
+    try {
+      const octokit = getOctokit()
+      await octokit.rest.activity.markThreadAsRead({ thread_id: parseInt(threadId, 10) })
+    } catch (err) {
+      console.error('[notifications] Failed to mark thread read on GitHub:', err)
+    }
   })
-  ipcMain.handle('notifications:mark-read-many', (_event, threadIds: string[]) => {
+  ipcMain.handle('notifications:mark-read-many', async (_event, threadIds: string[]) => {
     markThreadsReadMany(threadIds)
     // Emit a single update event after bulk operation
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Best-effort: mark each thread read on GitHub in parallel
+    try {
+      const octokit = getOctokit()
+      await Promise.allSettled(
+        threadIds.map((id) => octokit.rest.activity.markThreadAsRead({ thread_id: parseInt(id, 10) }))
+      )
+    } catch (err) {
+      console.error('[notifications] Failed to mark threads read on GitHub:', err)
+    }
   })
   ipcMain.handle('notifications:unsubscribe', async (_event, threadId: string) => {
     const octokit = getOctokit()

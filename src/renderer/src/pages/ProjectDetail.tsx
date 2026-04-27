@@ -114,7 +114,8 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
   const loadNotifications = useCallback(async () => {
     try {
       const threads = await window.electron.ipc.invoke('notifications:list', projectId)
-      setNotifications(threads)
+      // Filter to unread threads so that marking threads as read removes them persistently
+      setNotifications(threads.filter((t) => t.unread))
     } catch (err) {
       console.error('[ProjectDetail] Failed to load notifications:', err)
       // Notifications table may not be ready on first launch, but log unexpected errors
@@ -126,23 +127,6 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
     const unsub = window.electron.onNotificationsUpdated(() => { void loadNotifications() })
     return unsub
   }, [loadNotifications])
-
-  // Mark all notifications as read when the notifications tab is opened
-  useEffect(() => {
-    if (activeTab !== 'notifications') return
-    
-    const unread = notifications.filter((n) => n.unread)
-    if (unread.length === 0) return
-    
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })))
-    
-    void (async () => {
-      await Promise.allSettled(
-        unread.map((n) => window.electron.ipc.invoke('notifications:mark-read', n.id))
-      )
-      onProjectChanged()
-    })()
-  }, [activeTab, notifications, onProjectChanged])
 
   useEffect(() => {
     if (editingAction && actionRef.current) {
@@ -536,6 +520,16 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
                   console.error('[ProjectDetail] Mark read failed:', err)
                 }
               }}
+              onMarkReadMany={async (ids) => {
+                try {
+                  await window.electron.ipc.invoke('notifications:mark-read-many', ids)
+                  const idSet = new Set(ids)
+                  setNotifications((prev) => prev.map((n) => idSet.has(n.id) ? { ...n, unread: false } : n))
+                  onProjectChanged()
+                } catch (err) {
+                  console.error('[ProjectDetail] Mark read many failed:', err)
+                }
+              }}
               onUnsubscribe={async (id) => {
                 try {
                   await window.electron.ipc.invoke('notifications:unsubscribe', id)
@@ -557,26 +551,19 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
 interface NotificationsTabProps {
   notifications: NotificationThread[]
   onMarkRead: (id: string) => Promise<void>
+  onMarkReadMany: (ids: string[]) => Promise<void>
   onUnsubscribe: (id: string) => Promise<void>
 }
 
-function NotificationsTab({ notifications, onMarkRead, onUnsubscribe }: NotificationsTabProps) {
-  const handleMarkReadMany = async (threadIds: string[]) => {
-    try {
-      await window.electron.ipc.invoke('notifications:mark-read-many', threadIds)
-      // Parent will refresh via onNotificationsUpdated listener
-    } catch (err) {
-      console.error('[NotificationsTab] Mark read many failed:', err)
-    }
-  }
-
+function NotificationsTab({ notifications, onMarkRead, onMarkReadMany, onUnsubscribe }: NotificationsTabProps) {
   return (
     <ThreadedNotificationList
       threads={notifications}
       onMarkRead={onMarkRead}
-      onMarkReadMany={handleMarkReadMany}
+      onMarkReadMany={onMarkReadMany}
       onUnsubscribe={onUnsubscribe}
       emptyMessage="No notifications for this project."
+      showReadSection={true}
     />
   )
 }

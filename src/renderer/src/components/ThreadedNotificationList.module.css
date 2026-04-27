@@ -412,3 +412,27 @@
   color: var(--text);
   cursor: pointer;
 }
+
+/* ── Read section ── */
+.readSection {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 2px;
+}
+
+.readSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.readSectionLabel {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
