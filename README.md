@@ -6,6 +6,37 @@ macOS only.
 
 ---
 
+## Features
+
+### Projects
+The primary unit of the app. Each project has a name, notes, next action, todo list, labeled links, and a feed of routed GitHub notifications. The dashboard shows all active projects with their next action and unread notification count. Snoozed projects are visible in a collapsed section.
+
+### GitHub Integration
+- **Notification sync** — polls the GitHub Notifications API on a configurable interval, entirely off the render thread
+- **Content prefetch** — thread details are fetched asynchronously after the notification list syncs; the UI renders immediately from local data
+- **Thread closure** — when GitHub signals a thread is resolved (PR merged, issue closed), it disappears from view automatically — no acknowledgment step required
+- **Unsubscribe** — calls the GitHub API to unsubscribe from a thread and closes it locally
+- **Read state** — tracked locally; does not write back to GitHub
+
+### Inbox and Routing
+Notifications from unmapped threads land in the Inbox. From there you assign a thread to a project, creating a thread-level mapping. The app then offers to create a repo-level rule if a pattern is detected. Precedence: thread-level mapping → repo-level rule → inbox.
+
+### Notification Filtering
+Filters suppress notifications app-wide across multiple dimensions: author, org, repo, reason, state, and type. Multiple filters use AND logic. A two-tier type filter system lets you set a global floor (non-overridable) and per-repo additive rules on top of it.
+
+### Snooze
+Projects can be snoozed in three modes:
+- **Manual** — hidden until you manually un-snooze
+- **Date-based** — hidden until a specific date, then auto-surfaced
+- **Notification-triggered** — hidden until a new GitHub notification arrives for the project
+
+### Appearance
+- Native macOS dark/light mode
+- Multiple built-in themes
+- Visually crafted UI — not a default Electron look
+
+---
+
 ## Prerequisites
 
 - [Bun](https://bun.sh) — the only supported package manager/runtime (`npm`/`node` are not required)
