@@ -37,7 +37,7 @@ const TERMINAL_STATES = new Set(['completed', 'cancelled', 'failed'])
 
 function deriveStatus(row: AgentTaskRow): CopilotSessionStatus {
   if (TERMINAL_STATES.has(row.state)) return 'completed'
-  if (row.pullRequestUrl !== null && row.pullRequestState === 'open') return 'pr_ready'
+  if (row.pullRequestUrl !== null && row.pullRequestState === 'OPEN') return 'pr_ready'
   if (row.state === 'idle') return 'waiting'
   return 'in_progress'
 }
@@ -78,6 +78,7 @@ export async function fetchGithubSessions(): Promise<CopilotSession[]> {
     const { stdout } = await execFileAsync('gh', [
       'agent-task', 'list',
       '--json', GH_FIELDS,
+      '-L', '200',
     ])
 
     const rows = JSON.parse(stdout) as AgentTaskRow[]

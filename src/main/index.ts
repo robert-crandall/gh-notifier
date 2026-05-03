@@ -51,16 +51,11 @@ function createWindow(): void {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
     // Trigger first sync after the window is visible so the event reaches the renderer.
-    // syncOnce() also piggybacks a copilot sync via syncOnceSafe(), but here we call
-    // syncOnce() directly (which requires auth). Copilot sync runs regardless of auth
-    // via the startNotificationSync() polling loop. Only fall back to a standalone
-    // copilot sync when notification sync is unavailable (no auth).
+    // syncOnceSafe() (called by startNotificationSync's polling loop) already piggybacks
+    // a copilot sync, so we only need to trigger the notification sync here. No separate
+    // copilot sync fallback is needed — startNotificationSync handles it regardless of auth.
     void syncOnce().catch((error: unknown) => {
       console.error('[main] Initial notification sync failed:', error)
-      // Notification sync failed (likely no auth) — run copilot sync standalone
-      void syncCopilotSessions().catch((err: unknown) => {
-        console.error('[main] Initial copilot sync failed:', err)
-      })
     })
   })
 

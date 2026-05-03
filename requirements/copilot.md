@@ -116,11 +116,10 @@ A new `copilot` tab in the project detail view (alongside todos, notes, notifica
 
 The tab renders a session list with sessions grouped by status. Each row shows:
 - Status icon
-- Title (CLI summary, issue title, or workspace name)
-- Source badge (`github` / `cli` / `vscode`)
-- Branch (CLI source)
+- Title (issue title or task name)
+- Source badge (`github`)
 - "Started X ago" relative timestamp
-- Link button to open the issue/PR in the browser (github source only)
+- Link button to open the issue/PR in the browser
 
 ---
 

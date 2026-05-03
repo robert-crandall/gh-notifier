@@ -33,10 +33,10 @@ export type CopilotSessionStatus =
   | 'pr_ready'     // PR opened and ready for review (github source only)
   | 'completed'    // issue closed, PR merged, or session timed out
 
-export type CopilotSessionSource = 'github' | 'cli' | 'vscode-chat'
+export type CopilotSessionSource = 'github'
 
 export interface CopilotSession {
-  id: string                     // task UUID (github) or session UUID (cli/vscode-chat)
+  id: string                     // gh agent-task UUID
   projectId: number | null       // null = unlinked
   source: CopilotSessionSource
   status: CopilotSessionStatus
@@ -46,8 +46,8 @@ export interface CopilotSession {
   updatedAt: string              // ISO 8601
   repoOwner: string | null
   repoName: string | null
-  branch: string | null          // cli source: branch from workspace.yaml
-  linkedPrUrl: string | null     // github source: PR opened by Copilot
+  branch: string | null          // reserved for future use
+  linkedPrUrl: string | null     // PR opened by Copilot for this task
 }
 
 export interface Project {

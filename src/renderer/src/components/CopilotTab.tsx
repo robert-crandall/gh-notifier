@@ -17,8 +17,6 @@ const STATUS_LABELS: Record<CopilotSessionStatus, string> = {
 
 const SOURCE_LABELS: Record<CopilotSession['source'], string> = {
   github: 'GitHub',
-  cli: 'CLI',
-  'vscode-chat': 'VS Code',
 }
 
 function StatusIcon({ status }: { status: CopilotSessionStatus }) {

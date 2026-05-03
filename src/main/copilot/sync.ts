@@ -18,20 +18,28 @@ function broadcastCopilotUpdated(): void {
 }
 
 let syncing = false
+let resyncRequested = false
 
 /** Syncs remote Copilot sessions from GitHub and persists to DB. */
 export async function syncCopilotSessions(): Promise<void> {
-  if (syncing) return
+  if (syncing) {
+    resyncRequested = true
+    return
+  }
   syncing = true
   try {
-    const sessions = await fetchGithubSessions()
-    if (sessions.length > 0) {
-      upsertSessions(sessions)
-    }
-    broadcastCopilotUpdated()
+    do {
+      resyncRequested = false
+      const sessions = await fetchGithubSessions()
+      if (sessions.length > 0) {
+        upsertSessions(sessions)
+      }
+      broadcastCopilotUpdated()
+    } while (resyncRequested)
   } catch (err) {
     console.error('[copilot/sync] Sync failed:', err)
   } finally {
     syncing = false
+    resyncRequested = false
   }
 }
