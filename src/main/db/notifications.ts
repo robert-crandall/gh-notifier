@@ -7,7 +7,7 @@ import type {
   UnreadCount,
 } from '../../shared/ipc-channels'
 import { getDb } from './index'
-import { listSuppressRules, routingRuleMatches } from './routing-rules'
+import { listSuppressRules, listRoutingRules, routingRuleMatches } from './routing-rules'
 
 // ── Row types (SQLite returns snake_case column names) ────────────────────────
 
@@ -153,7 +153,10 @@ export interface ThreadSyncData {
 
 /**
  * Upserts a batch of notification threads from GitHub sync.
- * Applies repo-level routing rules if no project is explicitly assigned.
+ * Routing priority for new threads:
+ *   1. Already-assigned project_id (preserved on update)
+ *   2. Simple repo rule (`repo_rules` table — exact repo match)
+ *   3. Routing rules (`routing_rules` table — evaluated in creation order, first match wins)
  */
 export function upsertThreads(threads: ThreadSyncData[]): void {
   const db = getDb()
@@ -185,14 +188,45 @@ export function upsertThreads(threads: ThreadSyncData[]): void {
   // Wake a notification-triggered snoozed project when it receives a new thread
   const wakeNotificationSnooze = getWakeNotificationSnoozeStmt()
 
+  // Load routing rules once for the entire batch (first match wins, 'route' action only)
+  const routeRules = listRoutingRules().filter((r) => r.action === 'route' && r.projectId !== null)
+
   const runAll = db.transaction(() => {
     for (const t of threads) {
-      // Preserve existing project assignment if already set; otherwise apply repo rule
+      // Preserve existing project assignment if already set
       const existing = getExisting.get(t.id)
       let projectId: number | null = existing?.project_id ?? null
+
       if (projectId === null) {
-        const rule = getRule.get(t.repoOwner, t.repoName)
-        projectId = rule?.project_id ?? null
+        // 1. Try simple repo rule (exact match, cheapest)
+        const repoRule = getRule.get(t.repoOwner, t.repoName)
+        projectId = repoRule?.project_id ?? null
+      }
+
+      if (projectId === null) {
+        // 2. Fall back to routing rules (evaluated in creation order, first match wins)
+        const pseudoThread: NotificationThread = {
+          id: t.id,
+          projectId: null,
+          repoOwner: t.repoOwner,
+          repoName: t.repoName,
+          title: t.title,
+          type: t.type,
+          reason: t.reason,
+          unread: t.unread,
+          updatedAt: t.updatedAt,
+          lastReadAt: t.lastReadAt,
+          apiUrl: t.apiUrl,
+          subjectUrl: t.subjectUrl,
+          subjectState: null,
+          htmlUrl: null,
+        }
+        for (const rule of routeRules) {
+          if (routingRuleMatches(rule, pseudoThread)) {
+            projectId = rule.projectId!
+            break
+          }
+        }
       }
 
       upsert.run(
