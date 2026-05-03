@@ -20,6 +20,11 @@ const api: ElectronApi = {
     const handler = (_event: Electron.IpcRendererEvent, progress: PrefetchProgress) => callback(progress)
     ipcRenderer.on('prefetch:progress', handler)
     return () => { ipcRenderer.removeListener('prefetch:progress', handler) }
+  },
+  onCopilotUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('copilot:updated', handler)
+    return () => { ipcRenderer.removeListener('copilot:updated', handler) }
   }
 }
 

@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import styles from './ProjectDetail.module.css'
 import { useProjectDetail } from '../hooks/useProjectDetail'
+import { useCopilotSessions } from '../hooks/useCopilotSessions'
 import { ThreadedNotificationList } from '../components/ThreadedNotificationList'
+import { CopilotTab } from '../components/CopilotTab'
 import type { NotificationThread, ProjectLink, SnoozeMode } from '@shared/ipc-channels'
 
-type Tab = 'todos' | 'notes' | 'notifications'
+type Tab = 'todos' | 'notes' | 'notifications' | 'copilot'
 
 const URL_REGEX = /https?:\/\/[^\s)\]>"']+/g
 
@@ -59,7 +61,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const stored = localStorage.getItem(`tab:${projectId}`)
-    const validTabs: Tab[] = ['todos', 'notes', 'notifications']
+    const validTabs: Tab[] = ['todos', 'notes', 'notifications', 'copilot']
     return stored && validTabs.includes(stored as Tab) ? (stored as Tab) : 'todos'
   })
 
@@ -83,6 +85,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
   const [confirmingDelete, setConfirmingDelete] = useState(false)
 
   const [notifications, setNotifications] = useState<NotificationThread[]>([])
+  const { sessions: copilotSessions } = useCopilotSessions(projectId)
 
   // Close the snooze menu when clicking outside of it or pressing Escape
   useEffect(() => {
@@ -437,6 +440,14 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
               </button>
             )
           })}
+          {copilotSessions.length > 0 && (
+            <button
+              className={`${styles.tab} ${activeTab === 'copilot' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('copilot')}
+            >
+              Copilot
+            </button>
+          )}
         </div>
 
         {/* Tab content */}
@@ -539,6 +550,10 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
                 }
               }}
             />
+          )}
+
+          {activeTab === 'copilot' && (
+            <CopilotTab projectId={projectId} />
           )}
         </div>
       </div>

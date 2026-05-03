@@ -222,7 +222,28 @@
   transition: width 200ms ease;
 }
 
-/* ── Bottom nav (Settings) ── */
+/* ── Copilot session dot indicator ── */
+.copilotDot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.copilotDotInProgress {
+  background: var(--blue, #4a9eff);
+  animation: copilotPulse 1.5s ease-in-out infinite;
+}
+
+.copilotDotWaiting {
+  background: oklch(75% 0.18 60); /* amber */
+}
+
+@keyframes copilotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
 .bottomNav {
   flex-shrink: 0;
   padding: 6px 8px 10px;

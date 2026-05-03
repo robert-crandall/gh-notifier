@@ -25,6 +25,31 @@ export type MaxSyncDays = 1 | 3 | 7 | 14 | 30
 export const MAX_SYNC_DAYS_OPTIONS: MaxSyncDays[] = [1, 3, 7, 14, 30]
 export const DEFAULT_MAX_SYNC_DAYS: MaxSyncDays = 7
 
+// ── Copilot session types ─────────────────────────────────────────────────────
+
+export type CopilotSessionStatus =
+  | 'in_progress'  // agent is actively working
+  | 'waiting'      // agent finished a turn, waiting for user input
+  | 'pr_ready'     // PR opened and ready for review (github source only)
+  | 'completed'    // issue closed, PR merged, or session timed out
+
+export type CopilotSessionSource = 'github' | 'cli' | 'vscode-chat'
+
+export interface CopilotSession {
+  id: string                     // task UUID (github) or session UUID (cli/vscode-chat)
+  projectId: number | null       // null = unlinked
+  source: CopilotSessionSource
+  status: CopilotSessionStatus
+  title: string
+  htmlUrl: string | null         // link to issue/PR on github.com
+  startedAt: string              // ISO 8601
+  updatedAt: string              // ISO 8601
+  repoOwner: string | null
+  repoName: string | null
+  branch: string | null          // cli source: branch from workspace.yaml
+  linkedPrUrl: string | null     // github source: PR opened by Copilot
+}
+
 export interface Project {
   id: number
   name: string
@@ -38,6 +63,8 @@ export interface Project {
   activeTodoCount: number
   snoozeMode: SnoozeMode | null
   snoozeUntil: string | null
+  /** Highest-priority Copilot session status across all sessions for this project. Null if none. */
+  copilotStatus: CopilotSessionStatus | null
 }
 
 // ── Notification types ────────────────────────────────────────────────────────
@@ -409,6 +436,29 @@ export type IpcChannels = {
     args: []
     result: { matched: number }
   }
+
+  // ── Copilot sessions ───────────────────────────────────────────────────────
+
+  /** Returns all Copilot sessions linked to a project, ordered by updated_at desc. */
+  'copilot:sessions-for-project': {
+    args: [projectId: number]
+    result: CopilotSession[]
+  }
+
+  /**
+   * Returns the highest-priority Copilot session status per project.
+   * Keys are project IDs; value is null when there are no active sessions.
+   */
+  'copilot:all-statuses': {
+    args: []
+    result: Record<number, CopilotSessionStatus>
+  }
+
+  /** Triggers an immediate Copilot session sync across all sources. */
+  'copilot:sync': {
+    args: []
+    result: void
+  }
 }
 
 export type IpcChannelName = keyof IpcChannels
@@ -433,6 +483,8 @@ export interface ElectronApi {
   onNotificationsUpdated: (callback: () => void) => () => void
   /** Registers a callback for thread content prefetch progress. Returns an unsubscribe fn. */
   onPrefetchProgress: (callback: (progress: PrefetchProgress) => void) => () => void
+  /** Registers a callback that fires whenever Copilot session state changes. Returns an unsubscribe fn. */
+  onCopilotUpdated: (callback: () => void) => () => void
 }
 
 declare global {

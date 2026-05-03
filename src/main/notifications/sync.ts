@@ -10,6 +10,7 @@ import { BrowserWindow } from 'electron'
 import { getOctokit, isOctokitReady } from '../auth/octokit'
 import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
 import { getDb } from '../db'
+import { syncCopilotSessions } from '../copilot/sync'
 import type { NotificationType, SyncIntervalMinutes, MaxSyncDays } from '../../shared/ipc-channels'
 import { DEFAULT_SYNC_INTERVAL_MINUTES, SYNC_INTERVAL_OPTIONS, DEFAULT_MAX_SYNC_DAYS, MAX_SYNC_DAYS_OPTIONS } from '../../shared/ipc-channels'
 
@@ -173,6 +174,11 @@ async function syncOnceSafe(): Promise<void> {
   } catch (err) {
     console.error('[notifications] Content prefetch failed:', err)
   }
+
+  // Piggyback Copilot session sync — runs independently of notification auth
+  void syncCopilotSessions().catch((err: unknown) => {
+    console.error('[copilot/sync] Piggybacked sync failed:', err)
+  })
 }
 
 // ── Content prefetch (M5) ─────────────────────────────────────────────────────

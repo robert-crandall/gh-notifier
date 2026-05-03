@@ -1,0 +1,139 @@
+.tabRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--text-3);
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* ── Status group ── */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.groupLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  padding: 4px 0 2px;
+  text-transform: uppercase;
+}
+
+/* ── Session row ── */
+.sessionRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.statusIcon {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+}
+
+.statusIconInProgress {
+  background: var(--blue, #4a9eff);
+  animation: copilotPulse 1.5s ease-in-out infinite;
+}
+
+.statusIconWaiting {
+  background: oklch(75% 0.18 60);
+}
+
+.statusIconPrReady {
+  background: var(--green, #2da44e);
+}
+
+.statusIconCompleted {
+  background: var(--text-3);
+}
+
+@keyframes copilotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+.sessionBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sessionTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sourceBadge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--border-2);
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+
+.branch {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: ui-monospace, 'SFMono-Regular', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 160px;
+}
+
+.timestamp {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.linkBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-3);
+  transition: background 80ms, color 80ms;
+}
+
+.linkBtn:hover {
+  background: var(--border-2);
+  color: var(--text);
+}

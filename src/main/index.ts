@@ -24,6 +24,8 @@ import {
 import { listRoutingRules, createRoutingRule, deleteRoutingRule, applyRoutingRulesToInbox } from './db/routing-rules'
 import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync, getMaxSyncDays, setMaxSyncDays } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
+import { syncCopilotSessions, startCopilotWatchers } from './copilot/sync'
+import { getSessionsForProject, getAllStatuses } from './copilot/db'
 import { getDb } from './db'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
@@ -214,8 +216,18 @@ app.whenReady().then(async () => {
     return result
   })
 
+  // Copilot session handlers
+  ipcMain.handle('copilot:sessions-for-project', (_event, projectId: number) =>
+    getSessionsForProject(projectId)
+  )
+  ipcMain.handle('copilot:all-statuses', () => getAllStatuses())
+  ipcMain.handle('copilot:sync', async () => {
+    await syncCopilotSessions()
+  })
+
   startNotificationSync()
   startSnoozeWatcher()
+  startCopilotWatchers()
 
   createWindow()
 
