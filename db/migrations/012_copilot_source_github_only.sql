@@ -12,7 +12,8 @@ CREATE TABLE copilot_sessions_new (
   repo_owner   TEXT,
   repo_name    TEXT,
   branch       TEXT,
-  linked_pr_url TEXT
+  linked_pr_url TEXT,
+  synced_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Only carry over rows that already have source = 'github'.

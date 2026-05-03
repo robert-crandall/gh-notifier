@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS copilot_sessions (
   repo_owner   TEXT,
   repo_name    TEXT,
   branch       TEXT,
-  linked_pr_url TEXT
+  linked_pr_url TEXT,
+  synced_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_copilot_sessions_project ON copilot_sessions(project_id);

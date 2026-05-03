@@ -20,6 +20,7 @@ interface CopilotSessionRow {
   repo_name: string | null
   branch: string | null
   linked_pr_url: string | null
+  synced_at: string
 }
 
 function toSession(row: CopilotSessionRow): CopilotSession {
@@ -45,10 +46,10 @@ export function upsertSessions(sessions: CopilotSession[]): void {
   const stmt = db.prepare(`
     INSERT OR REPLACE INTO copilot_sessions
       (id, project_id, source, status, title, html_url, started_at, updated_at,
-       repo_owner, repo_name, branch, linked_pr_url)
+       repo_owner, repo_name, branch, linked_pr_url, synced_at)
     VALUES
       (@id, @project_id, @source, @status, @title, @html_url, @started_at, @updated_at,
-       @repo_owner, @repo_name, @branch, @linked_pr_url)
+       @repo_owner, @repo_name, @branch, @linked_pr_url, datetime('now'))
   `)
   const insertMany = db.transaction((rows: CopilotSession[]) => {
     for (const s of rows) {
