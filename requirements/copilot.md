@@ -31,9 +31,10 @@ When the user starts a Copilot coding agent task on GitHub (via an issue, a prom
 
 | Condition | Status |
 |---|---|
-| `state` is not `completed`, `cancelled`, or `failed`, and `pullRequestUrl` is `null` | `in_progress` |
-| `state` is not `completed`, `cancelled`, or `failed`, and `pullRequestState` is `"OPEN"` | `pr_ready` |
 | `state` is `completed`, `cancelled`, or `failed` | `completed` |
+| `state` is not terminal, `pullRequestState` is `"OPEN"` | `pr_ready` |
+| `state` is `idle` | `waiting` |
+| Otherwise (non-terminal, no open PR, not idle) | `in_progress` |
 
 **Sync cadence:** Piggyback on the existing notification sync interval. No separate timer.
 
@@ -80,7 +81,7 @@ Joined into the `projects:list` query so no extra IPC round-trip is needed for t
 
 | Source | How project is resolved |
 |---|---|
-| `github` | The task's repo → matched against `repo_rules` |
+| `github` | 1. PR notification thread already routed to a project → use that project. 2. Repo rules (`repo_rules` table — exact repo match). 3. Routing rules (`routing_rules` table — first match wins). |
 
 If no rule matches, `project_id = null`. Unlinked sessions are stored but not surfaced in any project tab.
 

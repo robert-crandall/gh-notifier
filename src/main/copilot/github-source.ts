@@ -72,10 +72,29 @@ function mapRow(row: AgentTaskRow): CopilotSession {
   }
 }
 
+/** Resolve the full path to the `gh` binary, checking common macOS install locations. */
+function resolveGhPath(): string {
+  const candidates = [
+    '/opt/homebrew/bin/gh',
+    '/usr/local/bin/gh',
+    '/usr/bin/gh',
+  ]
+  for (const p of candidates) {
+    try {
+      require('fs').accessSync(p, require('fs').constants.X_OK)
+      return p
+    } catch { /* not found, try next */ }
+  }
+  // Fall back to bare `gh` and hope it's on PATH
+  return 'gh'
+}
+
+const ghPath = resolveGhPath()
+
 /** Fetches all GitHub agent tasks and maps them to CopilotSession objects. */
 export async function fetchGithubSessions(): Promise<CopilotSession[]> {
   try {
-    const { stdout } = await execFileAsync('gh', [
+    const { stdout } = await execFileAsync(ghPath, [
       'agent-task', 'list',
       '--json', GH_FIELDS,
       '-L', '200',

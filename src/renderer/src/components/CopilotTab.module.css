@@ -68,6 +68,12 @@
   50%       { opacity: 0.4; transform: scale(0.75); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .statusIconInProgress {
+    animation: none;
+  }
+}
+
 .sessionBody {
   flex: 1;
   min-width: 0;

@@ -244,6 +244,12 @@
   50%       { opacity: 0.4; transform: scale(0.75); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .copilotDot {
+    animation: none;
+  }
+}
+
 .bottomNav {
   flex-shrink: 0;
   padding: 6px 8px 10px;
