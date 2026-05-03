@@ -51,7 +51,7 @@ function mapRow(row: AgentTaskRow): CopilotSession {
     if (slash !== -1) {
       repoOwner = row.repository.slice(0, slash)
       repoName = row.repository.slice(slash + 1)
-      projectId = resolveProjectId(repoOwner, repoName)
+      projectId = resolveProjectId(repoOwner, repoName, row.pullRequestNumber)
     }
   }
 
