@@ -1,5 +1,6 @@
 -- Narrow copilot_sessions.source to 'github' only.
 -- SQLite does not support ALTER TABLE ... ALTER COLUMN, so we recreate the table.
+DROP TABLE IF EXISTS copilot_sessions_new;
 CREATE TABLE copilot_sessions_new (
   id           TEXT    PRIMARY KEY,
   project_id   INTEGER REFERENCES projects(id) ON DELETE CASCADE,
