@@ -13,7 +13,8 @@ export function getDb(): Database.Database {
 }
 
 export function initDb(): void {
-  const dbPath = join(app.getPath('userData'), 'gh-projects.db')
+  const dbName = app.isPackaged ? 'gh-projects.db' : 'gh-projects-dev.db'
+  const dbPath = join(app.getPath('userData'), dbName)
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
