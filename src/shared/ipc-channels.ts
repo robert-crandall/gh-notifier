@@ -447,7 +447,8 @@ export type IpcChannels = {
 
   /**
    * Returns the highest-priority Copilot session status per project.
-   * Keys are project IDs; value is null when there are no active sessions.
+   * Keys are project IDs; only projects with active sessions are included.
+   * Projects without active sessions are omitted (check via `key in result`).
    */
   'copilot:all-statuses': {
     args: []

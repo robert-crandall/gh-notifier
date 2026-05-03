@@ -61,10 +61,10 @@ export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectIn
                 <span className={styles.projectName}>{p.name}</span>
                 <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                   {p.copilotStatus === 'in_progress' && (
-                    <span className={`${styles.copilotDot} ${styles.copilotDotInProgress}`} title="Copilot is working" />
+                    <span className={`${styles.copilotDot} ${styles.copilotDotInProgress}`} role="status" aria-label="Copilot is working" />
                   )}
                   {(p.copilotStatus === 'waiting' || p.copilotStatus === 'pr_ready') && (
-                    <span className={`${styles.copilotDot} ${styles.copilotDotWaiting}`} title={p.copilotStatus === 'pr_ready' ? 'PR ready for review' : 'Copilot is waiting'} />
+                    <span className={`${styles.copilotDot} ${styles.copilotDotWaiting}`} role="status" aria-label={p.copilotStatus === 'pr_ready' ? 'PR ready for review' : 'Copilot is waiting'} />
                   )}
                   {p.activeTodoCount > 0 && (
                     <span className={styles.todoBadge}>{p.activeTodoCount}</span>

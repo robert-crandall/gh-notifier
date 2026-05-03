@@ -28,8 +28,10 @@ export function useProjects(): UseProjectsResult {
   useEffect(() => {
     loadProjects()
     // Refresh project list (unread counts) whenever a notification sync completes
-    const unsub = window.electron.onNotificationsUpdated(() => { void loadProjects() })
-    return unsub
+    const unsubNotifications = window.electron.onNotificationsUpdated(() => { void loadProjects() })
+    // Refresh project list (copilot status dots) whenever a copilot sync completes
+    const unsubCopilot = window.electron.onCopilotUpdated(() => { void loadProjects() })
+    return () => { unsubNotifications(); unsubCopilot() }
   }, [loadProjects])
 
   const createProject = useCallback(async (name: string): Promise<Project> => {

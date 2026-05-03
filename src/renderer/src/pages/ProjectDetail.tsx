@@ -87,6 +87,13 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
   const [notifications, setNotifications] = useState<NotificationThread[]>([])
   const { sessions: copilotSessions } = useCopilotSessions(projectId)
 
+  // Reset to todos tab if the copilot tab disappears while selected
+  useEffect(() => {
+    if (activeTab === 'copilot' && copilotSessions.length === 0) {
+      setActiveTab('todos')
+    }
+  }, [activeTab, copilotSessions.length])
+
   // Close the snooze menu when clicking outside of it or pressing Escape
   useEffect(() => {
     if (!showSnoozeMenu) return
@@ -553,7 +560,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
           )}
 
           {activeTab === 'copilot' && (
-            <CopilotTab projectId={projectId} />
+            <CopilotTab sessions={copilotSessions} />
           )}
         </div>
       </div>

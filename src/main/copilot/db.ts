@@ -92,25 +92,24 @@ export function getAllStatuses(): Record<number, CopilotSessionStatus> {
   const rows = getDb()
     .prepare(`
       SELECT project_id,
-             MAX(CASE status
+             CASE MAX(CASE status
                WHEN 'in_progress' THEN 4
                WHEN 'waiting'     THEN 3
                WHEN 'pr_ready'    THEN 2
                WHEN 'completed'   THEN 1
                ELSE 0
-             END) AS priority,
-             MAX(CASE status
-               WHEN 'in_progress' THEN 'in_progress'
-               WHEN 'waiting'     THEN 'waiting'
-               WHEN 'pr_ready'    THEN 'pr_ready'
+             END)
+               WHEN 4 THEN 'in_progress'
+               WHEN 3 THEN 'waiting'
+               WHEN 2 THEN 'pr_ready'
                ELSE NULL
-             END) AS top_status
+             END AS top_status
       FROM copilot_sessions
       WHERE project_id IS NOT NULL
         AND status != 'completed'
       GROUP BY project_id
     `)
-    .all() as { project_id: number; priority: number; top_status: string | null }[]
+    .all() as { project_id: number; top_status: string | null }[]
 
   const result: Record<number, CopilotSessionStatus> = {}
   for (const row of rows) {

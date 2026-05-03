@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-DATA_DIR="$HOME/Library/Application Support/gh-projects"
+DATA_DIR="$HOME/Library/Application Support/GH Projects"
 PROD_DB="$DATA_DIR/gh-projects.db"
 DEV_DB="$DATA_DIR/gh-projects-dev.db"
 

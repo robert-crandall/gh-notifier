@@ -1,10 +1,9 @@
 import { formatDistanceToNow } from 'date-fns'
 import styles from './CopilotTab.module.css'
-import { useCopilotSessions } from '../hooks/useCopilotSessions'
 import type { CopilotSession, CopilotSessionStatus } from '@shared/ipc-channels'
 
 interface Props {
-  projectId: number
+  sessions: CopilotSession[]
 }
 
 const STATUS_ORDER: CopilotSessionStatus[] = ['in_progress', 'waiting', 'pr_ready', 'completed']
@@ -83,11 +82,7 @@ function SessionRow({ session }: { session: CopilotSession }) {
   )
 }
 
-export function CopilotTab({ projectId }: Props) {
-  const { sessions, isLoading } = useCopilotSessions(projectId)
-
-  if (isLoading) return null
-
+export function CopilotTab({ sessions }: Props) {
   if (sessions.length === 0) {
     return (
       <div className={styles.tabRoot}>
