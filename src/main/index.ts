@@ -124,6 +124,9 @@ app.whenReady().then(async () => {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Re-resolve copilot sessions so any session linked to this thread's PR
+    // follows the new project assignment.
+    void syncCopilotSessions()
   })
   ipcMain.handle('notifications:mark-read', async (_event, threadId: string) => {
     markThreadRead(threadId)
@@ -220,6 +223,8 @@ app.whenReady().then(async () => {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Re-resolve copilot sessions against the newly routed threads
+    void syncCopilotSessions()
     return result
   })
 
