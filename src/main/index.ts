@@ -54,6 +54,10 @@ function createWindow(): void {
     void syncOnce().catch((error: unknown) => {
       console.error('[main] Initial notification sync failed:', error)
     })
+    // Copilot sync runs regardless of notification auth
+    void syncCopilotSessions().catch((err: unknown) => {
+      console.error('[main] Initial copilot sync failed:', err)
+    })
   })
 
   if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
@@ -77,6 +81,9 @@ app.whenReady().then(async () => {
     // Fire a sync now that we have credentials; fire-and-forget
     void syncOnce().catch((err: unknown) => {
       console.error('[auth] Post-auth sync failed:', err)
+    })
+    void syncCopilotSessions().catch((err: unknown) => {
+      console.error('[auth] Post-auth copilot sync failed:', err)
     })
     return result
   })
