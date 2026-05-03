@@ -37,7 +37,8 @@ const TERMINAL_STATES = new Set(['completed', 'cancelled', 'failed'])
 
 function deriveStatus(row: AgentTaskRow): CopilotSessionStatus {
   if (TERMINAL_STATES.has(row.state)) return 'completed'
-  if (row.pullRequestUrl !== null) return 'pr_ready'
+  if (row.pullRequestUrl !== null && row.pullRequestState === 'open') return 'pr_ready'
+  if (row.state === 'idle') return 'waiting'
   return 'in_progress'
 }
 

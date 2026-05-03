@@ -45,18 +45,18 @@ When the user starts a Copilot coding agent task on GitHub (via an issue, a prom
 
 ```ts
 interface CopilotSession {
-  id: string                        // session UUID (local CLI session or gh agent-task UUID)
+  id: string                        // gh agent-task UUID
   projectId: number | null          // null = unlinked (no matching repo rule)
   source: 'github'
   status: CopilotSessionStatus
-  title: string                     // CLI summary, issue title, or workspace folder name
-  htmlUrl: string | null            // URL to the issue/PR on github.com (github source only)
+  title: string                     // issue title from the agent task
+  htmlUrl: string | null            // URL to the issue/PR on github.com
   startedAt: string                 // ISO 8601
   updatedAt: string                 // ISO 8601
   repoOwner: string | null          // resolved repo owner (for display + linking)
   repoName: string | null           // resolved repo name
-  branch: string | null             // reserved for future local source support
-  linkedPrUrl: string | null        // github source: PR opened by Copilot
+  branch: string | null             // reserved for future use
+  linkedPrUrl: string | null        // PR opened by Copilot for this task
 }
 
 type CopilotSessionStatus =

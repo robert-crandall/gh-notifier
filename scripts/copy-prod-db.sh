@@ -15,12 +15,14 @@ fi
 
 # WAL mode creates .db-wal and .db-shm while the database is open.
 # Copying while these exist risks a corrupt snapshot.
-for ext in wal shm; do
-  if [[ -f "$PROD_DB-$ext" ]]; then
-    echo "Error: $PROD_DB-$ext exists — the app may be running." >&2
-    echo "Close the app and try again." >&2
-    exit 1
-  fi
+for db in "$PROD_DB" "$DEV_DB"; do
+  for ext in wal shm; do
+    if [[ -f "$db-$ext" ]]; then
+      echo "Error: $db-$ext exists — the app may be running." >&2
+      echo "Close the app and try again." >&2
+      exit 1
+    fi
+  done
 done
 
 cp "$PROD_DB" "$DEV_DB"
