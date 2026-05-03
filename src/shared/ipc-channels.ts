@@ -455,7 +455,7 @@ export type IpcChannels = {
     result: Record<number, CopilotSessionStatus>
   }
 
-  /** Triggers an immediate Copilot session sync across all sources. */
+  /** Triggers an immediate Copilot session sync from GitHub. */
   'copilot:sync': {
     args: []
     result: void

@@ -15,7 +15,9 @@ CREATE TABLE copilot_sessions_new (
   linked_pr_url TEXT
 );
 
-INSERT INTO copilot_sessions_new SELECT * FROM copilot_sessions;
+-- Only carry over rows that already have source = 'github'.
+-- Legacy cli/vscode-chat rows are intentionally dropped.
+INSERT INTO copilot_sessions_new SELECT * FROM copilot_sessions WHERE source = 'github';
 DROP TABLE copilot_sessions;
 ALTER TABLE copilot_sessions_new RENAME TO copilot_sessions;
 

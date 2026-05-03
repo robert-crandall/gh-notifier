@@ -33,7 +33,7 @@ function StatusIcon({ status }: { status: CopilotSessionStatus }) {
 function SessionRow({ session }: { session: CopilotSession }) {
   const relativeTime = (() => {
     try {
-      return formatDistanceToNow(new Date(session.updatedAt), { addSuffix: true })
+      return formatDistanceToNow(new Date(session.startedAt), { addSuffix: true })
     } catch {
       return ''
     }

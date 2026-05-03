@@ -301,10 +301,28 @@ export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Pro
     'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0'
   ).get(id) as { cnt: number } | undefined
   
+  // Compute copilot status for this project
+  const copilotRow = db.prepare(`
+    SELECT CASE MAX(CASE status
+             WHEN 'in_progress' THEN 4
+             WHEN 'waiting'     THEN 3
+             WHEN 'pr_ready'    THEN 2
+             ELSE 0
+           END)
+             WHEN 4 THEN 'in_progress'
+             WHEN 3 THEN 'waiting'
+             WHEN 2 THEN 'pr_ready'
+             ELSE NULL
+           END AS top_status
+    FROM copilot_sessions
+    WHERE project_id = ? AND status != 'completed'
+  `).get(id) as { top_status: string | null } | undefined
+
   return { 
     ...toProject(row), 
     unreadCount: unreadCount?.cnt ?? 0,
-    activeTodoCount: activeTodoCount?.cnt ?? 0
+    activeTodoCount: activeTodoCount?.cnt ?? 0,
+    copilotStatus: (copilotRow?.top_status as CopilotSessionStatus) ?? null,
   }
 }
 

@@ -165,6 +165,8 @@ app.whenReady().then(async () => {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Re-resolve copilot sessions — the deleted thread may have changed resolveProjectId() results
+    void syncCopilotSessions()
   })
   ipcMain.handle('notifications:sync', async () => {
     // Reset content_fetched_at for open/unfetched threads so prefetch re-verifies
@@ -173,6 +175,8 @@ app.whenReady().then(async () => {
     invalidateOpenThreadPrefetch()
     await syncOnce()
     try { await prefetchThreadContent() } catch (err) { console.error('[notifications] Prefetch after manual sync failed:', err) }
+    // Keep Copilot sessions in sync with notifications so sidebar dots stay current
+    await syncCopilotSessions()
   })
   ipcMain.handle('notifications:last-sync-time', () => {
     const row = getDb().prepare('SELECT value FROM sync_metadata WHERE key = ?').get('last_notification_sync') as { value: string } | undefined

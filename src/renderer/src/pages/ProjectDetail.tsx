@@ -448,7 +448,7 @@ export function ProjectDetail({ projectId, onBack, onProjectChanged, onDelete }:
               </button>
             )
           })}
-          {copilotSessions.length > 0 && (
+          {(copilotSessions.length > 0 || (copilotLoading && activeTab === 'copilot')) && (
             <button
               className={`${styles.tab} ${activeTab === 'copilot' ? styles.tabActive : ''}`}
               onClick={() => setActiveTab('copilot')}
