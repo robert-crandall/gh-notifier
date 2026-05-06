@@ -8,7 +8,7 @@ INSTALLED="$INSTALL_DIR/$APP_NAME.app"
 
 # Check for icon — suggest generating it if missing
 if [ ! -f "build/icon.icns" ]; then
-  echo "Warning: build/icon.icns not found. Run 'bun run icons' to generate it."
+  echo "Warning: build/icon.icns not found. Place an icon at build/icon.icns before distributing."
   echo "         Continuing without a custom icon..."
 fi
 

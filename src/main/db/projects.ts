@@ -1,4 +1,5 @@
 import type {
+  CopilotSessionStatus,
   Project,
   ProjectDetail,
   ProjectLink,
@@ -59,6 +60,7 @@ export function toProject(row: ProjectRow): Project {
     activeTodoCount: 0,
     snoozeMode: (row.snooze_mode as SnoozeMode) ?? null,
     snoozeUntil: row.snooze_until ?? null,
+    copilotStatus: null,
   }
 }
 
@@ -90,7 +92,8 @@ export function listProjects(): Project[] {
     .prepare(`
       SELECT p.*,
              COALESCE(nc.cnt, 0) AS unread_count,
-             COALESCE(tc.cnt, 0) AS active_todo_count
+             COALESCE(tc.cnt, 0) AS active_todo_count,
+             cs.top_status AS copilot_status
       FROM projects p
       LEFT JOIN (
         SELECT project_id, COUNT(*) AS cnt
@@ -104,10 +107,32 @@ export function listProjects(): Project[] {
         WHERE done = 0
         GROUP BY project_id
       ) tc ON tc.project_id = p.id
+      LEFT JOIN (
+        SELECT project_id,
+               CASE MAX(CASE status
+                 WHEN 'in_progress' THEN 4
+                 WHEN 'waiting'     THEN 3
+                 WHEN 'pr_ready'    THEN 2
+                 ELSE 0
+               END)
+                 WHEN 4 THEN 'in_progress'
+                 WHEN 3 THEN 'waiting'
+                 WHEN 2 THEN 'pr_ready'
+                 ELSE NULL
+               END AS top_status
+        FROM copilot_sessions
+        WHERE project_id IS NOT NULL AND status != 'completed'
+        GROUP BY project_id
+      ) cs ON cs.project_id = p.id
       ORDER BY p.sort_order ASC, p.id ASC
     `)
-    .all() as (ProjectRow & { unread_count: number; active_todo_count: number })[]
-  return rows.map((r) => ({ ...toProject(r), unreadCount: r.unread_count, activeTodoCount: r.active_todo_count }))
+    .all() as (ProjectRow & { unread_count: number; active_todo_count: number; copilot_status: string | null })[]
+  return rows.map((r) => ({
+    ...toProject(r),
+    unreadCount: r.unread_count,
+    activeTodoCount: r.active_todo_count,
+    copilotStatus: (r.copilot_status as CopilotSessionStatus) ?? null,
+  }))
 }
 
 export function getProject(id: number): ProjectDetail {
@@ -139,12 +164,30 @@ export function getProject(id: number): ProjectDetail {
   
   const activeTodoCount = todos.filter((t) => !t.done).length
 
+  // Compute copilot status for this project
+  const copilotRow = db.prepare(`
+    SELECT CASE MAX(CASE status
+             WHEN 'in_progress' THEN 4
+             WHEN 'waiting'     THEN 3
+             WHEN 'pr_ready'    THEN 2
+             ELSE 0
+           END)
+             WHEN 4 THEN 'in_progress'
+             WHEN 3 THEN 'waiting'
+             WHEN 2 THEN 'pr_ready'
+             ELSE NULL
+           END AS top_status
+    FROM copilot_sessions
+    WHERE project_id = ? AND status != 'completed'
+  `).get(id) as { top_status: string | null } | undefined
+
   return { 
     ...toProject(row), 
     todos, 
     links,
     unreadCount: unreadCount?.cnt ?? 0,
-    activeTodoCount
+    activeTodoCount,
+    copilotStatus: (copilotRow?.top_status as CopilotSessionStatus) ?? null,
   }
 }
 
@@ -198,11 +241,29 @@ export function updateProject(id: number, patch: ProjectPatch): Project {
   const activeTodoCount = db.prepare(
     'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0'
   ).get(id) as { cnt: number } | undefined
+
+  // Compute copilot status
+  const copilotRow = db.prepare(`
+    SELECT CASE MAX(CASE status
+             WHEN 'in_progress' THEN 4
+             WHEN 'waiting'     THEN 3
+             WHEN 'pr_ready'    THEN 2
+             ELSE 0
+           END)
+             WHEN 4 THEN 'in_progress'
+             WHEN 3 THEN 'waiting'
+             WHEN 2 THEN 'pr_ready'
+             ELSE NULL
+           END AS top_status
+    FROM copilot_sessions
+    WHERE project_id = ? AND status != 'completed'
+  `).get(id) as { top_status: string | null } | undefined
   
   return { 
     ...toProject(row), 
     unreadCount: unreadCount?.cnt ?? 0,
-    activeTodoCount: activeTodoCount?.cnt ?? 0
+    activeTodoCount: activeTodoCount?.cnt ?? 0,
+    copilotStatus: (copilotRow?.top_status as CopilotSessionStatus) ?? null,
   }
 }
 
@@ -240,10 +301,28 @@ export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Pro
     'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0'
   ).get(id) as { cnt: number } | undefined
   
+  // Compute copilot status for this project
+  const copilotRow = db.prepare(`
+    SELECT CASE MAX(CASE status
+             WHEN 'in_progress' THEN 4
+             WHEN 'waiting'     THEN 3
+             WHEN 'pr_ready'    THEN 2
+             ELSE 0
+           END)
+             WHEN 4 THEN 'in_progress'
+             WHEN 3 THEN 'waiting'
+             WHEN 2 THEN 'pr_ready'
+             ELSE NULL
+           END AS top_status
+    FROM copilot_sessions
+    WHERE project_id = ? AND status != 'completed'
+  `).get(id) as { top_status: string | null } | undefined
+
   return { 
     ...toProject(row), 
     unreadCount: unreadCount?.cnt ?? 0,
-    activeTodoCount: activeTodoCount?.cnt ?? 0
+    activeTodoCount: activeTodoCount?.cnt ?? 0,
+    copilotStatus: (copilotRow?.top_status as CopilotSessionStatus) ?? null,
   }
 }
 

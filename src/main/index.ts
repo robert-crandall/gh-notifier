@@ -24,6 +24,8 @@ import {
 import { listRoutingRules, createRoutingRule, deleteRoutingRule, applyRoutingRulesToInbox } from './db/routing-rules'
 import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync, getMaxSyncDays, setMaxSyncDays } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
+import { syncCopilotSessions } from './copilot/sync'
+import { getSessionsForProject, getAllStatuses } from './copilot/db'
 import { getDb } from './db'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
@@ -48,7 +50,10 @@ function createWindow(): void {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
-    // Trigger first sync after the window is visible so the event reaches the renderer
+    // Trigger first sync after the window is visible so the event reaches the renderer.
+    // syncOnceSafe() (called by startNotificationSync's polling loop) already piggybacks
+    // a copilot sync, so we only need to trigger the notification sync here. No separate
+    // copilot sync fallback is needed — startNotificationSync handles it regardless of auth.
     void syncOnce().catch((error: unknown) => {
       console.error('[main] Initial notification sync failed:', error)
     })
@@ -75,6 +80,9 @@ app.whenReady().then(async () => {
     // Fire a sync now that we have credentials; fire-and-forget
     void syncOnce().catch((err: unknown) => {
       console.error('[auth] Post-auth sync failed:', err)
+    })
+    void syncCopilotSessions().catch((err: unknown) => {
+      console.error('[auth] Post-auth copilot sync failed:', err)
     })
     return result
   })
@@ -115,6 +123,9 @@ app.whenReady().then(async () => {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Re-resolve copilot sessions so any session linked to this thread's PR
+    // follows the new project assignment.
+    void syncCopilotSessions()
   })
   ipcMain.handle('notifications:mark-read', async (_event, threadId: string) => {
     markThreadRead(threadId)
@@ -154,6 +165,8 @@ app.whenReady().then(async () => {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Re-resolve copilot sessions — the deleted thread may have changed resolveProjectId() results
+    void syncCopilotSessions()
   })
   ipcMain.handle('notifications:sync', async () => {
     // Reset content_fetched_at for open/unfetched threads so prefetch re-verifies
@@ -162,6 +175,8 @@ app.whenReady().then(async () => {
     invalidateOpenThreadPrefetch()
     await syncOnce()
     try { await prefetchThreadContent() } catch (err) { console.error('[notifications] Prefetch after manual sync failed:', err) }
+    // Keep Copilot sessions in sync with notifications so sidebar dots stay current
+    await syncCopilotSessions()
   })
   ipcMain.handle('notifications:last-sync-time', () => {
     const row = getDb().prepare('SELECT value FROM sync_metadata WHERE key = ?').get('last_notification_sync') as { value: string } | undefined
@@ -211,7 +226,18 @@ app.whenReady().then(async () => {
     BrowserWindow.getAllWindows().forEach((win) => {
       win.webContents.send('notifications:updated')
     })
+    // Re-resolve copilot sessions against the newly routed threads
+    void syncCopilotSessions()
     return result
+  })
+
+  // Copilot session handlers
+  ipcMain.handle('copilot:sessions-for-project', (_event, projectId: number) =>
+    getSessionsForProject(projectId)
+  )
+  ipcMain.handle('copilot:all-statuses', () => getAllStatuses())
+  ipcMain.handle('copilot:sync', async () => {
+    await syncCopilotSessions()
   })
 
   startNotificationSync()

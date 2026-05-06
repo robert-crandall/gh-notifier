@@ -39,6 +39,7 @@ const makeProject = (overrides: Partial<Project> = {}): Project => ({
   activeTodoCount: 0,
   snoozeMode: null,
   snoozeUntil: null,
+  copilotStatus: null,
   ...overrides,
 })
 

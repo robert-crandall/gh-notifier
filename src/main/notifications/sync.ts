@@ -10,6 +10,7 @@ import { BrowserWindow } from 'electron'
 import { getOctokit, isOctokitReady } from '../auth/octokit'
 import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
 import { getDb } from '../db'
+import { syncCopilotSessions } from '../copilot/sync'
 import type { NotificationType, SyncIntervalMinutes, MaxSyncDays } from '../../shared/ipc-channels'
 import { DEFAULT_SYNC_INTERVAL_MINUTES, SYNC_INTERVAL_OPTIONS, DEFAULT_MAX_SYNC_DAYS, MAX_SYNC_DAYS_OPTIONS } from '../../shared/ipc-channels'
 
@@ -155,24 +156,27 @@ export async function syncOnce(): Promise<void> {
 
 /** Fire-and-forget wrapper used by the background polling loop. */
 async function syncOnceSafe(): Promise<void> {
-  // Skip sync if not authenticated (e.g., first launch before login)
-  if (!isOctokitReady()) {
-    return // No error logging for expected unauthenticated state
-  }
-  
-  try {
-    await syncOnce()
-  } catch (err) {
-    console.error('[notifications] Sync failed:', err)
+  // Notification sync requires auth — copilot sync does not, so it always runs
+  if (isOctokitReady()) {
+    try {
+      await syncOnce()
+    } catch (err) {
+      console.error('[notifications] Sync failed:', err)
+    }
+
+    // Run content prefetch after every sync cycle, regardless of whether the
+    // main sync succeeded. Threads from previous syncs may still need prefetching.
+    try {
+      await prefetchThreadContent()
+    } catch (err) {
+      console.error('[notifications] Content prefetch failed:', err)
+    }
   }
 
-  // Run content prefetch after every sync cycle, regardless of whether the
-  // main sync succeeded. Threads from previous syncs may still need prefetching.
-  try {
-    await prefetchThreadContent()
-  } catch (err) {
-    console.error('[notifications] Content prefetch failed:', err)
-  }
+  // Copilot session sync runs regardless of notification auth status
+  void syncCopilotSessions().catch((err: unknown) => {
+    console.error('[copilot/sync] Piggybacked sync failed:', err)
+  })
 }
 
 // ── Content prefetch (M5) ─────────────────────────────────────────────────────

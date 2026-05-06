@@ -34,6 +34,7 @@ describe('toProject', () => {
       activeTodoCount: 0,
       snoozeMode: null,
       snoozeUntil: null,
+      copilotStatus: null,
     })
   })
 

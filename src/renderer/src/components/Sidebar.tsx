@@ -59,16 +59,20 @@ export function Sidebar({ projects, selectedId, onSelect, inboxCount, onSelectIn
                 onClick={() => onSelect(p.id)}
               >
                 <span className={styles.projectName}>{p.name}</span>
-                {(p.activeTodoCount > 0 || p.unreadCount > 0) && (
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    {p.activeTodoCount > 0 && (
-                      <span className={styles.todoBadge}>{p.activeTodoCount}</span>
-                    )}
-                    {p.unreadCount > 0 && (
-                      <span className={styles.badge}>{p.unreadCount}</span>
-                    )}
-                  </span>
-                )}
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  {p.copilotStatus === 'in_progress' && (
+                    <span className={`${styles.copilotDot} ${styles.copilotDotInProgress}`} role="status" aria-label="Copilot is working" />
+                  )}
+                  {(p.copilotStatus === 'waiting' || p.copilotStatus === 'pr_ready') && (
+                    <span className={`${styles.copilotDot} ${styles.copilotDotWaiting}`} role="status" aria-label={p.copilotStatus === 'pr_ready' ? 'PR ready for review' : 'Copilot is waiting'} />
+                  )}
+                  {p.activeTodoCount > 0 && (
+                    <span className={styles.todoBadge}>{p.activeTodoCount}</span>
+                  )}
+                  {p.unreadCount > 0 && (
+                    <span className={styles.badge}>{p.unreadCount}</span>
+                  )}
+                </span>
               </button>
             </li>
           ))}

@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "dist": "bun run build && electron-builder --mac",
     "dist:dir": "bun run build && electron-builder --dir --mac",
-    "icons": "bash scripts/generate-icons.sh",
+    "db:copy-prod": "bash scripts/copy-prod-db.sh",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "setup": "bun install --ignore-scripts && bun run rebuild",
     "install-app": "bash scripts/install-app.sh"
