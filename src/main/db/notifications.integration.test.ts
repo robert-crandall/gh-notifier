@@ -284,13 +284,21 @@ describe('getThreadsNeedingPrefetch', () => {
     expect(candidates.find((c) => c.id === 't-no-url')).toBeUndefined()
   })
 
-  it('always returns open threads so closed/merged state is detected on every sync', () => {
-    upsertThreads([makeThread({ id: 't-open', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1' })])
+  it('always returns open PullRequest threads so closure/merge is detected on every sync', () => {
+    upsertThreads([makeThread({ id: 't-open-pr', type: 'PullRequest', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1' })])
     // Simulate a recently completed prefetch that resolved the thread as open.
-    updateThreadContent('t-open', 'open', 'https://github.com/a/b/pull/1')
+    updateThreadContent('t-open-pr', 'open', 'https://github.com/a/b/pull/1')
 
     const candidates = getThreadsNeedingPrefetch()
-    expect(candidates.find((c) => c.id === 't-open')).toBeDefined()
+    expect(candidates.find((c) => c.id === 't-open-pr')).toBeDefined()
+  })
+
+  it('always returns open Issue threads so closure is detected on every sync', () => {
+    upsertThreads([makeThread({ id: 't-open-issue', type: 'Issue', subjectUrl: 'https://api.github.com/repos/a/b/issues/1' })])
+    updateThreadContent('t-open-issue', 'open', 'https://github.com/a/b/issues/1')
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-open-issue')).toBeDefined()
   })
 
   it('excludes threads that already resolved as closed', () => {
@@ -307,6 +315,51 @@ describe('getThreadsNeedingPrefetch', () => {
 
     const candidates = getThreadsNeedingPrefetch()
     expect(candidates.find((c) => c.id === 't-merged')).toBeUndefined()
+  })
+
+  // Non-stateful subject types (Commit, Release, Discussion, CheckSuite) lack
+  // a `state` field on their API payload, so prefetchThreadContent falls back
+  // to storing subject_state = 'open'. Those threads must NOT be re-fetched
+  // every sync, or they would generate runaway API traffic forever.
+  it('does not re-fetch non-stateful Commit threads with stored state "open"', () => {
+    upsertThreads([
+      makeThread({ id: 't-commit', type: 'Commit', subjectUrl: 'https://api.github.com/repos/a/b/commits/sha', updatedAt: '2024-01-01T00:00:00Z' }),
+    ])
+    updateThreadContent('t-commit', 'open', 'https://github.com/a/b/commit/sha')
+    // Push content_fetched_at into the future so updated_at <= content_fetched_at
+    db.prepare(
+      `UPDATE notification_threads SET content_fetched_at = '2025-01-01T00:00:00Z' WHERE id = 't-commit'`
+    ).run()
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-commit')).toBeUndefined()
+  })
+
+  it('does not re-fetch non-stateful Release threads with stored state "open"', () => {
+    upsertThreads([
+      makeThread({ id: 't-release', type: 'Release', subjectUrl: 'https://api.github.com/repos/a/b/releases/1', updatedAt: '2024-01-01T00:00:00Z' }),
+    ])
+    updateThreadContent('t-release', 'open', 'https://github.com/a/b/releases/tag/v1')
+    db.prepare(
+      `UPDATE notification_threads SET content_fetched_at = '2025-01-01T00:00:00Z' WHERE id = 't-release'`
+    ).run()
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-release')).toBeUndefined()
+  })
+
+  it('re-fetches non-stateful threads when updated_at is newer than content_fetched_at', () => {
+    upsertThreads([
+      makeThread({ id: 't-discussion', type: 'Discussion', subjectUrl: 'https://api.github.com/repos/a/b/discussions/1', updatedAt: '2024-01-01T00:00:00Z' }),
+    ])
+    updateThreadContent('t-discussion', 'open', 'https://github.com/a/b/discussions/1')
+    // Push content_fetched_at to BEFORE updated_at to simulate a new event
+    db.prepare(
+      `UPDATE notification_threads SET content_fetched_at = '2023-01-01T00:00:00Z' WHERE id = 't-discussion'`
+    ).run()
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-discussion')).toBeDefined()
   })
 })
 
