@@ -19,7 +19,6 @@ import {
   listRepoRules,
   createRepoRule,
   deleteRepoRule,
-  invalidateOpenThreadPrefetch,
 } from './db/notifications'
 import { listRoutingRules, createRoutingRule, deleteRoutingRule, applyRoutingRulesToInbox } from './db/routing-rules'
 import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync, getMaxSyncDays, setMaxSyncDays } from './notifications/sync'
@@ -169,10 +168,6 @@ app.whenReady().then(async () => {
     void syncCopilotSessions()
   })
   ipcMain.handle('notifications:sync', async () => {
-    // Reset content_fetched_at for open/unfetched threads so prefetch re-verifies
-    // their current state. This handles threads that were already closed/merged
-    // before they appeared in an incremental sync window.
-    invalidateOpenThreadPrefetch()
     await syncOnce()
     try { await prefetchThreadContent() } catch (err) { console.error('[notifications] Prefetch after manual sync failed:', err) }
     // Keep Copilot sessions in sync with notifications so sidebar dots stay current

@@ -404,24 +404,25 @@ export interface PrefetchCandidate {
 }
 
 /**
- * Clears content_fetched_at for all threads whose subject_state is 'open' or
- * not yet determined (NULL). Called before a manual sync so that prefetch
- * re-verifies the current state of every open thread rather than assuming
- * the cached state is still current.
- */
-export function invalidateOpenThreadPrefetch(): void {
-  getDb()
-    .prepare(
-      `UPDATE notification_threads
-       SET content_fetched_at = NULL, state_checked_at = NULL
-       WHERE subject_state IS NULL OR subject_state = 'open'`
-    )
-    .run()
-}
-
-/**
- * Returns threads whose content has never been fetched, or whose updated_at
- * is newer than the last fetch (meaning a new notification arrived on the thread).
+ * Returns threads that may need a content fetch:
+ *
+ *   - subject_state IS NULL or content_fetched_at IS NULL (never fetched)
+ *   - updated_at > content_fetched_at (a new event arrived on the thread)
+ *   - PullRequest/Issue threads with subject_state = 'open' (always recheck so
+ *     we detect closure/merge even when GitHub doesn't bump updated_at, e.g.,
+ *     when the user closes their own PR)
+ *
+ * For non-stateful subject types (Commit, Release, Discussion, CheckSuite),
+ * `prefetchThreadContent` falls back to subject_state = 'open' because their
+ * API payloads lack a `state` field. Treating those as "always recheck" would
+ * cause every sync to re-fetch them forever, so they fall through to the
+ * standard updated_at-based gating.
+ *
+ * Closed/merged threads are deleted from the DB on detection, so any survivor
+ * with a terminal state is genuinely terminal and stays excluded. The 429
+ * rate-limit handler in prefetchThreadContent protects against runaway API
+ * usage if the open set grows large.
+ *
  * Only returns threads that have a subject_url to fetch from.
  */
 export function getThreadsNeedingPrefetch(): PrefetchCandidate[] {
@@ -432,12 +433,9 @@ export function getThreadsNeedingPrefetch(): PrefetchCandidate[] {
        WHERE subject_url IS NOT NULL
          AND (
            content_fetched_at IS NULL
-           OR updated_at > content_fetched_at
            OR subject_state IS NULL
-           OR (
-             subject_state = 'open'
-             AND (state_checked_at IS NULL OR state_checked_at < datetime('now', '-2 hours'))
-           )
+           OR updated_at > content_fetched_at
+           OR (type IN ('PullRequest', 'Issue') AND subject_state = 'open')
          )`
     )
     .all() as PrefetchCandidate[]

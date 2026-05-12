@@ -20,7 +20,6 @@ import {
   deleteThread,
   getThreadsNeedingPrefetch,
   updateThreadContent,
-  invalidateOpenThreadPrefetch,
   type ThreadSyncData,
 } from './notifications'
 import { createProject, snoozeProject } from './projects'
@@ -273,7 +272,7 @@ describe('deleteThread', () => {
 // ── getThreadsNeedingPrefetch ─────────────────────────────────────────────────
 
 describe('getThreadsNeedingPrefetch', () => {
-  it('returns threads where content_fetched_at is null and subject_url is set', () => {
+  it('returns threads where subject_state is null and subject_url is set', () => {
     upsertThreads([makeThread({ id: 't-1', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1' })])
     const candidates = getThreadsNeedingPrefetch()
     expect(candidates.map((c) => c.id)).toContain('t-1')
@@ -285,23 +284,82 @@ describe('getThreadsNeedingPrefetch', () => {
     expect(candidates.find((c) => c.id === 't-no-url')).toBeUndefined()
   })
 
-  it('returns a thread when updated_at is newer than content_fetched_at', () => {
-    upsertThreads([makeThread({ id: 't-1', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1', updatedAt: '2024-01-01T00:00:00Z' })])
-    // Simulate a completed prefetch with an older timestamp
-    db.prepare(
-      `UPDATE notification_threads SET content_fetched_at = '2023-01-01T00:00:00Z' WHERE id = 't-1'`
-    ).run()
+  it('always returns open PullRequest threads so closure/merge is detected on every sync', () => {
+    upsertThreads([makeThread({ id: 't-open-pr', type: 'PullRequest', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1' })])
+    // Simulate a recently completed prefetch that resolved the thread as open.
+    updateThreadContent('t-open-pr', 'open', 'https://github.com/a/b/pull/1')
+
     const candidates = getThreadsNeedingPrefetch()
-    expect(candidates.find((c) => c.id === 't-1')).toBeDefined()
+    expect(candidates.find((c) => c.id === 't-open-pr')).toBeDefined()
   })
 
-  it('excludes threads where content_fetched_at is current', () => {
-    upsertThreads([makeThread({ id: 't-1', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1', updatedAt: '2024-01-01T00:00:00Z' })])
-    db.prepare(
-      `UPDATE notification_threads SET content_fetched_at = '2025-01-01T00:00:00Z' WHERE id = 't-1'`
-    ).run()
+  it('always returns open Issue threads so closure is detected on every sync', () => {
+    upsertThreads([makeThread({ id: 't-open-issue', type: 'Issue', subjectUrl: 'https://api.github.com/repos/a/b/issues/1' })])
+    updateThreadContent('t-open-issue', 'open', 'https://github.com/a/b/issues/1')
+
     const candidates = getThreadsNeedingPrefetch()
-    expect(candidates.find((c) => c.id === 't-1')).toBeUndefined()
+    expect(candidates.find((c) => c.id === 't-open-issue')).toBeDefined()
+  })
+
+  it('excludes threads that already resolved as closed', () => {
+    upsertThreads([makeThread({ id: 't-closed', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1' })])
+    updateThreadContent('t-closed', 'closed', 'https://github.com/a/b/pull/1')
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-closed')).toBeUndefined()
+  })
+
+  it('excludes threads that already resolved as merged', () => {
+    upsertThreads([makeThread({ id: 't-merged', subjectUrl: 'https://api.github.com/repos/a/b/pulls/1' })])
+    updateThreadContent('t-merged', 'merged', 'https://github.com/a/b/pull/1')
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-merged')).toBeUndefined()
+  })
+
+  // Non-stateful subject types (Commit, Release, Discussion, CheckSuite) lack
+  // a `state` field on their API payload, so prefetchThreadContent falls back
+  // to storing subject_state = 'open'. Those threads must NOT be re-fetched
+  // every sync, or they would generate runaway API traffic forever.
+  it('does not re-fetch non-stateful Commit threads with stored state "open"', () => {
+    upsertThreads([
+      makeThread({ id: 't-commit', type: 'Commit', subjectUrl: 'https://api.github.com/repos/a/b/commits/sha', updatedAt: '2024-01-01T00:00:00Z' }),
+    ])
+    updateThreadContent('t-commit', 'open', 'https://github.com/a/b/commit/sha')
+    // Push content_fetched_at into the future so updated_at <= content_fetched_at
+    db.prepare(
+      `UPDATE notification_threads SET content_fetched_at = '2025-01-01T00:00:00Z' WHERE id = 't-commit'`
+    ).run()
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-commit')).toBeUndefined()
+  })
+
+  it('does not re-fetch non-stateful Release threads with stored state "open"', () => {
+    upsertThreads([
+      makeThread({ id: 't-release', type: 'Release', subjectUrl: 'https://api.github.com/repos/a/b/releases/1', updatedAt: '2024-01-01T00:00:00Z' }),
+    ])
+    updateThreadContent('t-release', 'open', 'https://github.com/a/b/releases/tag/v1')
+    db.prepare(
+      `UPDATE notification_threads SET content_fetched_at = '2025-01-01T00:00:00Z' WHERE id = 't-release'`
+    ).run()
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-release')).toBeUndefined()
+  })
+
+  it('re-fetches non-stateful threads when updated_at is newer than content_fetched_at', () => {
+    upsertThreads([
+      makeThread({ id: 't-discussion', type: 'Discussion', subjectUrl: 'https://api.github.com/repos/a/b/discussions/1', updatedAt: '2024-01-01T00:00:00Z' }),
+    ])
+    updateThreadContent('t-discussion', 'open', 'https://github.com/a/b/discussions/1')
+    // Push content_fetched_at to BEFORE updated_at to simulate a new event
+    db.prepare(
+      `UPDATE notification_threads SET content_fetched_at = '2023-01-01T00:00:00Z' WHERE id = 't-discussion'`
+    ).run()
+
+    const candidates = getThreadsNeedingPrefetch()
+    expect(candidates.find((c) => c.id === 't-discussion')).toBeDefined()
   })
 })
 
@@ -319,52 +377,5 @@ describe('updateThreadContent', () => {
     expect(row.subject_state).toBe('open')
     expect(row.html_url).toBe('https://github.com/acme/repo/pull/1')
     expect(row.content_fetched_at).not.toBeNull()
-  })
-})
-
-// ── invalidateOpenThreadPrefetch ──────────────────────────────────────────────
-
-describe('invalidateOpenThreadPrefetch', () => {
-  it('resets content_fetched_at for threads with subject_state = "open"', () => {
-    upsertThreads([makeThread({ id: 't-open' })])
-    db.prepare(
-      `UPDATE notification_threads SET subject_state = 'open', content_fetched_at = datetime('now') WHERE id = 't-open'`
-    ).run()
-
-    invalidateOpenThreadPrefetch()
-
-    const row = db
-      .prepare('SELECT content_fetched_at FROM notification_threads WHERE id = ?')
-      .get('t-open') as { content_fetched_at: string | null }
-    expect(row.content_fetched_at).toBeNull()
-  })
-
-  it('resets content_fetched_at for threads with subject_state IS NULL', () => {
-    upsertThreads([makeThread({ id: 't-null-state' })])
-    db.prepare(
-      `UPDATE notification_threads SET subject_state = NULL, content_fetched_at = datetime('now') WHERE id = 't-null-state'`
-    ).run()
-
-    invalidateOpenThreadPrefetch()
-
-    const row = db
-      .prepare('SELECT content_fetched_at FROM notification_threads WHERE id = ?')
-      .get('t-null-state') as { content_fetched_at: string | null }
-    expect(row.content_fetched_at).toBeNull()
-  })
-
-  it('does not reset content_fetched_at for closed or merged threads', () => {
-    upsertThreads([makeThread({ id: 't-closed' })])
-    const ts = '2024-06-01T00:00:00Z'
-    db.prepare(
-      `UPDATE notification_threads SET subject_state = 'closed', content_fetched_at = ? WHERE id = 't-closed'`
-    ).run(ts)
-
-    invalidateOpenThreadPrefetch()
-
-    const row = db
-      .prepare('SELECT content_fetched_at FROM notification_threads WHERE id = ?')
-      .get('t-closed') as { content_fetched_at: string | null }
-    expect(row.content_fetched_at).toBe(ts)
   })
 })
