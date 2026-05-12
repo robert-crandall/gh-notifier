@@ -404,24 +404,21 @@ export interface PrefetchCandidate {
 }
 
 /**
- * Clears content_fetched_at for all threads whose subject_state is 'open' or
- * not yet determined (NULL). Called before a manual sync so that prefetch
- * re-verifies the current state of every open thread rather than assuming
- * the cached state is still current.
- */
-export function invalidateOpenThreadPrefetch(): void {
-  getDb()
-    .prepare(
-      `UPDATE notification_threads
-       SET content_fetched_at = NULL, state_checked_at = NULL
-       WHERE subject_state IS NULL OR subject_state = 'open'`
-    )
-    .run()
-}
-
-/**
- * Returns threads whose content has never been fetched, or whose updated_at
- * is newer than the last fetch (meaning a new notification arrived on the thread).
+ * Returns threads that may need a content fetch:
+ *   - subject_state IS NULL (never determined — brand-new thread)
+ *   - subject_state = 'open' (could have closed/merged since last check)
+ *
+ * Closed/merged threads are deleted from the DB on detection, so any thread
+ * still present with state 'closed' or 'merged' is treated as terminal and
+ * not re-fetched.
+ *
+ * GitHub only bumps a notification's `updated_at` when the user is notified
+ * about an event; closing your own PR (or other self-triggered closures)
+ * doesn't always emit a notification, so we cannot rely on `updated_at` to
+ * detect closure. Re-checking every open thread each sync is the only
+ * reliable way to keep the inbox in sync with GitHub. The 429 rate-limit
+ * handler in prefetchThreadContent protects against runaway API usage.
+ *
  * Only returns threads that have a subject_url to fetch from.
  */
 export function getThreadsNeedingPrefetch(): PrefetchCandidate[] {
@@ -430,15 +427,7 @@ export function getThreadsNeedingPrefetch(): PrefetchCandidate[] {
       `SELECT id, subject_url AS subjectUrl, type
        FROM notification_threads
        WHERE subject_url IS NOT NULL
-         AND (
-           content_fetched_at IS NULL
-           OR updated_at > content_fetched_at
-           OR subject_state IS NULL
-           OR (
-             subject_state = 'open'
-             AND (state_checked_at IS NULL OR state_checked_at < datetime('now', '-2 hours'))
-           )
-         )`
+         AND (subject_state IS NULL OR subject_state = 'open')`
     )
     .all() as PrefetchCandidate[]
   return rows
