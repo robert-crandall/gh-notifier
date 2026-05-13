@@ -83,11 +83,16 @@ describe('upsertThreads', () => {
     upsertThreads([makeThread({ id: 't-1', unread: true, title: 'Original' })])
     upsertThreads([makeThread({ id: 't-1', unread: false, title: 'Updated', updatedAt: '2024-06-01T00:00:00Z' })])
 
-    const threads = listInboxThreads()
-    expect(threads).toHaveLength(1)
-    expect(threads[0].title).toBe('Updated')
-    expect(threads[0].unread).toBe(false)
-    expect(threads[0].updatedAt).toBe('2024-06-01T00:00:00Z')
+    // Verify the DB row was updated correctly
+    const row = db
+      .prepare('SELECT title, unread, updated_at FROM notification_threads WHERE id = ?')
+      .get('t-1') as { title: string; unread: number; updated_at: string }
+    expect(row.title).toBe('Updated')
+    expect(row.unread).toBe(0)
+    expect(row.updated_at).toBe('2024-06-01T00:00:00Z')
+
+    // A read thread must not appear in the inbox view
+    expect(listInboxThreads()).toHaveLength(0)
   })
 
   it('does not overwrite an existing project_id on re-upsert', () => {
@@ -243,12 +248,14 @@ describe('assignThread', () => {
 // ── markThreadRead ────────────────────────────────────────────────────────────
 
 describe('markThreadRead', () => {
-  it('sets unread = false locally', () => {
+  it('sets unread = false locally and removes the thread from list views', () => {
     upsertThreads([makeThread({ id: 't-1', unread: true })])
     markThreadRead('t-1')
-    const thread = listInboxThreads().find((t) => t.id === 't-1')
-    expect(thread).toBeDefined()
-    // listInboxThreads filters by project_id IS NULL but also the thread should still be there
+
+    // Thread must no longer appear in inbox or project views (read = done)
+    expect(listInboxThreads().find((t) => t.id === 't-1')).toBeUndefined()
+
+    // The underlying DB row should have unread = 0
     const row = db
       .prepare('SELECT unread FROM notification_threads WHERE id = ?')
       .get('t-1') as { unread: number }
