@@ -231,22 +231,26 @@ export async function prefetchThreadContent(): Promise<void> {
             html_url: string
             merged?: boolean
             merged_at?: string | null
+            draft?: boolean
           }
 
           const isMerged =
             candidate.type === 'PullRequest' &&
             (data.merged_at != null || data.merged === true)
+          const isDraft = candidate.type === 'PullRequest' && data.draft === true
           const subjectState = isMerged ? 'merged' : (data.state ?? 'open')
           const htmlUrl: string = data.html_url
 
           // Auto-remove resolved threads per PRD M5 spec:
-          // merged PRs, closed PRs (rejected/abandoned), and closed issues
+          // merged PRs, closed PRs (rejected/abandoned), draft PRs, and closed issues
           const shouldRemove =
+            isDraft ||
             (candidate.type === 'Issue' && subjectState === 'closed') ||
             (candidate.type === 'PullRequest' && (subjectState === 'merged' || subjectState === 'closed'))
 
           if (shouldRemove) {
-            console.log(`[notifications] Auto-removing ${candidate.type} thread ${candidate.id} (state: ${subjectState})`)
+            const reason = isDraft ? 'draft' : subjectState
+            console.log(`[notifications] Auto-removing ${candidate.type} thread ${candidate.id} (state: ${reason})`)
             deleteThread(candidate.id)
           } else {
             updateThreadContent(candidate.id, subjectState, htmlUrl)
