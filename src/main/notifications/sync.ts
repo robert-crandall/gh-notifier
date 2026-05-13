@@ -227,7 +227,7 @@ export async function prefetchThreadContent(): Promise<void> {
         try {
           const response = await octokit.request(`GET ${candidate.subjectUrl}`)
           const data = response.data as {
-            state: string
+            state?: string
             html_url: string
             merged?: boolean
             merged_at?: string | null
@@ -250,7 +250,7 @@ export async function prefetchThreadContent(): Promise<void> {
 
           if (shouldRemove) {
             const reason = isDraft ? 'draft' : subjectState
-            console.log(`[notifications] Auto-removing ${candidate.type} thread ${candidate.id} (state: ${reason})`)
+            console.log(`[notifications] Auto-removing ${candidate.type} thread ${candidate.id} (reason: ${reason})`)
             deleteThread(candidate.id)
           } else {
             updateThreadContent(candidate.id, subjectState, htmlUrl)
