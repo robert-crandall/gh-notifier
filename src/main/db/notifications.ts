@@ -87,7 +87,7 @@ export function listThreadsByProject(projectId: number): NotificationThread[] {
   const rows = getDb()
     .prepare(
       `SELECT * FROM notification_threads
-       WHERE project_id = ?
+       WHERE project_id = ? AND unread = 1
        ORDER BY updated_at DESC`
     )
     .all(projectId) as ThreadRow[]
@@ -100,7 +100,7 @@ export function listInboxThreads(): NotificationThread[] {
   const rows = getDb()
     .prepare(
       `SELECT * FROM notification_threads
-       WHERE project_id IS NULL
+       WHERE project_id IS NULL AND unread = 1
        ORDER BY updated_at DESC`
     )
     .all() as ThreadRow[]

@@ -8,7 +8,7 @@
 
 import { BrowserWindow } from 'electron'
 import { getOctokit, isOctokitReady } from '../auth/octokit'
-import { upsertThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
+import { upsertThreads, deleteReadThreads, getThreadsNeedingPrefetch, updateThreadContent, deleteThread } from '../db/notifications'
 import { getDb } from '../db'
 import { syncCopilotSessions } from '../copilot/sync'
 import type { NotificationType, SyncIntervalMinutes, MaxSyncDays } from '../../shared/ipc-channels'
@@ -140,6 +140,7 @@ export async function syncOnce(): Promise<void> {
     }))
 
     upsertThreads(threads)
+    deleteReadThreads()
     
     // Persist the fetch start time (not end time) so that notifications
     // arriving during pagination are caught on the next sync cycle.
