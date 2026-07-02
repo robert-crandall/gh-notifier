@@ -74,8 +74,12 @@ export function App(): JSX.Element {
 
   const handleNewProject = useCallback(async () => {
     setPaletteOpen(false)
-    const project = await createProject('Untitled project')
-    selectProject(project.id)
+    try {
+      const project = await createProject('Untitled project')
+      selectProject(project.id)
+    } catch (err) {
+      console.error('[App] Create project failed:', err)
+    }
   }, [createProject, selectProject])
 
   // Drifting projects to resurface (excludes the focused one), stalest first, top 3.
@@ -90,14 +94,22 @@ export function App(): JSX.Element {
   }, [projects, focusedId])
 
   const snoozeProject = useCallback(async (id: number, mode: 'manual' | 'date') => {
-    const until = mode === 'date' ? new Date(Date.now() + SNOOZE_DAYS * 86400000).toISOString() : undefined
-    await window.electron.ipc.invoke('projects:snooze', id, mode, until)
-    await refreshProjects()
+    try {
+      const until = mode === 'date' ? new Date(Date.now() + SNOOZE_DAYS * 86400000).toISOString() : undefined
+      await window.electron.ipc.invoke('projects:snooze', id, mode, until)
+      await refreshProjects()
+    } catch (err) {
+      console.error('[App] Snooze failed:', err)
+    }
   }, [refreshProjects])
 
   const unsnooze = useCallback(async (id: number) => {
-    await updateProject(id, { status: 'active' })
-    await refreshProjects()
+    try {
+      await updateProject(id, { status: 'active' })
+      await refreshProjects()
+    } catch (err) {
+      console.error('[App] Unsnooze failed:', err)
+    }
   }, [updateProject, refreshProjects])
 
   const onPark = useCallback((project: Project) => {
@@ -111,7 +123,14 @@ export function App(): JSX.Element {
   }, [snoozeProject, unsnooze, showUndo])
 
   const onNotNow = useCallback((project: Project) => {
-    void window.electron.ipc.invoke('projects:resurface-dismiss', project.id).then(() => refreshProjects())
+    void (async () => {
+      try {
+        await window.electron.ipc.invoke('projects:resurface-dismiss', project.id)
+        await refreshProjects()
+      } catch (err) {
+        console.error('[App] Resurface-dismiss failed:', err)
+      }
+    })()
   }, [refreshProjects])
 
   const nextFocusAfterRemoval = useCallback((removedId: number): number | null => {
@@ -131,15 +150,19 @@ export function App(): JSX.Element {
     if (focusedId === null) return
     const current = projects.find((p) => p.id === focusedId)
     const removedId = focusedId
-    void deleteProject(removedId)
+    void deleteProject(removedId).catch((err: unknown) => console.error('[App] Delete failed:', err))
     setFocusedId(nextFocusAfterRemoval(removedId))
     showUndo(current ? `Deleted ${current.name}` : 'Project deleted', () => {
       // Restore and refresh before refocusing so the "focused must exist" guard
       // doesn't bounce focus away before the project is back in the list.
       void (async () => {
-        await window.electron.ipc.invoke('projects:restore', removedId)
-        await refreshProjects()
-        setFocusedId(removedId)
+        try {
+          await window.electron.ipc.invoke('projects:restore', removedId)
+          await refreshProjects()
+          setFocusedId(removedId)
+        } catch (err) {
+          console.error('[App] Restore failed:', err)
+        }
       })()
     })
   }, [focusedId, projects, deleteProject, nextFocusAfterRemoval, setFocusedId, showUndo, refreshProjects])
