@@ -119,7 +119,7 @@ A computed, blame-free catch-up shown at the top of a focus when I return after 
 - Notifications that routed here since last seen.
 - Todos the agent checked off; files it changed.
 - Never phrased as time-shame ("gone 3 days"). Phrased as orientation ("here's what moved").
-Dismissable; regenerates from a per-project `last_seen_at` watermark.
+Dismissible; regenerates from a per-project `last_seen_at` watermark.
 
 ### Parked vs. forgotten (peripheral memory)
 Single-focus has a real failure mode for a time-blind person: out of sight, out of mind. The re-entry digest catches me up on the *focused* project, but something has to keep the *unfocused* ones from silently rotting. So the app distinguishes two states and never conflates them:
@@ -260,7 +260,7 @@ main/
   agent/
     port.ts              # IAgentBackend + shared session types
     copilot-local/       # @github/copilot-sdk subprocess backend (+ per-project MCP config)
-    github-cloud/        # gh agent-task backend (evolves current copilot/)
+    github-cloud/        # gh agent-task backend (evolves current src/main/copilot/)
     normalize.ts         # raw events -> canonical TurnEvent
     session-view.ts      # accumulate + throttle -> snapshots
     store.ts             # metadata (SQLite) + transcript (disk, encrypted)

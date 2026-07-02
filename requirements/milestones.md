@@ -43,7 +43,7 @@ Order rule: don't build the brain UI (C) on an unproven resolver, and don't buil
 
 **Goal:** hand the tedious finish to Copilot and get re-oriented on the result.
 
-- Launch a `gh agent-task` from a next-action / todo / notification (evolves current read-only `copilot/`).
+- Launch a `gh agent-task` from a next-action / todo / notification (evolves current read-only `src/main/copilot/`).
 - Track in the shared session model; rail status dot; result folded into the digest.
 - Read-only vs. GitHub beyond launch + unsubscribe.
 
