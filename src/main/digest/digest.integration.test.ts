@@ -91,12 +91,21 @@ describe('markDigestSeen', () => {
   })
 
   it('does not move the watermark backwards (older asOf is ignored)', () => {
+    // Establish a baseline watermark two days ago.
+    markDigestSeen(1, isoDaysAgo(2))
+    const baseline = (
+      db.prepare('SELECT digest_seen_at FROM projects WHERE id = 1').get() as { digest_seen_at: string | null }
+    ).digest_seen_at
+    expect(baseline).not.toBeNull()
+
+    // A 30-day-old asOf must not move the watermark backwards.
     markDigestSeen(1, isoDaysAgo(30))
-    // A 30-day-old asOf is before the 1-day-old activity, so the digest still shows it.
+    const after = (
+      db.prepare('SELECT digest_seen_at FROM projects WHERE id = 1').get() as { digest_seen_at: string | null }
+    ).digest_seen_at
+    expect(after).toBe(baseline)
+
+    // The 1-day-old activity is still newer than the 2-day-old watermark, so it shows.
     expect(getDigest(1).items.length).toBeGreaterThan(0)
-    const stored = db.prepare('SELECT digest_seen_at FROM projects WHERE id = 1').get() as {
-      digest_seen_at: string | null
-    }
-    expect(stored.digest_seen_at).toBeNull()
   })
 })
