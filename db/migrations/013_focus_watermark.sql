@@ -6,7 +6,8 @@
 -- with SQLite julianday() (millisecond-precise and format-agnostic) so these
 -- compare correctly against the legacy datetime('now') space-separated columns.
 
--- Drift anchor: set on focus arrival. NULL until first focused.
+-- Drift anchor: set on focus arrival, and initialized on project creation (and
+-- by the backfill below) so a project never starts out "drifting".
 ALTER TABLE projects ADD COLUMN last_focused_at TEXT;
 
 -- Digest watermark: advanced only when the user dismisses the digest.

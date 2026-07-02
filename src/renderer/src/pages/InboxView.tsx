@@ -73,6 +73,7 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
       setLastSyncTime(syncTime)
     } catch (err) {
       console.error('[Inbox] Failed to load:', err)
+      if (mountedRef.current) setSyncError('Could not load the inbox. Try syncing again.')
     } finally {
       if (mountedRef.current) setIsLoading(false)
     }
