@@ -19,6 +19,7 @@ import {
 import type { NotificationThread, NotificationType, ProjectDetail, ProjectLink, ProjectTodo } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
+import { fire, openExternal } from '../ipc'
 import styles from './WorkingColumn.module.css'
 
 type TabId = 'todos' | 'notes' | 'resources' | 'notifications'
@@ -151,7 +152,7 @@ function ResourcesPanel({
       </div>
       {detail.links.map((link) => (
         <div key={link.id} className={styles.resourceRow}>
-          <button type="button" className={styles.resourceLink} onClick={() => void window.electron.openExternal(link.url)}>
+          <button type="button" className={styles.resourceLink} onClick={() => openExternal(link.url)}>
             <Icon icon={ExternalLink} size={15} className={styles.muted} />
             <span className={styles.resourceLabel}>{link.label}</span>
           </button>
@@ -200,8 +201,8 @@ function NotificationsPanel({ projectId }: { projectId: number }): JSX.Element {
   }, [projectId])
 
   const open = (t: NotificationThread): void => {
-    if (t.htmlUrl) void window.electron.openExternal(t.htmlUrl)
-    void window.electron.ipc.invoke('notifications:mark-read', t.id)
+    if (t.htmlUrl) openExternal(t.htmlUrl)
+    fire(window.electron.ipc.invoke('notifications:mark-read', t.id), 'notifications:mark-read')
   }
 
   if (threads.length === 0) {

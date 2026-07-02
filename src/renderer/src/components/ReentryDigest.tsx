@@ -2,6 +2,7 @@ import { History, X, GitPullRequest, Sparkles, CircleCheck, CirclePause, Bell, E
 import type { DigestItem, DigestItemKind, ReentryDigest } from '@shared/ipc-channels'
 import { Icon } from './Icon'
 import type { LucideIcon } from 'lucide-react'
+import { openExternal } from '../ipc'
 import styles from './ReentryDigest.module.css'
 
 interface ReentryDigestProps {
@@ -20,7 +21,7 @@ const KIND_ICON: Record<DigestItemKind, LucideIcon> = {
 }
 
 function openHref(href: string): void {
-  void window.electron.openExternal(href)
+  openExternal(href)
 }
 
 function DigestRow({ item }: { item: DigestItem }): JSX.Element {

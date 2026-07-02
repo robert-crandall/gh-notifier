@@ -15,6 +15,7 @@ import {
 import type { NotificationThread, NotificationType, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from '../components/Icon'
+import { openExternal } from '../ipc'
 import styles from './InboxView.module.css'
 
 interface InboxViewProps {
@@ -185,7 +186,7 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
               ))}
             </select>
             {t.htmlUrl && (
-              <button type="button" className={styles.rowAction} onClick={() => void window.electron.openExternal(t.htmlUrl as string)} aria-label="Open">
+              <button type="button" className={styles.rowAction} onClick={() => openExternal(t.htmlUrl as string)} aria-label="Open">
                 <Icon icon={ExternalLink} size={14} />
               </button>
             )}

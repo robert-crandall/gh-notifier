@@ -17,6 +17,7 @@ import {
   type SyncIntervalMinutes,
   type MaxSyncDays,
 } from '@shared/ipc-channels'
+import { fire } from '../ipc'
 import styles from './SettingsView.module.css'
 
 interface SettingsViewProps {
@@ -78,11 +79,11 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
 
   const changeInterval = (value: SyncIntervalMinutes): void => {
     setSyncInterval(value)
-    void window.electron.ipc.invoke('settings:set-sync-interval', value)
+    fire(window.electron.ipc.invoke('settings:set-sync-interval', value), 'settings:set-sync-interval')
   }
   const changeMaxDays = (value: MaxSyncDays): void => {
     setMaxDays(value)
-    void window.electron.ipc.invoke('settings:set-max-sync-days', value)
+    fire(window.electron.ipc.invoke('settings:set-max-sync-days', value), 'settings:set-max-sync-days')
   }
 
   return (

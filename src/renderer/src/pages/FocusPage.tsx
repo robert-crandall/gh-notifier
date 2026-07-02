@@ -6,6 +6,7 @@ import { ReentryDigest } from '../components/ReentryDigest'
 import { NextAction } from '../components/NextAction'
 import { WorkingColumn } from '../components/WorkingColumn'
 import { ResurfaceStrip } from '../components/ResurfaceStrip'
+import { fire } from '../ipc'
 import { useProjectDetail } from '../hooks/useProjectDetail'
 import { useDigest } from '../hooks/useDigest'
 import styles from './FocusPage.module.css'
@@ -46,18 +47,18 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
   const handleDone = (): void => {
     const previous = detail.nextAction
     if (previous.trim().length === 0) return
-    void updateProject({ nextAction: '' })
-    props.showUndo('Marked done', () => void updateProject({ nextAction: previous }))
+    fire(updateProject({ nextAction: '' }))
+    props.showUndo('Marked done', () => fire(updateProject({ nextAction: previous })))
   }
 
   const handleDeleteTodo = (todo: ProjectTodo): void => {
-    void deleteTodo(todo.id)
-    props.showUndo('Todo removed', () => void restoreTodo(todo.id))
+    fire(deleteTodo(todo.id))
+    props.showUndo('Todo removed', () => fire(restoreTodo(todo.id)))
   }
 
   const handleDeleteLink = (link: ProjectLink): void => {
-    void deleteLink(link.id)
-    props.showUndo('Resource removed', () => void createLink(link.label, link.url))
+    fire(deleteLink(link.id))
+    props.showUndo('Resource removed', () => fire(createLink(link.label, link.url)))
   }
 
   return (
@@ -88,7 +89,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
                     className={styles.menuItem}
                     onClick={() => {
                       setMenuOpen(false)
-                      void updateProject({ status: 'active' })
+                      fire(updateProject({ status: 'active' }))
                     }}
                   >
                     <Icon icon={Sun} size={14} />
@@ -122,7 +123,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
         </div>
       </div>
 
-      <NextAction value={detail.nextAction} onSave={(text) => void updateProject({ nextAction: text })} onDone={handleDone} />
+      <NextAction value={detail.nextAction} onSave={(text) => fire(updateProject({ nextAction: text }))} onDone={handleDone} />
 
       <ResurfaceStrip
         drifting={props.drifting}
@@ -134,11 +135,11 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
 
       <WorkingColumn
         detail={detail}
-        onCreateTodo={(text) => void createTodo(text)}
-        onToggleTodo={(todo) => void updateTodo(todo.id, { done: !todo.done })}
+        onCreateTodo={(text) => fire(createTodo(text))}
+        onToggleTodo={(todo) => fire(updateTodo(todo.id, { done: !todo.done }))}
         onDeleteTodo={handleDeleteTodo}
-        onSaveNotes={(notes) => void updateProject({ notes })}
-        onCreateLink={(label, url) => void createLink(label, url)}
+        onSaveNotes={(notes) => fire(updateProject({ notes }))}
+        onCreateLink={(label, url) => fire(createLink(label, url))}
         onDeleteLink={handleDeleteLink}
       />
 
