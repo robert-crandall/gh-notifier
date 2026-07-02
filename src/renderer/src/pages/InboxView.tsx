@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import {
   RefreshCw,
@@ -48,6 +48,14 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [suggestion, setSuggestion] = useState<(RepoRuleSuggestion & { threadId: string }) | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +65,7 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
         window.electron.ipc.invoke('auth:status'),
         window.electron.ipc.invoke('notifications:last-sync-time'),
       ])
+      if (!mountedRef.current) return
       setThreads(inbox)
       setProjects(projectList.filter((p) => p.status === 'active'))
       setIsAuthenticated(authStatus.authenticated)
@@ -64,7 +73,7 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
     } catch (err) {
       console.error('[Inbox] Failed to load:', err)
     } finally {
-      setIsLoading(false)
+      if (mountedRef.current) setIsLoading(false)
     }
   }, [])
 
@@ -83,9 +92,11 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
       await load()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      setSyncError(msg.includes('NOT_AUTHENTICATED') ? 'Not connected to GitHub. Add a token in Settings.' : `Sync failed: ${msg}`)
+      if (mountedRef.current) {
+        setSyncError(msg.includes('NOT_AUTHENTICATED') ? 'Not connected to GitHub. Add a token in Settings.' : `Sync failed: ${msg}`)
+      }
     } finally {
-      setIsSyncing(false)
+      if (mountedRef.current) setIsSyncing(false)
     }
   }, [isSyncing, load])
 
@@ -125,7 +136,7 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
         <span className={styles.title}>Inbox</span>
         <div className={styles.syncControls}>
           {lastSyncTime && <span className={styles.lastSync}>Synced {relativeTime(lastSyncTime)}</span>}
-          <button className={styles.syncButton} onClick={() => void handleSync()} disabled={isSyncing}>
+          <button type="button" className={styles.syncButton} onClick={() => void handleSync()} disabled={isSyncing}>
             <Icon icon={RefreshCw} size={14} className={isSyncing ? styles.spin : ''} />
             {isSyncing ? 'Syncing…' : 'Sync'}
           </button>
@@ -140,8 +151,8 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
               : `All ${suggestion.repoOwner}/${suggestion.repoName} threads go to "${suggestion.projectName}". Create a rule?`}
           </span>
           <div className={styles.suggestionActions}>
-            <button className={styles.accept} onClick={() => void acceptRule()}>Create rule</button>
-            <button className={styles.dismiss} onClick={() => setSuggestion(null)}>No thanks</button>
+            <button type="button" className={styles.accept} onClick={() => void acceptRule()}>Create rule</button>
+            <button type="button" className={styles.dismiss} onClick={() => setSuggestion(null)}>No thanks</button>
           </div>
         </div>
       )}
@@ -174,11 +185,11 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
               ))}
             </select>
             {t.htmlUrl && (
-              <button className={styles.rowAction} onClick={() => void window.electron.openExternal(t.htmlUrl as string)} aria-label="Open">
+              <button type="button" className={styles.rowAction} onClick={() => void window.electron.openExternal(t.htmlUrl as string)} aria-label="Open">
                 <Icon icon={ExternalLink} size={14} />
               </button>
             )}
-            <button className={styles.rowAction} onClick={() => void handleMarkRead(t.id)} aria-label="Mark read">
+            <button type="button" className={styles.rowAction} onClick={() => void handleMarkRead(t.id)} aria-label="Mark read">
               <Icon icon={Check} size={14} />
             </button>
           </div>

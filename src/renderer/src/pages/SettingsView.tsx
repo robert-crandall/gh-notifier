@@ -57,18 +57,23 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
   const [maxDays, setMaxDays] = useState<MaxSyncDays | null>(null)
 
   useEffect(() => {
+    let active = true
     void (async () => {
       try {
         const [interval, days] = await Promise.all([
           window.electron.ipc.invoke('settings:get-sync-interval'),
           window.electron.ipc.invoke('settings:get-max-sync-days'),
         ])
+        if (!active) return
         setSyncInterval(interval)
         setMaxDays(days)
       } catch (err) {
         console.error('[Settings] load failed:', err)
       }
     })()
+    return () => {
+      active = false
+    }
   }, [])
 
   const changeInterval = (value: SyncIntervalMinutes): void => {
@@ -83,7 +88,7 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
   return (
     <main className={styles.main}>
       <header className={styles.toolbar}>
-        <button className={styles.back} onClick={onClose} aria-label="Back to focus">
+        <button type="button" className={styles.back} onClick={onClose} aria-label="Back to focus">
           <Icon icon={ArrowLeft} size={16} />
         </button>
         <span className={styles.title}>Settings</span>
@@ -102,7 +107,7 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
               {ACCENTS.map((a: Accent) => (
                 <button
                   key={a}
-                  className={`${styles.accentSwatch} ${styles[`accent_${a}`]} ${theme.accent === a ? styles.accentActive : ''}`}
+                  type="button" className={`${styles.accentSwatch} ${styles[`accent_${a}`]} ${theme.accent === a ? styles.accentActive : ''}`}
                   onClick={() => theme.setAccent(a)}
                   aria-label={a}
                   title={a}
@@ -122,7 +127,7 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
             <div className={styles.authRow}>
               <img className={styles.avatar} src={auth.status.avatarUrl} alt="" />
               <span className={styles.authName}>{auth.status.login}</span>
-              <button className={styles.secondaryButton} onClick={() => void auth.logout()}>Sign out</button>
+              <button type="button" className={styles.secondaryButton} onClick={() => void auth.logout()}>Sign out</button>
             </div>
           ) : (
             <div className={styles.field}>
@@ -140,6 +145,7 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
                   onChange={(e) => setToken(e.target.value)}
                 />
                 <button
+                  type="button"
                   className={styles.primaryButton}
                   disabled={token.trim().length === 0 || auth.isLoading}
                   onClick={() => void auth.savePat(token.trim())}

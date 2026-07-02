@@ -13,7 +13,7 @@ export function UndoToast({ undo, onAction }: UndoToastProps): JSX.Element | nul
   return (
     <div className={styles.toast} role="status">
       <span className={styles.message}>{undo.message}</span>
-      <button className={styles.action} onClick={onAction}>
+      <button type="button" className={styles.action} onClick={onAction}>
         <Icon icon={Undo2} size={14} />
         {undo.actionLabel}
       </button>

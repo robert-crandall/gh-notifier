@@ -13,7 +13,7 @@ export function EmptyFocus({ onNewProject }: EmptyFocusProps): JSX.Element {
         <Icon icon={Target} size={28} className={styles.icon} />
         <h1 className={styles.title}>Nothing in focus yet</h1>
         <p className={styles.body}>Create a project to give yourself one clear thing to work on.</p>
-        <button className={styles.button} onClick={onNewProject}>
+        <button type="button" className={styles.button} onClick={onNewProject}>
           <Icon icon={Plus} size={15} />
           New project
         </button>

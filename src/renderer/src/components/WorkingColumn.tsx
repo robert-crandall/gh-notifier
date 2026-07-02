@@ -74,9 +74,9 @@ function TodosPanel({
       </div>
       {active.map((t) => (
         <div key={t.id} className={styles.todoRow}>
-          <button className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
+          <button type="button" className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
           <span className={styles.todoText}>{t.text}</span>
-          <button className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
+          <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
             <Icon icon={Trash2} size={13} />
           </button>
         </div>
@@ -84,11 +84,11 @@ function TodosPanel({
       {done.length > 0 && <div className={styles.divider} />}
       {done.map((t) => (
         <div key={t.id} className={`${styles.todoRow} ${styles.todoDone}`}>
-          <button className={`${styles.checkbox} ${styles.checkboxDone}`} onClick={() => onToggleTodo(t)} aria-label="Mark not done">
+          <button type="button" className={`${styles.checkbox} ${styles.checkboxDone}`} onClick={() => onToggleTodo(t)} aria-label="Mark not done">
             <Icon icon={Check} size={11} strokeWidth={3} />
           </button>
           <span className={`${styles.todoText} ${styles.struck}`}>{t.text}</span>
-          <button className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
+          <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
             <Icon icon={Trash2} size={13} />
           </button>
         </div>
@@ -145,17 +145,17 @@ function ResourcesPanel({
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
-        <button className={styles.linkAddBtn} onClick={submit} aria-label="Add resource">
+        <button type="button" className={styles.linkAddBtn} onClick={submit} aria-label="Add resource">
           <Icon icon={Plus} size={15} />
         </button>
       </div>
       {detail.links.map((link) => (
         <div key={link.id} className={styles.resourceRow}>
-          <button className={styles.resourceLink} onClick={() => void window.electron.openExternal(link.url)}>
+          <button type="button" className={styles.resourceLink} onClick={() => void window.electron.openExternal(link.url)}>
             <Icon icon={ExternalLink} size={15} className={styles.muted} />
             <span className={styles.resourceLabel}>{link.label}</span>
           </button>
-          <button className={styles.rowAction} onClick={() => onDeleteLink(link)} aria-label="Delete resource">
+          <button type="button" className={styles.rowAction} onClick={() => onDeleteLink(link)} aria-label="Delete resource">
             <Icon icon={Trash2} size={13} />
           </button>
         </div>
@@ -211,7 +211,7 @@ function NotificationsPanel({ projectId }: { projectId: number }): JSX.Element {
   return (
     <div className={styles.notifs}>
       {threads.map((t) => (
-        <button key={t.id} className={styles.notifRow} onClick={() => open(t)}>
+        <button type="button" key={t.id} className={styles.notifRow} onClick={() => open(t)}>
           <Icon icon={NOTIF_ICON[t.type] ?? Bell} size={16} className={styles.notifIcon} />
           <div className={styles.notifBody}>
             <div className={styles.notifTitle}>{t.title}</div>
@@ -244,7 +244,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
     <div className={styles.column}>
       <div className={styles.tabs}>
         {TABS.map((t) => (
-          <button
+          <button type="button"
             key={t.id}
             className={styles.tab}
             aria-selected={tab === t.id}

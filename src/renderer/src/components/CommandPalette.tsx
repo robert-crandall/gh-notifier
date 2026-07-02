@@ -115,7 +115,7 @@ export function CommandPalette({
         <div className={styles.list}>
           {filtered.length === 0 && <div className={styles.noResults}>No matches.</div>}
           {filtered.map((entry, i) => (
-            <button
+            <button type="button"
               key={entry.key}
               className={`${styles.entry} ${i === active ? styles.entryActive : ''}`}
               onMouseEnter={() => setActive(i)}

@@ -28,19 +28,19 @@ export function ResurfaceStrip({ drifting, onSelect, onPark, onSnooze, onNotNow 
       <div className={styles.rows}>
         {shown.map((p) => (
           <div key={p.id} className={styles.row}>
-            <button className={styles.name} onClick={() => onSelect(p.id)}>
+            <button type="button" className={styles.name} onClick={() => onSelect(p.id)}>
               {p.name}
             </button>
             <div className={styles.actions}>
-              <button className={styles.action} onClick={() => onPark(p)}>
+              <button type="button" className={styles.action} onClick={() => onPark(p)}>
                 <Icon icon={Moon} size={13} />
                 Park
               </button>
-              <button className={styles.action} onClick={() => onSnooze(p)}>
+              <button type="button" className={styles.action} onClick={() => onSnooze(p)}>
                 <Icon icon={Clock} size={13} />
                 Snooze
               </button>
-              <button className={styles.action} onClick={() => onNotNow(p)}>
+              <button type="button" className={styles.action} onClick={() => onNotNow(p)}>
                 <Icon icon={X} size={13} />
                 Not now
               </button>

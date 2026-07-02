@@ -55,24 +55,24 @@ export function NextAction({ value, onSave, onDone }: NextActionProps): JSX.Elem
         />
       ) : (
         <div className={styles.line}>
-          <button
+          <button type="button"
             className={`${styles.text} ${hasValue ? '' : styles.placeholder}`}
             onClick={() => setEditing(true)}
           >
             {hasValue ? value : 'Set your next action…'}
           </button>
-          <button className={styles.editIcon} onClick={() => setEditing(true)} aria-label="Edit next action">
+          <button type="button" className={styles.editIcon} onClick={() => setEditing(true)} aria-label="Edit next action">
             <Icon icon={Pencil} size={14} />
           </button>
         </div>
       )}
 
       <div className={styles.buttons}>
-        <button className={styles.secondary} onClick={() => setEditing(true)}>
+        <button type="button" className={styles.secondary} onClick={() => setEditing(true)}>
           <Icon icon={Pencil} size={14} />
           Edit
         </button>
-        <button className={styles.primary} onClick={onDone} disabled={!hasValue}>
+        <button type="button" className={styles.primary} onClick={onDone} disabled={!hasValue}>
           <Icon icon={Check} size={14} />
           Done
         </button>

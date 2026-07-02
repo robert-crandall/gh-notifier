@@ -43,14 +43,14 @@ export function ProjectRail({
   if (collapsed) {
     return (
       <aside className={`${styles.rail} ${styles.collapsed}`}>
-        <button className={styles.collapseBtn} onClick={onToggleCollapse} aria-label="Expand sidebar">
+        <button type="button" className={styles.collapseBtn} onClick={onToggleCollapse} aria-label="Expand sidebar">
           <Icon icon={ChevronsRight} size={16} />
         </button>
         <div className={styles.collapsedList}>
           {active.map((p) => {
             const status = railStatus(p, p.id === focusedId)
             return (
-              <button
+              <button type="button"
                 key={p.id}
                 className={styles.collapsedItem}
                 title={p.name}
@@ -63,7 +63,7 @@ export function ProjectRail({
           })}
         </div>
         <div className={styles.spacer} />
-        <button className={styles.collapsedItem} title="Inbox" aria-label="Inbox" onClick={onSelectInbox}>
+        <button type="button" className={styles.collapsedItem} title="Inbox" aria-label="Inbox" onClick={onSelectInbox}>
           <Icon icon={Inbox} size={16} />
         </button>
       </aside>
@@ -74,7 +74,7 @@ export function ProjectRail({
     <aside className={styles.rail}>
       <div className={styles.header}>
         <span className={styles.sectionLabel}>Projects</span>
-        <button className={styles.collapseBtn} onClick={onToggleCollapse} aria-label="Collapse sidebar">
+        <button type="button" className={styles.collapseBtn} onClick={onToggleCollapse} aria-label="Collapse sidebar">
           <Icon icon={ChevronsLeft} size={15} />
         </button>
       </div>
@@ -85,7 +85,7 @@ export function ProjectRail({
           const status = railStatus(p, p.id === focusedId)
           const focused = p.id === focusedId
           return (
-            <button
+            <button type="button"
               key={p.id}
               className={`${styles.item} ${focused ? styles.itemFocused : ''}`}
               onClick={() => onSelect(p.id)}
@@ -101,14 +101,14 @@ export function ProjectRail({
 
       {parked.length > 0 && (
         <div className={styles.parked}>
-          <button className={styles.parkedHeader} onClick={() => setParkedOpen((v) => !v)}>
+          <button type="button" className={styles.parkedHeader} onClick={() => setParkedOpen((v) => !v)}>
             <Icon icon={Moon} size={13} />
             <span className={styles.parkedText}>{parked.length} snoozed</span>
             <Icon icon={parkedOpen ? ChevronDown : ChevronRight} size={14} />
           </button>
           {parkedOpen &&
             parked.map((p) => (
-              <button key={p.id} className={styles.item} onClick={() => onSelect(p.id)}>
+              <button type="button" key={p.id} className={styles.item} onClick={() => onSelect(p.id)}>
                 <span className={`${styles.dot} ${styles.dot_quiet}`} aria-hidden />
                 <span className={`${styles.itemName} ${styles.dim}`}>{p.name}</span>
               </button>
@@ -119,12 +119,12 @@ export function ProjectRail({
       <div className={styles.spacer} />
 
       <div className={styles.footer}>
-        <button className={styles.item} onClick={onSelectInbox}>
+        <button type="button" className={styles.item} onClick={onSelectInbox}>
           <Icon icon={Inbox} size={15} />
           <span className={styles.itemName}>Inbox</span>
           {inboxCount > 0 && <span className={styles.badge}>{inboxCount}</span>}
         </button>
-        <button className={styles.item} onClick={onNewProject}>
+        <button type="button" className={styles.item} onClick={onNewProject}>
           <Icon icon={Plus} size={15} />
           <span className={styles.itemName}>New project</span>
         </button>

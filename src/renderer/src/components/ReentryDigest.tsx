@@ -32,7 +32,7 @@ function DigestRow({ item }: { item: DigestItem }): JSX.Element {
   )
   if (item.href) {
     return (
-      <button className={`${styles.row} ${styles.rowLink}`} onClick={() => openHref(item.href as string)}>
+      <button type="button" className={`${styles.row} ${styles.rowLink}`} onClick={() => openHref(item.href as string)}>
         {content}
       </button>
     )
@@ -49,7 +49,7 @@ export function ReentryDigest({ digest, onDismiss }: ReentryDigestProps): JSX.El
           <Icon icon={History} size={15} className={styles.titleIcon} />
           Since you were here
         </span>
-        <button className={styles.dismiss} onClick={onDismiss} aria-label="Dismiss digest">
+        <button type="button" className={styles.dismiss} onClick={onDismiss} aria-label="Dismiss digest">
           <Icon icon={X} size={15} />
         </button>
       </div>

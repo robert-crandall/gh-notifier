@@ -76,7 +76,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
           {detail.notes.trim().length > 0 && <p className={styles.notes}>{detail.notes}</p>}
         </div>
         <div className={styles.menuWrap} ref={menuRef}>
-          <button className={styles.menuButton} onClick={() => setMenuOpen((v) => !v)} aria-label="Project actions">
+          <button type="button" className={styles.menuButton} onClick={() => setMenuOpen((v) => !v)} aria-label="Project actions">
             <Icon icon={MoreHorizontal} size={16} />
           </button>
           {menuOpen && (
@@ -84,7 +84,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
               <div className={styles.menuBackdrop} onClick={() => setMenuOpen(false)} />
               <div className={styles.menu}>
                 {detail.status === 'snoozed' ? (
-                  <button
+                  <button type="button"
                     className={styles.menuItem}
                     onClick={() => {
                       setMenuOpen(false)
@@ -95,7 +95,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
                     Resume project
                   </button>
                 ) : (
-                  <button
+                  <button type="button"
                     className={styles.menuItem}
                     onClick={() => {
                       setMenuOpen(false)
@@ -106,7 +106,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
                     Snooze project
                   </button>
                 )}
-                <button
+                <button type="button"
                   className={`${styles.menuItem} ${styles.menuDanger}`}
                   onClick={() => {
                     setMenuOpen(false)
