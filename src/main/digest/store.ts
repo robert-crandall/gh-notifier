@@ -23,7 +23,7 @@ export function markDigestSeen(projectId: number, asOf: string): void {
   const next = clampDigestWatermark(asOf, row.digest_seen_at, new Date())
   if (next === null) return
 
-  db.prepare('UPDATE projects SET digest_seen_at = ? WHERE id = ?').run(next, projectId)
+  db.prepare('UPDATE projects SET digest_seen_at = ? WHERE id = ? AND deleted_at IS NULL').run(next, projectId)
 }
 
 /** Suppress a drifting project from resurfacing for the cooldown window ("not now"). */

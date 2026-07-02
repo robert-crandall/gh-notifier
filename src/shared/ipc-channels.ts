@@ -581,8 +581,10 @@ export interface ElectronApi {
   /** Registers a callback that fires whenever Copilot session state changes. Returns an unsubscribe fn. */
   onCopilotUpdated: (callback: () => void) => () => void
   /**
-   * Registers a callback that fires whenever project/drift state changes over
-   * wall-clock time (drift tick, snooze wake, mutations). Returns an unsubscribe fn.
+   * Registers a callback that fires when the main process changes project/drift
+   * state: the periodic drift tick and the project mutations that emit
+   * `projects:updated` (delete, restore, mark-focused, resurface-dismiss).
+   * Returns an unsubscribe fn.
    */
   onProjectsUpdated: (callback: () => void) => () => void
 }
