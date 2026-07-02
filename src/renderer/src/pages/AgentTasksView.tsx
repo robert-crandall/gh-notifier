@@ -48,6 +48,7 @@ function SessionRow({
       <select
         className={styles.assign}
         value=""
+        aria-label={`Assign "${session.title || 'Untitled task'}" to a project`}
         onChange={(e) => e.target.value && onAssign(session.id, Number(e.target.value))}
       >
         <option value="">Assign…</option>
