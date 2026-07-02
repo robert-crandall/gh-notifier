@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type {
   ProjectDetail,
   ProjectPatch,
@@ -28,11 +28,19 @@ export function useProjectDetail(
 ): UseProjectDetailResult {
   const [detail, setDetail] = useState<ProjectDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const reload = useCallback(async (): Promise<void> => {
     try {
       const d = await window.electron.ipc.invoke('projects:get', projectId)
-      setDetail(d)
+      if (mountedRef.current) setDetail(d)
     } catch (error: unknown) {
       console.error('Failed to load project detail', error)
     }
