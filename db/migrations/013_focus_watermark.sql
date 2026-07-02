@@ -2,9 +2,9 @@
 -- MVP A: re-entry digest watermarks, drift tracking, and soft-delete.
 --
 -- Timestamp convention: all columns below store ISO 8601 UTC strings (e.g.
--- 2026-07-02T18:07:44.167Z). Digest/drift comparisons wrap both operands in
--- SQLite datetime() so these compare correctly against the legacy
--- datetime('now') space-separated columns.
+-- 2026-07-02T18:07:44.167Z). Digest/drift comparisons normalize both operands
+-- with SQLite julianday() (millisecond-precise and format-agnostic) so these
+-- compare correctly against the legacy datetime('now') space-separated columns.
 
 -- Drift anchor: set on focus arrival. NULL until first focused.
 ALTER TABLE projects ADD COLUMN last_focused_at TEXT;

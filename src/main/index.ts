@@ -46,7 +46,8 @@ function startDriftWatcher(): void {
   driftTimer = setInterval(() => broadcast('projects:updated'), DRIFT_TICK_MS)
 }
 
-function createWindow(): void {  const mainWindow = new BrowserWindow({
+function createWindow(): void {
+  const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {

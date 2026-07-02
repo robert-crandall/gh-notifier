@@ -2,9 +2,9 @@ import { defineConfig } from 'vitest/config'
 import type { Plugin } from 'vite'
 import path from 'path'
 
-// Vitest runs under the Bun runtime, which provides the `bun:sqlite` builtin used by
-// the DB integration tests. Vite's resolver doesn't know `bun:` specifiers, so mark
-// them external and let the runtime supply them.
+// The DB integration tests import the `bun:sqlite` builtin. Vite's resolver
+// doesn't understand `bun:` specifiers, so mark them external and let whichever
+// runtime executes the tests provide them (they run under Bun).
 function externalizeBunBuiltins(): Plugin {
   return {
     name: 'externalize-bun-builtins',
