@@ -8,6 +8,7 @@ import { UndoToast } from './components/UndoToast'
 import { FocusPage } from './pages/FocusPage'
 import { InboxView } from './pages/InboxView'
 import { SettingsView } from './pages/SettingsView'
+import { AgentTasksView } from './pages/AgentTasksView'
 import { EmptyFocus } from './pages/EmptyFocus'
 import { useProjects } from './hooks/useProjects'
 import { useTheme } from './hooks/useTheme'
@@ -15,7 +16,7 @@ import { useFocus } from './hooks/useFocus'
 import { useUndo } from './hooks/useUndo'
 import { parseDbTimestampMs } from '@shared/time'
 
-type View = 'focus' | 'inbox' | 'settings'
+type View = 'focus' | 'inbox' | 'settings' | 'agent-tasks'
 
 const SNOOZE_DAYS = 7
 
@@ -28,6 +29,7 @@ export function App(): JSX.Element {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [railCollapsed, setRailCollapsed] = useState(false)
   const [inboxCount, setInboxCount] = useState(0)
+  const [agentTaskCount, setAgentTaskCount] = useState(0)
 
   // Keep focus on a valid project; fall back to the first active one.
   useEffect(() => {
@@ -53,6 +55,21 @@ export function App(): JSX.Element {
     const unsub = window.electron.onNotificationsUpdated(() => { void loadInboxCount() })
     return unsub
   }, [loadInboxCount])
+
+  const loadAgentTaskCount = useCallback(async () => {
+    try {
+      const count = await window.electron.ipc.invoke('copilot:unassigned-count')
+      setAgentTaskCount(count)
+    } catch (err) {
+      console.error('[App] Failed to load unassigned agent task count:', err)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadAgentTaskCount()
+    const unsub = window.electron.onCopilotUpdated(() => { void loadAgentTaskCount() })
+    return unsub
+  }, [loadAgentTaskCount])
 
   // ⌘K opens the palette.
   useEffect(() => {
@@ -185,15 +202,19 @@ export function App(): JSX.Element {
           projects={projects}
           focusedId={focusedId}
           inboxCount={inboxCount}
+          agentTaskCount={agentTaskCount}
           collapsed={railCollapsed}
           onToggleCollapse={() => setRailCollapsed((v) => !v)}
           onSelect={selectProject}
           onSelectInbox={() => setView('inbox')}
+          onSelectAgentTasks={() => setView('agent-tasks')}
           onNewProject={() => void handleNewProject()}
         />
 
         {view === 'inbox' ? (
           <InboxView onAssigned={() => { void refreshProjects(); void loadInboxCount() }} />
+        ) : view === 'agent-tasks' ? (
+          <AgentTasksView />
         ) : view === 'settings' ? (
           <SettingsView theme={theme} onClose={() => setView('focus')} />
         ) : focusedId === null ? (

@@ -56,6 +56,31 @@ export interface CopilotSession {
   repoName: string | null
   branch: string | null          // reserved for future use
   linkedPrUrl: string | null     // PR opened by Copilot for this task
+  /**
+   * Sticky project assignment set by launching from a project or manually
+   * assigning an unassigned session. When set (and the project is live), it
+   * resists re-resolution on the next `gh agent-task list` sync so a launched
+   * task doesn't jump to the Unassigned surface. Null = follow auto-resolution.
+   */
+  pinnedProjectId: number | null
+}
+
+/** Payload to launch a cloud `gh agent-task`. */
+export interface LaunchAgentTaskPayload {
+  /** The task description handed to Copilot. */
+  prompt: string
+  repoOwner: string
+  repoName: string
+  /** Base branch for the PR; defaults to the repo's default branch when omitted. */
+  baseBranch?: string
+  /** Originating project, pinned so the launched session stays co-located. Null = no project. */
+  projectId: number | null
+}
+
+/** A repo a project's agent task can target, resolved from repo rules + threads. */
+export interface LaunchTarget {
+  repoOwner: string
+  repoName: string
 }
 
 export interface Project {
@@ -509,6 +534,49 @@ export type IpcChannels = {
   'copilot:sync': {
     args: []
     result: void
+  }
+
+  /**
+   * Launches a cloud `gh agent-task` off the render thread and returns the
+   * optimistically-inserted session row (status 'in_progress'). Throws a typed
+   * error string ('GH_NOT_AUTHENTICATED' | 'LAUNCH_FAILED') on failure.
+   */
+  'copilot:launch': {
+    args: [payload: LaunchAgentTaskPayload]
+    result: CopilotSession
+  }
+
+  /**
+   * Returns unassigned Copilot sessions (project_id IS NULL) for the Agent Tasks
+   * surface: active-first then newest, capped, including recently-completed ones.
+   */
+  'copilot:unassigned': {
+    args: []
+    result: CopilotSession[]
+  }
+
+  /** Count of active (non-completed) unassigned sessions, for the rail badge. */
+  'copilot:unassigned-count': {
+    args: []
+    result: number
+  }
+
+  /**
+   * Pins an unassigned session to a live project (sticky across syncs).
+   * Throws if the project is missing or soft-deleted.
+   */
+  'copilot:assign': {
+    args: [sessionId: string, projectId: number]
+    result: void
+  }
+
+  /**
+   * Candidate repos a project's agent task can target, resolved from the
+   * project's repo rules and notification threads (distinct).
+   */
+  'copilot:launch-targets': {
+    args: [projectId: number]
+    result: LaunchTarget[]
   }
 
   // ── Focus: re-entry digest + drift ───────────────────────────────────────────

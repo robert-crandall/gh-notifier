@@ -306,7 +306,7 @@ export function deleteProject(id: number): void {
       "UPDATE projects SET deleted_at = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL"
     ).run(new Date().toISOString(), id)
     db.prepare('UPDATE notification_threads SET project_id = NULL WHERE project_id = ?').run(id)
-    db.prepare('UPDATE copilot_sessions SET project_id = NULL WHERE project_id = ?').run(id)
+    db.prepare('UPDATE copilot_sessions SET project_id = NULL, pinned_project_id = NULL WHERE project_id = ? OR pinned_project_id = ?').run(id, id)
   })
   run()
 }

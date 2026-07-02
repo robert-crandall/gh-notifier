@@ -6,9 +6,9 @@
  */
 
 import { execFile } from 'child_process'
-import { accessSync, constants } from 'fs'
 import { promisify } from 'util'
 import { resolveProjectId } from './resolve-project'
+import { resolveGhPath, agentTaskEnv } from './gh'
 import type { CopilotSession, CopilotSessionStatus } from '../../shared/ipc-channels'
 
 const execFileAsync = promisify(execFile)
@@ -34,11 +34,20 @@ interface AgentTaskRow {
   pullRequestNumber: number | null
 }
 
-const TERMINAL_STATES = new Set(['completed', 'cancelled', 'failed'])
+export type { AgentTaskRow }
 
-function deriveStatus(row: AgentTaskRow): CopilotSessionStatus {
-  if (TERMINAL_STATES.has(row.state)) return 'completed'
-  if (row.pullRequestUrl !== null && row.pullRequestState === 'OPEN') return 'pr_ready'
+/**
+ * Map an agent task's lifecycle to a session status. The task lifecycle wins
+ * over PR existence: `gh agent-task create` opens a draft PR immediately, so a
+ * still-working task must NOT read as `pr_ready` just because a PR is open. Only
+ * a *successfully completed* task with an open PR is review-ready — a
+ * failed/cancelled task's leftover open PR is not.
+ */
+export function deriveStatus(row: AgentTaskRow): CopilotSessionStatus {
+  if (row.state === 'completed') {
+    return row.pullRequestState === 'OPEN' ? 'pr_ready' : 'completed'
+  }
+  if (row.state === 'failed' || row.state === 'cancelled') return 'completed'
   if (row.state === 'idle') return 'waiting'
   return 'in_progress'
 }
@@ -70,24 +79,10 @@ function mapRow(row: AgentTaskRow): CopilotSession {
     repoName,
     branch: null,
     linkedPrUrl: row.pullRequestUrl,
+    // Sticky assignment is owned by the DB (preserved across syncs); the gh list
+    // output carries no such notion. upsertSessions ignores this incoming value.
+    pinnedProjectId: null,
   }
-}
-
-/** Resolve the full path to the `gh` binary, checking common macOS install locations. */
-function resolveGhPath(): string {
-  const candidates = [
-    '/opt/homebrew/bin/gh',
-    '/usr/local/bin/gh',
-    '/usr/bin/gh',
-  ]
-  for (const p of candidates) {
-    try {
-      accessSync(p, constants.X_OK)
-      return p
-    } catch { /* not found, try next */ }
-  }
-  // Fall back to bare `gh` and hope it's on PATH
-  return 'gh'
 }
 
 const ghPath = resolveGhPath()
@@ -99,7 +94,7 @@ export async function fetchGithubSessions(): Promise<CopilotSession[]> {
       'agent-task', 'list',
       '--json', GH_FIELDS,
       '-L', '200',
-    ])
+    ], { env: agentTaskEnv() })
 
     const rows = JSON.parse(stdout) as AgentTaskRow[]
     return rows.map(mapRow)

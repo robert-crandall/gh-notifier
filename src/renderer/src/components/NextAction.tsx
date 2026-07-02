@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Pencil, Check } from 'lucide-react'
+import { Pencil, Check, Sparkles } from 'lucide-react'
 import { Icon } from './Icon'
 import styles from './NextAction.module.css'
 
@@ -7,9 +7,11 @@ interface NextActionProps {
   value: string
   onSave: (text: string) => void
   onDone: () => void
+  /** Hand this next action to a cloud Copilot agent task. */
+  onDelegate: (prompt: string) => void
 }
 
-export function NextAction({ value, onSave, onDone }: NextActionProps): JSX.Element {
+export function NextAction({ value, onSave, onDone, onDelegate }: NextActionProps): JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -71,6 +73,16 @@ export function NextAction({ value, onSave, onDone }: NextActionProps): JSX.Elem
         <button type="button" className={styles.secondary} onClick={() => setEditing(true)}>
           <Icon icon={Pencil} size={14} />
           Edit
+        </button>
+        <button
+          type="button"
+          className={styles.secondary}
+          onClick={() => onDelegate(value)}
+          disabled={!hasValue}
+          title="Hand this to a Copilot agent task"
+        >
+          <Icon icon={Sparkles} size={14} />
+          Delegate
         </button>
         <button type="button" className={styles.primary} onClick={onDone} disabled={!hasValue}>
           <Icon icon={Check} size={14} />

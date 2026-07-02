@@ -9,10 +9,12 @@ interface ProjectRailProps {
   projects: Project[]
   focusedId: number | null
   inboxCount: number
+  agentTaskCount: number
   collapsed: boolean
   onToggleCollapse: () => void
   onSelect: (id: number) => void
   onSelectInbox: () => void
+  onSelectAgentTasks: () => void
   onNewProject: () => void
 }
 
@@ -29,10 +31,12 @@ export function ProjectRail({
   projects,
   focusedId,
   inboxCount,
+  agentTaskCount,
   collapsed,
   onToggleCollapse,
   onSelect,
   onSelectInbox,
+  onSelectAgentTasks,
   onNewProject,
 }: ProjectRailProps): JSX.Element {
   const [parkedOpen, setParkedOpen] = useState(false)
@@ -63,6 +67,9 @@ export function ProjectRail({
           })}
         </div>
         <div className={styles.spacer} />
+        <button type="button" className={styles.collapsedItem} title="Agent tasks" aria-label="Agent tasks" onClick={onSelectAgentTasks}>
+          <Icon icon={Sparkles} size={16} />
+        </button>
         <button type="button" className={styles.collapsedItem} title="Inbox" aria-label="Inbox" onClick={onSelectInbox}>
           <Icon icon={Inbox} size={16} />
         </button>
@@ -119,6 +126,11 @@ export function ProjectRail({
       <div className={styles.spacer} />
 
       <div className={styles.footer}>
+        <button type="button" className={styles.item} onClick={onSelectAgentTasks}>
+          <Icon icon={Sparkles} size={15} />
+          <span className={styles.itemName}>Agent tasks</span>
+          {agentTaskCount > 0 && <span className={styles.badge}>{agentTaskCount}</span>}
+        </button>
         <button type="button" className={styles.item} onClick={onSelectInbox}>
           <Icon icon={Inbox} size={15} />
           <span className={styles.itemName}>Inbox</span>

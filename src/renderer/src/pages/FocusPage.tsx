@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { MoreHorizontal, Moon, Trash2, Sun } from 'lucide-react'
-import type { Project, ProjectLink, ProjectTodo } from '@shared/ipc-channels'
+import type { LaunchTarget, Project, ProjectLink, ProjectTodo } from '@shared/ipc-channels'
 import { Icon } from '../components/Icon'
 import { ReentryDigest } from '../components/ReentryDigest'
 import { NextAction } from '../components/NextAction'
 import { WorkingColumn } from '../components/WorkingColumn'
+import { DelegateComposer } from '../components/DelegateComposer'
 import { ResurfaceStrip } from '../components/ResurfaceStrip'
-import { fire } from '../ipc'
+import { fire, openExternal } from '../ipc'
 import { useProjectDetail } from '../hooks/useProjectDetail'
 import { useDigest } from '../hooks/useDigest'
 import styles from './FocusPage.module.css'
@@ -38,6 +39,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
   } = useProjectDetail(props.projectId, props.onProjectChanged)
   const { digest, dismiss } = useDigest(props.projectId)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [delegate, setDelegate] = useState<{ prompt: string; fixedRepo?: LaunchTarget } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   if (isLoading || detail === null) {
@@ -123,7 +125,12 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
         </div>
       </div>
 
-      <NextAction value={detail.nextAction} onSave={(text) => fire(updateProject({ nextAction: text }))} onDone={handleDone} />
+      <NextAction
+        value={detail.nextAction}
+        onSave={(text) => fire(updateProject({ nextAction: text }))}
+        onDone={handleDone}
+        onDelegate={(prompt) => setDelegate({ prompt })}
+      />
 
       <ResurfaceStrip
         drifting={props.drifting}
@@ -141,9 +148,26 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
         onSaveNotes={(notes) => fire(updateProject({ notes }))}
         onCreateLink={(label, url) => fire(createLink(label, url))}
         onDeleteLink={handleDeleteLink}
+        onDelegate={(prompt, fixedRepo) => setDelegate({ prompt, fixedRepo })}
       />
 
       <div className={styles.tail} />
+
+      {delegate && (
+        <DelegateComposer
+          initialPrompt={delegate.prompt}
+          projectId={props.projectId}
+          fixedRepo={delegate.fixedRepo}
+          onClose={() => setDelegate(null)}
+          onLaunched={(session) => {
+            props.showUndo(
+              'Copilot is on it — I’ll fold the result into your digest.',
+              () => { if (session.htmlUrl) openExternal(session.htmlUrl) },
+              'Open'
+            )
+          }}
+        />
+      )}
     </main>
   )
 }

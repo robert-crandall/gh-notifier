@@ -147,20 +147,22 @@ describe('deleteProject', () => {
     expect(() => getProject(p.id)).toThrow()
   })
 
-  it('CASCADE deletes associated todos and links', () => {
+  it('soft-deletes but keeps todos and links attached for restore', () => {
     const p = createProject('Parent')
     createTodo(p.id, 'Task')
     createLink(p.id, 'Link', 'https://example.com')
     deleteProject(p.id)
 
+    // deleteProject is a soft delete: the project is tombstoned but its todos and
+    // links stay attached so they come back if the project is restored.
     const todos = db
       .prepare('SELECT * FROM project_todos WHERE project_id = ?')
       .all(p.id)
     const links = db
       .prepare('SELECT * FROM project_links WHERE project_id = ?')
       .all(p.id)
-    expect(todos).toHaveLength(0)
-    expect(links).toHaveLength(0)
+    expect(todos).toHaveLength(1)
+    expect(links).toHaveLength(1)
   })
 })
 

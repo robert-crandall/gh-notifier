@@ -90,12 +90,63 @@ If no rule matches, `project_id = null`. Unlinked sessions are stored but not su
 ## IPC Channels
 
 ```
-copilot:sessions-for-project   args: [projectId: number]   result: CopilotSession[]
-copilot:all-statuses           args: []                     result: Record<number, CopilotSessionStatus>
-copilot:sync                   args: []                     result: void
+copilot:sessions-for-project   args: [projectId: number]              result: CopilotSession[]
+copilot:all-statuses           args: []                                result: Record<number, CopilotSessionStatus>
+copilot:sync                   args: []                                result: void
+copilot:launch                 args: [payload: LaunchAgentTaskPayload] result: CopilotSession
+copilot:unassigned             args: []                                result: CopilotSession[]
+copilot:unassigned-count       args: []                                result: number
+copilot:assign                 args: [sessionId, projectId]            result: void
+copilot:launch-targets         args: [projectId: number]              result: LaunchTarget[]
 ```
 
 A push event `onCopilotUpdated` is added to `ElectronApi` (same pattern as `onNotificationsUpdated`) to notify the renderer when session state changes.
+
+---
+
+## MVP B — Launch + Track (evolution of the read-only design)
+
+MVP B evolves the integration above from read-only tracking to **launch + track**.
+Everything below is additive; the `gh agent-task list` sync, rail dot, and digest
+folding from MVP A are reused unchanged in shape.
+
+### Launching a task
+
+- `copilot:launch` shells out to `gh agent-task create -R <owner>/<repo> [-b <base>]`
+  off the render thread, piping the prompt on stdin (`-F -`). Launchable from a
+  next action, a todo, or a notification via a small **Delegate to Copilot**
+  confirm composer (not pure one-click: a cloud launch spends premium requests and
+  can't be cleanly undone read-only).
+- `create` prints the agent-session URL (`…/pull/<n>/agent-sessions/<uuid>`); we
+  parse the session UUID + PR number and **optimistically insert** a
+  `copilot_sessions` row (status `in_progress`) so the rail/digest light up before
+  the next list sync. A background sync then reconciles the real title/status.
+- **Auth:** `gh agent-task` requires gh's keyring OAuth token. The subprocess env
+  strips `GH_TOKEN`/`GITHUB_TOKEN` (which agent-task rejects) for the `agent-task`
+  calls only.
+
+### Sticky project assignment (`pinned_project_id`)
+
+A launched (or manually assigned) session must stay on its project, but the list
+sync re-resolves project every cycle and a just-launched task usually resolves to
+null. A `pinned_project_id` column records the explicit intent: the sync UPSERT
+preserves it and prefers it (when the project is live) over auto-resolution. On
+project delete both `project_id` and `pinned_project_id` are nulled so the session
+drops to the Unassigned surface.
+
+### Status derivation
+
+`deriveStatus` makes the task lifecycle win over PR existence (a launch opens a
+draft PR immediately): `completed` + open PR → `pr_ready`; `completed` +
+merged/closed → `completed`; `failed`/`cancelled` → `completed`; `idle` →
+`waiting`; else → `in_progress`.
+
+### Unassigned surface ("Agent tasks")
+
+A dedicated rail entry near Inbox, badged with the count of **active** unassigned
+sessions, opening a list of sessions with `project_id IS NULL` (active-first, then
+newest, incl. recently-completed). Each row can be assigned to a project
+(`copilot:assign`, sticky) or opened on GitHub.
 
 ---
 
@@ -126,8 +177,8 @@ The tab renders a session list with sessions grouped by status. Each row shows:
 
 ## Out of Scope
 
-- Writing back to GitHub (e.g. commenting on issues, requesting reviews) — read-only only
+- Writing back to GitHub beyond **launching a cloud `gh agent-task`** and the existing unsubscribe (no commenting, requesting reviews, or cancelling a task)
 - Tracking Copilot code completions or inline suggestions
 - Showing full Copilot session transcripts inline in the app
-- Spawning, resuming, or controlling Copilot CLI sessions from this app
+- The embedded/local Copilot CLI agent — live streaming, permission cards, worktree sandbox (that's a later milestone, MVP D)
 - Any cross-machine or cloud sync of local session state

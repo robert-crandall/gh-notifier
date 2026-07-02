@@ -4,10 +4,10 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReentryDigest as ReentryDigestType } from '@shared/ipc-channels'
 import { ReentryDigest } from './ReentryDigest'
 
-const openExternal = vi.fn()
+const openExternal = vi.fn(() => Promise.resolve())
 
 beforeEach(() => {
-  openExternal.mockReset()
+  openExternal.mockClear()
   ;(globalThis as unknown as { window: Window }).window.electron = {
     openExternal,
   } as unknown as Window['electron']

@@ -20,6 +20,7 @@ interface CopilotSessionRow {
   repo_name: string | null
   branch: string | null
   linked_pr_url: string | null
+  pinned_project_id: number | null
   synced_at: string
 }
 
@@ -37,39 +38,139 @@ function toSession(row: CopilotSessionRow): CopilotSession {
     repoName: row.repo_name,
     branch: row.branch,
     linkedPrUrl: row.linked_pr_url,
+    pinnedProjectId: row.pinned_project_id,
   }
 }
 
-/** Upserts a batch of sessions. Existing rows are fully replaced. */
+/**
+ * Upserts a batch of sessions from a `gh agent-task list` sync.
+ *
+ * On conflict this preserves the sticky `pinned_project_id` (owned by launch /
+ * manual assignment, never by the sync) while it points at a live project, and
+ * prefers it over the freshly-resolved `project_id`. A pin whose project is gone
+ * (soft-deleted) is cleared so a later restore can't make the session snap back.
+ * All volatile fields are updated to GitHub truth. New rows keep
+ * `pinned_project_id` NULL (its default).
+ */
 export function upsertSessions(sessions: CopilotSession[]): void {
   const db = getDb()
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO copilot_sessions
+    INSERT INTO copilot_sessions
       (id, project_id, source, status, title, html_url, started_at, updated_at,
        repo_owner, repo_name, branch, linked_pr_url, synced_at)
     VALUES
-      (@id, @project_id, @source, @status, @title, @html_url, @started_at, @updated_at,
-       @repo_owner, @repo_name, @branch, @linked_pr_url, datetime('now'))
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      pinned_project_id = CASE
+        WHEN copilot_sessions.pinned_project_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM projects p
+           WHERE p.id = copilot_sessions.pinned_project_id AND p.deleted_at IS NULL
+         )
+        THEN copilot_sessions.pinned_project_id
+        ELSE NULL
+      END,
+      project_id = CASE
+        WHEN copilot_sessions.pinned_project_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM projects p
+           WHERE p.id = copilot_sessions.pinned_project_id AND p.deleted_at IS NULL
+         )
+        THEN copilot_sessions.pinned_project_id
+        ELSE excluded.project_id
+      END,
+      source        = excluded.source,
+      status        = excluded.status,
+      title         = excluded.title,
+      html_url      = excluded.html_url,
+      started_at    = excluded.started_at,
+      updated_at    = excluded.updated_at,
+      repo_owner    = excluded.repo_owner,
+      repo_name     = excluded.repo_name,
+      branch        = excluded.branch,
+      linked_pr_url = excluded.linked_pr_url,
+      synced_at     = datetime('now')
   `)
   const insertMany = db.transaction((rows: CopilotSession[]) => {
     for (const s of rows) {
-      stmt.run({
-        id: s.id,
-        project_id: s.projectId,
-        source: s.source,
-        status: s.status,
-        title: s.title,
-        html_url: s.htmlUrl,
-        started_at: s.startedAt,
-        updated_at: s.updatedAt,
-        repo_owner: s.repoOwner,
-        repo_name: s.repoName,
-        branch: s.branch,
-        linked_pr_url: s.linkedPrUrl,
-      })
+      stmt.run(
+        s.id,
+        s.projectId,
+        s.source,
+        s.status,
+        s.title,
+        s.htmlUrl,
+        s.startedAt,
+        s.updatedAt,
+        s.repoOwner,
+        s.repoName,
+        s.branch,
+        s.linkedPrUrl,
+      )
     }
   })
   insertMany(sessions)
+}
+
+export interface LaunchedSessionInput {
+  id: string
+  title: string
+  repoOwner: string
+  repoName: string
+  htmlUrl: string | null
+  linkedPrUrl: string | null
+  /** Originating project to pin (null = launched against a repo with no project). */
+  projectId: number | null
+}
+
+/**
+ * Optimistically records a just-launched agent task so the rail/digest light up
+ * before the next `gh agent-task list` sync. Status starts `in_progress`.
+ *
+ * Only a *live* project is pinned/pointed at: if the originating project vanished
+ * mid-launch (or is soft-deleted), the task is tracked as unassigned instead —
+ * so a successful remote launch is never lost to an FK failure or an invisible
+ * row pointing at a dead project.
+ *
+ * This is an UPSERT: if a sync already created the row (race), we only set the
+ * pin + effective project_id and do NOT clobber the already-synced
+ * status/title/timestamps. Returns the resulting row.
+ */
+export function insertLaunchedSession(input: LaunchedSessionInput): CopilotSession {
+  const db = getDb()
+  const now = new Date().toISOString()
+  const projectIsLive =
+    input.projectId !== null &&
+    db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(input.projectId) != null
+  const pin = projectIsLive ? input.projectId : null
+  db.prepare(`
+    INSERT INTO copilot_sessions
+      (id, project_id, source, status, title, html_url, started_at, updated_at,
+       repo_owner, repo_name, branch, linked_pr_url, pinned_project_id, synced_at)
+    VALUES
+      (?, ?, 'github', 'in_progress', ?, ?, ?, ?, ?, ?, NULL, ?, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      pinned_project_id = excluded.pinned_project_id,
+      project_id = CASE
+        WHEN excluded.pinned_project_id IS NOT NULL
+        THEN excluded.pinned_project_id
+        ELSE copilot_sessions.project_id
+      END
+  `).run(
+    input.id,
+    pin,
+    input.title,
+    input.htmlUrl,
+    now,
+    now,
+    input.repoOwner,
+    input.repoName,
+    input.linkedPrUrl,
+    pin,
+  )
+
+  const row = db.prepare('SELECT * FROM copilot_sessions WHERE id = ?').get(input.id) as CopilotSessionRow
+  return toSession(row)
 }
 
 /** Returns all sessions linked to a project, ordered by updated_at desc. */
@@ -82,6 +183,52 @@ export function getSessionsForProject(projectId: number): CopilotSession[] {
     `)
     .all(projectId) as CopilotSessionRow[]
   return rows.map(toSession)
+}
+
+/**
+ * Returns unassigned sessions (project_id IS NULL) for the Agent Tasks surface.
+ * Active sessions sort first (so a burst of completed ones can't push active
+ * orphaned work out of the cap), then newest first. Includes recently-completed
+ * sessions so a task that finishes before it's assigned doesn't vanish.
+ */
+export function getUnassignedSessions(limit = 50): CopilotSession[] {
+  const rows = getDb()
+    .prepare(`
+      SELECT * FROM copilot_sessions
+      WHERE project_id IS NULL
+      ORDER BY (status = 'completed') ASC, julianday(updated_at) DESC
+      LIMIT ?
+    `)
+    .all(limit) as CopilotSessionRow[]
+  return rows.map(toSession)
+}
+
+/** Count of active (non-completed) unassigned sessions, for the rail badge. */
+export function getUnassignedActiveCount(): number {
+  const row = getDb()
+    .prepare(`
+      SELECT COUNT(*) AS cnt FROM copilot_sessions
+      WHERE project_id IS NULL AND status != 'completed'
+    `)
+    .get() as { cnt: number }
+  return row.cnt
+}
+
+/**
+ * Pins an unassigned session to a live project (sticky across syncs).
+ * Throws when the project is missing/soft-deleted or the session doesn't exist.
+ */
+export function assignSession(sessionId: string, projectId: number): void {
+  const db = getDb()
+  const project = db
+    .prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL')
+    .get(projectId)
+  if (project === undefined || project === null) throw new Error('PROJECT_NOT_FOUND')
+
+  const result = db
+    .prepare('UPDATE copilot_sessions SET project_id = ?, pinned_project_id = ? WHERE id = ?')
+    .run(projectId, projectId, sessionId)
+  if (result.changes === 0) throw new Error('SESSION_NOT_FOUND')
 }
 
 /**
