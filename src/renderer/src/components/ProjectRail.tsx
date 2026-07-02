@@ -54,6 +54,7 @@ export function ProjectRail({
                 key={p.id}
                 className={styles.collapsedItem}
                 title={p.name}
+                aria-label={p.name}
                 onClick={() => onSelect(p.id)}
               >
                 <StatusDot status={status} />
@@ -62,7 +63,7 @@ export function ProjectRail({
           })}
         </div>
         <div className={styles.spacer} />
-        <button className={styles.collapsedItem} title="Inbox" onClick={onSelectInbox}>
+        <button className={styles.collapsedItem} title="Inbox" aria-label="Inbox" onClick={onSelectInbox}>
           <Icon icon={Inbox} size={16} />
         </button>
       </aside>

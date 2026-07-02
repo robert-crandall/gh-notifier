@@ -99,7 +99,7 @@ export function CommandPalette({
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setActive((i) => Math.min(i + 1, filtered.length - 1))
+                setActive((i) => Math.max(0, Math.min(i + 1, filtered.length - 1)))
               } else if (e.key === 'ArrowUp') {
                 e.preventDefault()
                 setActive((i) => Math.max(i - 1, 0))
