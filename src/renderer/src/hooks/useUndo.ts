@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface UndoState {
   id: number
@@ -42,6 +42,13 @@ export function useUndo(): {
     },
     []
   )
+
+  // Clear any pending timeout on unmount so it can't fire on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current)
+    }
+  }, [])
 
   return { undo, showUndo, clearUndo }
 }

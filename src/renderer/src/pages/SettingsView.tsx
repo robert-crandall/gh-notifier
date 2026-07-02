@@ -153,8 +153,16 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
             <select
               className={styles.select}
               value={syncInterval ?? ''}
-              onChange={(e) => changeInterval(Number(e.target.value) as SyncIntervalMinutes)}
+              disabled={syncInterval === null}
+              onChange={(e) => {
+                if (e.target.value) changeInterval(Number(e.target.value) as SyncIntervalMinutes)
+              }}
             >
+              {syncInterval === null && (
+                <option value="" disabled>
+                  Loading…
+                </option>
+              )}
               {SYNC_INTERVAL_OPTIONS.map((m) => (
                 <option key={m} value={m}>{m} min</option>
               ))}
@@ -165,8 +173,16 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
             <select
               className={styles.select}
               value={maxDays ?? ''}
-              onChange={(e) => changeMaxDays(Number(e.target.value) as MaxSyncDays)}
+              disabled={maxDays === null}
+              onChange={(e) => {
+                if (e.target.value) changeMaxDays(Number(e.target.value) as MaxSyncDays)
+              }}
             >
+              {maxDays === null && (
+                <option value="" disabled>
+                  Loading…
+                </option>
+              )}
               {MAX_SYNC_DAYS_OPTIONS.map((d) => (
                 <option key={d} value={d}>{d} days</option>
               ))}

@@ -13,7 +13,7 @@ import { useProjects } from './hooks/useProjects'
 import { useTheme } from './hooks/useTheme'
 import { useFocus } from './hooks/useFocus'
 import { useUndo } from './hooks/useUndo'
-import { parseDbTimestampMs } from './timeSort'
+import { parseDbTimestampMs } from '@shared/time'
 
 type View = 'focus' | 'inbox' | 'settings'
 

@@ -43,7 +43,11 @@ const DRIFT_TICK_MS = 60 * 1000
 let driftTimer: NodeJS.Timeout | null = null
 function startDriftWatcher(): void {
   if (driftTimer !== null) return
-  driftTimer = setInterval(() => broadcast('projects:updated'), DRIFT_TICK_MS)
+  driftTimer = setInterval(() => {
+    // Skip when no windows exist (macOS keeps the app alive after the last
+    // window closes) so the tick doesn't wake the app up for nothing.
+    if (BrowserWindow.getAllWindows().length > 0) broadcast('projects:updated')
+  }, DRIFT_TICK_MS)
 }
 
 function createWindow(): void {
