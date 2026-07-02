@@ -20,14 +20,18 @@ export function useAuth(): UseAuthResult {
   })
 
   useEffect(() => {
+    let active = true
     ;(async () => {
       try {
         const status = await window.electron.ipc.invoke('auth:status')
-        setState((s) => ({ ...s, status, isLoading: false }))
+        if (active) setState((s) => ({ ...s, status, isLoading: false }))
       } catch (err: unknown) {
-        setState((s) => ({ ...s, error: String(err), isLoading: false }))
+        if (active) setState((s) => ({ ...s, error: String(err), isLoading: false }))
       }
     })()
+    return () => {
+      active = false
+    }
   }, [])
 
   const savePat = useCallback(async (token: string) => {

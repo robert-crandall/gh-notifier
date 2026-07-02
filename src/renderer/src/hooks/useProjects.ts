@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Project, ProjectPatch } from '@shared/ipc-channels'
 
 interface UseProjectsResult {
@@ -13,15 +13,26 @@ interface UseProjectsResult {
 export function useProjects(): UseProjectsResult {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const mountedRef = useRef(true)
+  const reqIdRef = useRef(0)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const loadProjects = useCallback(async () => {
+    const reqId = ++reqIdRef.current
     try {
       const list = await window.electron.ipc.invoke('projects:list')
-      setProjects(list)
+      // Latest request wins; never set state after unmount.
+      if (mountedRef.current && reqId === reqIdRef.current) setProjects(list)
     } catch (error: unknown) {
       console.error('Failed to load projects:', error)
     } finally {
-      setIsLoading(false)
+      if (mountedRef.current) setIsLoading(false)
     }
   }, [])
 

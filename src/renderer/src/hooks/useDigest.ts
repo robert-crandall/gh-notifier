@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReentryDigest } from '@shared/ipc-channels'
 
 /**
@@ -10,18 +10,29 @@ export function useDigest(projectId: number | null): {
   dismiss: () => void
 } {
   const [digest, setDigest] = useState<ReentryDigest | null>(null)
+  const mountedRef = useRef(true)
+  const reqIdRef = useRef(0)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const load = useCallback(async (): Promise<void> => {
     if (projectId === null) {
       setDigest(null)
       return
     }
+    const reqId = ++reqIdRef.current
     try {
       const result = await window.electron.ipc.invoke('digest:get', projectId)
-      setDigest(result)
+      // Only the most recent request wins, and never after unmount.
+      if (mountedRef.current && reqId === reqIdRef.current) setDigest(result)
     } catch (err) {
       console.error('[useDigest] Failed to load digest:', err)
-      setDigest(null)
+      if (mountedRef.current && reqId === reqIdRef.current) setDigest(null)
     }
   }, [projectId])
 
