@@ -81,7 +81,13 @@ export function CommandPalette({
 
   return (
     <div className={styles.backdrop} onMouseDown={onClose}>
-      <div className={styles.palette} onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className={styles.palette}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className={styles.searchRow}>
           <Icon icon={Search} size={16} className={styles.searchIcon} />
           <input

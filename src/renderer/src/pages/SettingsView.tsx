@@ -38,6 +38,8 @@ function Segmented<T extends string>({
       {options.map((opt) => (
         <button
           key={opt}
+          type="button"
+          aria-pressed={value === opt}
           className={`${styles.segment} ${value === opt ? styles.segmentActive : ''}`}
           onClick={() => onChange(opt)}
         >
@@ -131,6 +133,10 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
                   type="password"
                   value={token}
                   placeholder="ghp_…"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   onChange={(e) => setToken(e.target.value)}
                 />
                 <button
