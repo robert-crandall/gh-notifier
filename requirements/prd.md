@@ -8,7 +8,7 @@
 
 ---
 
-## Read this first (the whole thing in 8 bullets)
+## Read this first (the whole thing in 9 bullets)
 
 - The old app was a **project-centric notification manager**. That framing quietly fights how I think.
 - The real problem isn't missed notifications. It's **losing the thread** - I hyperfocus, drop a thing thinking "back in 2h," lose days, and shame makes re-entry hard.
@@ -26,7 +26,7 @@
 
 The v1 problem statement: "what am I working on and what do I do next?" - answered with a project dashboard + a GitHub notification router.
 
-Held against my [ADHD Profile] and [Cognitive Interface Model], three things are wrong at the *problem* layer, not the feature layer:
+Held against my *ADHD Profile* and *Cognitive Interface Model*, three things are wrong at the *problem* layer, not the feature layer:
 
 | v1 assumption | What my profiles actually say | Implication |
 |---|---|---|

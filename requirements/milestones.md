@@ -10,7 +10,7 @@ Order rule: don't build the brain UI (C) on an unproven resolver, and don't buil
 
 ---
 
-## Gate 0 - Resolver spike (proof, throwaway UI)
+## Gate 0 - Resolver spike (proof, not shippable)
 
 **Goal:** prove the "project brain" is real before building anything around it.
 
