@@ -1,0 +1,104 @@
+.bar {
+  height: 46px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px 0 84px; /* clear the macOS traffic lights */
+  background: linear-gradient(var(--bg-inset), var(--bg-window));
+  border-bottom: 1px solid var(--border-muted);
+  -webkit-app-region: drag;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+.brandIcon {
+  color: var(--accent-text);
+}
+
+.searchWrap {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.search {
+  width: 520px;
+  max-width: 52%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--bg-window);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-3);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: border-color var(--transition);
+}
+
+.search:hover {
+  border-color: var(--accent-border);
+}
+
+.searchText {
+  flex: 1;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-muted);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+  -webkit-app-region: no-drag;
+}
+
+.iconButton {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.iconButton:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-left: 4px;
+  background: linear-gradient(135deg, var(--bg-elevated), var(--bg-subtle));
+  border: 1px solid var(--border);
+}

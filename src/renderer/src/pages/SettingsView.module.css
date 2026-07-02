@@ -1,0 +1,225 @@
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.toolbar {
+  height: 46px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.back {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.back:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  max-width: 640px;
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.sectionTitle {
+  margin: 0 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+  gap: 2px;
+}
+
+.segment {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-transform: capitalize;
+}
+
+.segment:hover {
+  color: var(--text);
+}
+
+.segmentActive {
+  color: var(--text);
+  background: var(--accent-subtle);
+}
+
+.accents {
+  display: flex;
+  gap: 8px;
+}
+
+.accentSwatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.accentActive {
+  border-color: var(--text);
+}
+
+.accent_slate {
+  background: #57606a;
+}
+
+.accent_blue {
+  background: #1f6feb;
+}
+
+.accent_green {
+  background: #238636;
+}
+
+.accent_violet {
+  background: #8957e5;
+}
+
+.authRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+}
+
+.authName {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.tokenRow {
+  display: flex;
+  gap: 8px;
+}
+
+.tokenInput {
+  width: 260px;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.tokenInput:focus {
+  border-color: var(--accent-border);
+}
+
+.select {
+  height: 30px;
+  padding: 0 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.primaryButton {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-fg);
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.secondaryButton {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.secondaryButton:hover {
+  background: var(--bg-elevated);
+}
+
+.error {
+  color: var(--danger);
+  font-size: 12px;
+}

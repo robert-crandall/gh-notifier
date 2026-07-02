@@ -27,11 +27,23 @@ export function useProjects(): UseProjectsResult {
 
   useEffect(() => {
     loadProjects()
-    // Refresh project list (unread counts) whenever a notification sync completes
+    // Refresh when notifications, copilot sessions, or project/drift state change.
     const unsubNotifications = window.electron.onNotificationsUpdated(() => { void loadProjects() })
-    // Refresh project list (copilot status dots) whenever a copilot sync completes
     const unsubCopilot = window.electron.onCopilotUpdated(() => { void loadProjects() })
-    return () => { unsubNotifications(); unsubCopilot() }
+    const unsubProjects = window.electron.onProjectsUpdated(() => { void loadProjects() })
+    // Recompute drift when the window regains focus (wall-clock time passed).
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') void loadProjects()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      unsubNotifications()
+      unsubCopilot()
+      unsubProjects()
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
   }, [loadProjects])
 
   const createProject = useCallback(async (name: string): Promise<Project> => {

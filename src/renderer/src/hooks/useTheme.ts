@@ -1,46 +1,89 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-export const THEMES = [
-  { id: 'light',     label: 'Light',     dark: false },
-  { id: 'dark',      label: 'Dark',      dark: true  },
-  { id: 'nord',      label: 'Nord',      dark: false },
-  { id: 'dracula',   label: 'Dracula',   dark: true  },
-  { id: 'night',     label: 'Night',     dark: true  },
-  { id: 'dim',       label: 'Dim',       dark: true  },
-  { id: 'corporate', label: 'Corporate', dark: false },
-  { id: 'lemonade',  label: 'Lemonade',  dark: false },
-] as const
+export type ColorMode = 'light' | 'dark' | 'system'
+export type ResolvedColorMode = 'light' | 'dark'
+export type Accent = 'slate' | 'blue' | 'green' | 'violet'
+export type Density = 'compact' | 'comfortable'
 
-export type ThemeId = (typeof THEMES)[number]['id']
+export const ACCENTS: Accent[] = ['slate', 'blue', 'green', 'violet']
+export const COLOR_MODES: ColorMode[] = ['light', 'dark', 'system']
+export const DENSITIES: Density[] = ['compact', 'comfortable']
 
-const STORAGE_KEY = 'gh-projects-theme'
+const COLOR_MODE_KEY = 'focus-color-mode'
+const ACCENT_KEY = 'focus-accent'
+const DENSITY_KEY = 'focus-density'
 
-function getSystemTheme(): ThemeId {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  const stored = localStorage.getItem(key)
+  return stored && (allowed as readonly string[]).includes(stored) ? (stored as T) : fallback
 }
 
-function readStoredTheme(): ThemeId | null {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored && THEMES.some((t) => t.id === stored)) {
-    return stored as ThemeId
-  }
-  return null
+function systemPrefersDark(): boolean {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
 }
 
-export function useTheme() {
-  const [theme, setThemeState] = useState<ThemeId>(
-    () => readStoredTheme() ?? getSystemTheme()
+function resolveColorMode(mode: ColorMode): ResolvedColorMode {
+  if (mode === 'system') return systemPrefersDark() ? 'dark' : 'light'
+  return mode
+}
+
+export interface UseThemeResult {
+  colorMode: ColorMode
+  resolvedColorMode: ResolvedColorMode
+  setColorMode: (mode: ColorMode) => void
+  accent: Accent
+  setAccent: (accent: Accent) => void
+  density: Density
+  setDensity: (density: Density) => void
+}
+
+export function useTheme(): UseThemeResult {
+  const [colorMode, setColorModeState] = useState<ColorMode>(() =>
+    readStored<ColorMode>(COLOR_MODE_KEY, COLOR_MODES, 'system')
   )
+  const [accent, setAccentState] = useState<Accent>(() => readStored<Accent>(ACCENT_KEY, ACCENTS, 'slate'))
+  const [density, setDensityState] = useState<Density>(() =>
+    readStored<Density>(DENSITY_KEY, DENSITIES, 'compact')
+  )
+  const [resolvedColorMode, setResolvedColorMode] = useState<ResolvedColorMode>(() => resolveColorMode(colorMode))
 
-  // Apply the theme attribute whenever it changes
+  // Keep the resolved mode in sync, and follow the system preference while in 'system'.
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
-  }, [theme])
+    setResolvedColorMode(resolveColorMode(colorMode))
+    if (colorMode !== 'system') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (): void => setResolvedColorMode(systemPrefersDark() ? 'dark' : 'light')
+    media.addEventListener('change', onChange)
+    return () => media.removeEventListener('change', onChange)
+  }, [colorMode])
 
-  const setTheme = useCallback((next: ThemeId) => {
-    localStorage.setItem(STORAGE_KEY, next)
-    setThemeState(next)
+  // Apply the three data-attributes to <html>.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-color-mode', resolvedColorMode)
+  }, [resolvedColorMode])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-accent', accent)
+  }, [accent])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', density)
+  }, [density])
+
+  const setColorMode = useCallback((mode: ColorMode): void => {
+    localStorage.setItem(COLOR_MODE_KEY, mode)
+    setColorModeState(mode)
   }, [])
 
-  return { theme, setTheme, themes: THEMES }
+  const setAccent = useCallback((next: Accent): void => {
+    localStorage.setItem(ACCENT_KEY, next)
+    setAccentState(next)
+  }, [])
+
+  const setDensity = useCallback((next: Density): void => {
+    localStorage.setItem(DENSITY_KEY, next)
+    setDensityState(next)
+  }, [])
+
+  return { colorMode, resolvedColorMode, setColorMode, accent, setAccent, density, setDensity }
 }

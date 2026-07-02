@@ -20,6 +20,10 @@ describe('toProject', () => {
       updated_at: '2024-01-02T00:00:00Z',
       snooze_until: null as string | null,
       snooze_mode: null as string | null,
+      last_focused_at: '2024-01-03T00:00:00Z' as string | null,
+      digest_seen_at: null as string | null,
+      drift_snoozed_until: null as string | null,
+      deleted_at: null as string | null,
     }
     expect(toProject(row)).toEqual({
       id: 1,
@@ -35,6 +39,8 @@ describe('toProject', () => {
       snoozeMode: null,
       snoozeUntil: null,
       copilotStatus: null,
+      lastFocusedAt: '2024-01-03T00:00:00Z',
+      driftState: 'active',
     })
   })
 
@@ -43,12 +49,14 @@ describe('toProject', () => {
       id: 1, name: 'P', notes: '', next_action: '', status: 'active',
       sort_order: 0, created_at: '', updated_at: '',
       snooze_until: null as string | null, snooze_mode: null as string | null,
+      last_focused_at: null as string | null, digest_seen_at: null as string | null,
+      drift_snoozed_until: null as string | null, deleted_at: null as string | null,
     }
     expect(toProject(row).unreadCount).toBe(0)
     expect(toProject(row).activeTodoCount).toBe(0)
   })
 
-  it('maps snooze fields when present', () => {
+  it('maps snooze fields when present and classifies a snoozed project as parked', () => {
     const row = {
       id: 2,
       name: 'Snoozed',
@@ -60,10 +68,13 @@ describe('toProject', () => {
       updated_at: '2024-01-02T00:00:00Z',
       snooze_until: '2024-12-31T00:00:00Z' as string | null,
       snooze_mode: 'date' as string | null,
+      last_focused_at: null as string | null, digest_seen_at: null as string | null,
+      drift_snoozed_until: null as string | null, deleted_at: null as string | null,
     }
     const project = toProject(row)
     expect(project.snoozeMode).toBe('date')
     expect(project.snoozeUntil).toBe('2024-12-31T00:00:00Z')
+    expect(project.driftState).toBe('parked')
   })
 
   it('maps null snooze_mode to null (not undefined or empty string)', () => {
@@ -71,6 +82,8 @@ describe('toProject', () => {
       id: 1, name: 'P', notes: '', next_action: '', status: 'active',
       sort_order: 0, created_at: '', updated_at: '',
       snooze_until: null as string | null, snooze_mode: null as string | null,
+      last_focused_at: null as string | null, digest_seen_at: null as string | null,
+      drift_snoozed_until: null as string | null, deleted_at: null as string | null,
     }
     expect(toProject(row).snoozeMode).toBeNull()
     expect(toProject(row).snoozeUntil).toBeNull()

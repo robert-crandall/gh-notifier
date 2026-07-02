@@ -10,11 +10,13 @@ import type {
 interface UseProjectDetailResult {
   detail: ProjectDetail | null
   isLoading: boolean
+  reload: () => Promise<void>
   updateProject: (patch: ProjectPatch) => Promise<void>
   snoozeProject: (mode: SnoozeMode, until?: string) => Promise<void>
   createTodo: (text: string) => Promise<void>
   updateTodo: (id: number, patch: ProjectTodoPatch) => Promise<void>
   deleteTodo: (id: number) => Promise<void>
+  restoreTodo: (id: number) => Promise<void>
   createLink: (label: string, url: string) => Promise<void>
   updateLink: (id: number, patch: ProjectLinkPatch) => Promise<void>
   deleteLink: (id: number) => Promise<void>
@@ -26,6 +28,15 @@ export function useProjectDetail(
 ): UseProjectDetailResult {
   const [detail, setDetail] = useState<ProjectDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  const reload = useCallback(async (): Promise<void> => {
+    try {
+      const d = await window.electron.ipc.invoke('projects:get', projectId)
+      setDetail(d)
+    } catch (error: unknown) {
+      console.error('Failed to load project detail', error)
+    }
+  }, [projectId])
 
   useEffect(() => {
     let isActive = true
@@ -100,7 +111,14 @@ export function useProjectDetail(
     setDetail((prev) =>
       prev ? { ...prev, todos: prev.todos.filter((t) => t.id !== id) } : null
     )
-  }, [])
+    onProjectChanged?.()
+  }, [onProjectChanged])
+
+  const restoreTodo = useCallback(async (id: number): Promise<void> => {
+    await window.electron.ipc.invoke('todos:restore', id)
+    await reload()
+    onProjectChanged?.()
+  }, [reload, onProjectChanged])
 
   const createLink = useCallback(
     async (label: string, url: string): Promise<void> => {
@@ -127,11 +145,13 @@ export function useProjectDetail(
   return {
     detail,
     isLoading,
+    reload,
     updateProject,
     snoozeProject,
     createTodo,
     updateTodo,
     deleteTodo,
+    restoreTodo,
     createLink,
     updateLink,
     deleteLink,

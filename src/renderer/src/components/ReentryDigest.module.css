@@ -1,0 +1,101 @@
+.card {
+  margin-bottom: 22px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.titleIcon {
+  color: var(--accent-text);
+}
+
+.dismiss {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  display: flex;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.dismiss:hover {
+  color: var(--text);
+  background: var(--bg-subtle);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.row {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+  padding: 3px 4px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  text-align: left;
+  width: 100%;
+}
+
+.row > svg {
+  margin-top: 2px;
+  flex: none;
+}
+
+.rowLink {
+  cursor: pointer;
+}
+
+.rowLink:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.tone_info {
+  color: var(--info);
+}
+
+.tone_success {
+  color: var(--success);
+}
+
+.tone_attention {
+  color: var(--attention);
+}
+
+.tone_danger {
+  color: var(--danger);
+}
+
+.tone_violet {
+  color: var(--violet);
+}
+
+.tone_neutral {
+  color: var(--text-3);
+}

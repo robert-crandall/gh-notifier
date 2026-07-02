@@ -1,0 +1,153 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Focus design tokens — a lightweight, Primer-inspired system.
+   Monochrome neutral ramp + one accent. Theming via data-attributes on <html>:
+     data-color-mode = "dark" | "light"   (resolved by useTheme; system-aware)
+     data-accent     = "slate" | "blue" | "green" | "violet"
+     data-density    = "compact" | "comfortable"
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --font-ui: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Monaspace Neon', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Spacing / geometry (compact defaults; 4px grid). */
+  --pad: 12px;
+  --pad-lg: 16px;
+  --gap: 8px;
+  --row: 30px;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 8px;
+
+  --transition: 150ms;
+}
+
+[data-density='comfortable'] {
+  --pad: 16px;
+  --pad-lg: 22px;
+  --gap: 12px;
+  --row: 36px;
+}
+
+/* ── Dark palette (default) ──────────────────────────────────────────────────── */
+:root,
+[data-color-mode='dark'] {
+  --bg-desktop: #05070a;
+  --bg-window: #0d1117;
+  --bg-rail: #0a0e13;
+  --bg-subtle: #161b22;
+  --bg-inset: #010409;
+  --bg-elevated: #1b212a;
+
+  --border: #30363d;
+  --border-muted: #21262d;
+  --border-subtle: rgba(240, 246, 252, 0.08);
+
+  --text: #e6edf3;
+  --text-2: #8b949e;
+  --text-3: #6e7681;
+
+  --success: #3fb950;
+  --attention: #d29922;
+  --danger: #f85149;
+  --info: #58a6ff;
+  --violet: #a371f7;
+
+  --scrollbar-thumb: #2b323b;
+
+  /* Accent — slate (default). */
+  --accent: #576273;
+  --accent-hover: #657085;
+  --accent-fg: #f2f5f9;
+  --accent-subtle: rgba(120, 135, 158, 0.16);
+  --accent-border: rgba(120, 135, 158, 0.5);
+  --accent-text: #adbac7;
+}
+
+[data-color-mode='dark'][data-accent='blue'] {
+  --accent: #1f6feb;
+  --accent-hover: #388bfd;
+  --accent-fg: #fff;
+  --accent-subtle: rgba(56, 139, 253, 0.15);
+  --accent-border: rgba(56, 139, 253, 0.45);
+  --accent-text: #58a6ff;
+}
+
+[data-color-mode='dark'][data-accent='green'] {
+  --accent: #238636;
+  --accent-hover: #2ea043;
+  --accent-fg: #fff;
+  --accent-subtle: rgba(63, 185, 80, 0.15);
+  --accent-border: rgba(63, 185, 80, 0.4);
+  --accent-text: #3fb950;
+}
+
+[data-color-mode='dark'][data-accent='violet'] {
+  --accent: #8957e5;
+  --accent-hover: #a371f7;
+  --accent-fg: #fff;
+  --accent-subtle: rgba(163, 113, 247, 0.15);
+  --accent-border: rgba(163, 113, 247, 0.4);
+  --accent-text: #a371f7;
+}
+
+/* ── Light palette ───────────────────────────────────────────────────────────── */
+[data-color-mode='light'] {
+  --bg-desktop: #eaeef2;
+  --bg-window: #ffffff;
+  --bg-rail: #f6f8fa;
+  --bg-subtle: #f6f8fa;
+  --bg-inset: #eef1f4;
+  --bg-elevated: #ffffff;
+
+  --border: #d0d7de;
+  --border-muted: #e4e8ec;
+  --border-subtle: rgba(1, 4, 9, 0.08);
+
+  --text: #1f2328;
+  --text-2: #59636e;
+  --text-3: #818b98;
+
+  --success: #1a7f37;
+  --attention: #9a6700;
+  --danger: #cf222e;
+  --info: #0969da;
+  --violet: #8250df;
+
+  --scrollbar-thumb: #d0d7de;
+
+  /* Accent — slate (default). */
+  --accent: #57606a;
+  --accent-hover: #4a525c;
+  --accent-fg: #ffffff;
+  --accent-subtle: rgba(87, 96, 106, 0.12);
+  --accent-border: rgba(87, 96, 106, 0.4);
+  --accent-text: #4a525c;
+}
+
+[data-color-mode='light'][data-accent='blue'] {
+  --accent: #0969da;
+  --accent-hover: #0860ca;
+  --accent-fg: #ffffff;
+  --accent-subtle: rgba(9, 105, 218, 0.1);
+  --accent-border: rgba(9, 105, 218, 0.4);
+  --accent-text: #0969da;
+}
+
+[data-color-mode='light'][data-accent='green'] {
+  --accent: #1a7f37;
+  --accent-hover: #187733;
+  --accent-fg: #ffffff;
+  --accent-subtle: rgba(26, 127, 55, 0.1);
+  --accent-border: rgba(26, 127, 55, 0.4);
+  --accent-text: #1a7f37;
+}
+
+[data-color-mode='light'][data-accent='violet'] {
+  --accent: #8250df;
+  --accent-hover: #7548d3;
+  --accent-fg: #ffffff;
+  --accent-subtle: rgba(130, 80, 223, 0.1);
+  --accent-border: rgba(130, 80, 223, 0.4);
+  --accent-text: #8250df;
+}

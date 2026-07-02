@@ -1,5 +1,6 @@
 import type {
   CopilotSessionStatus,
+  DriftState,
   Project,
   ProjectDetail,
   ProjectLink,
@@ -11,6 +12,7 @@ import type {
   SnoozeMode,
 } from '../../shared/ipc-channels'
 import { getDb } from './index'
+import { classifyDrift } from '../digest/classify'
 
 // ── Row types (SQLite returns snake_case column names) ────────────────────────
 
@@ -25,6 +27,10 @@ interface ProjectRow {
   updated_at: string
   snooze_until: string | null
   snooze_mode: string | null
+  last_focused_at: string | null
+  digest_seen_at: string | null
+  drift_snoozed_until: string | null
+  deleted_at: string | null
 }
 
 interface TodoRow {
@@ -61,7 +67,22 @@ export function toProject(row: ProjectRow): Project {
     snoozeMode: (row.snooze_mode as SnoozeMode) ?? null,
     snoozeUntil: row.snooze_until ?? null,
     copilotStatus: null,
+    lastFocusedAt: row.last_focused_at ?? null,
+    // Status-only base classification (pure). listProjects/getProject overlay the
+    // real time-based drift via classifyDrift.
+    driftState: row.status === 'snoozed' ? 'parked' : 'active',
   }
+}
+
+/** Time-based drift classification for a project row. */
+function driftStateForRow(row: ProjectRow, now: Date): DriftState {
+  return classifyDrift({
+    status: row.status as ProjectStatus,
+    lastFocusedAt: row.last_focused_at ?? null,
+    driftSnoozedUntil: row.drift_snoozed_until ?? null,
+    createdAt: row.created_at,
+    now,
+  })
 }
 
 export function toTodo(row: TodoRow): ProjectTodo {
@@ -88,6 +109,7 @@ export function toLink(row: LinkRow): ProjectLink {
 // ── Projects ──────────────────────────────────────────────────────────────────
 
 export function listProjects(): Project[] {
+  const now = new Date()
   const rows = getDb()
     .prepare(`
       SELECT p.*,
@@ -104,7 +126,7 @@ export function listProjects(): Project[] {
       LEFT JOIN (
         SELECT project_id, COUNT(*) AS cnt
         FROM project_todos
-        WHERE done = 0
+        WHERE done = 0 AND deleted_at IS NULL
         GROUP BY project_id
       ) tc ON tc.project_id = p.id
       LEFT JOIN (
@@ -124,6 +146,7 @@ export function listProjects(): Project[] {
         WHERE project_id IS NOT NULL AND status != 'completed'
         GROUP BY project_id
       ) cs ON cs.project_id = p.id
+      WHERE p.deleted_at IS NULL
       ORDER BY p.sort_order ASC, p.id ASC
     `)
     .all() as (ProjectRow & { unread_count: number; active_todo_count: number; copilot_status: string | null })[]
@@ -132,19 +155,20 @@ export function listProjects(): Project[] {
     unreadCount: r.unread_count,
     activeTodoCount: r.active_todo_count,
     copilotStatus: (r.copilot_status as CopilotSessionStatus) ?? null,
+    driftState: driftStateForRow(r, now),
   }))
 }
 
 export function getProject(id: number): ProjectDetail {
   const db = getDb()
 
-  const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as ProjectRow | undefined
+  const row = db.prepare('SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL').get(id) as ProjectRow | undefined
   if (!row) throw new Error(`Project not found: ${id}`)
 
   const todos = (
     db
       .prepare(
-        'SELECT * FROM project_todos WHERE project_id = ? ORDER BY sort_order ASC, id ASC'
+        'SELECT * FROM project_todos WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, id ASC'
       )
       .all(id) as TodoRow[]
   ).map(toTodo)
@@ -188,6 +212,7 @@ export function getProject(id: number): ProjectDetail {
     unreadCount: unreadCount?.cnt ?? 0,
     activeTodoCount,
     copilotStatus: (copilotRow?.top_status as CopilotSessionStatus) ?? null,
+    driftState: driftStateForRow(row, new Date()),
   }
 }
 
@@ -196,11 +221,12 @@ export function createProject(name: string): Project {
   const { m } = db
     .prepare('SELECT COALESCE(MAX(sort_order), -1) as m FROM projects')
     .get() as { m: number }
+  // A brand-new project is "focused now" so it never starts out drifting.
   const row = db
     .prepare(
-      "INSERT INTO projects (name, sort_order) VALUES (?, ?) RETURNING *"
+      "INSERT INTO projects (name, sort_order, last_focused_at) VALUES (?, ?, ?) RETURNING *"
     )
-    .get(name, m + 1) as ProjectRow
+    .get(name, m + 1, new Date().toISOString()) as ProjectRow
   // New project has no todos or notifications yet
   return { ...toProject(row), unreadCount: 0, activeTodoCount: 0 }
 }
@@ -209,7 +235,7 @@ export function updateProject(id: number, patch: ProjectPatch): Project {
   const db = getDb()
 
   const current = db
-    .prepare('SELECT * FROM projects WHERE id = ?')
+    .prepare('SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL')
     .get(id) as ProjectRow | undefined
   if (!current) throw new Error(`Project not found: ${id}`)
 
@@ -239,7 +265,7 @@ export function updateProject(id: number, patch: ProjectPatch): Project {
   ).get(id) as { cnt: number } | undefined
   
   const activeTodoCount = db.prepare(
-    'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0'
+    'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0 AND deleted_at IS NULL'
   ).get(id) as { cnt: number } | undefined
 
   // Compute copilot status
@@ -264,11 +290,32 @@ export function updateProject(id: number, patch: ProjectPatch): Project {
     unreadCount: unreadCount?.cnt ?? 0,
     activeTodoCount: activeTodoCount?.cnt ?? 0,
     copilotStatus: (copilotRow?.top_status as CopilotSessionStatus) ?? null,
+    driftState: driftStateForRow(row, new Date()),
   }
 }
 
+/**
+ * Soft-delete a project (undoable). Returns its live unread notifications to the
+ * Inbox and detaches its Copilot sessions so deleting a project never hides live
+ * external work. Todos/links stay attached and are restored with the project.
+ */
 export function deleteProject(id: number): void {
-  getDb().prepare('DELETE FROM projects WHERE id = ?').run(id)
+  const db = getDb()
+  const run = db.transaction(() => {
+    db.prepare(
+      "UPDATE projects SET deleted_at = ?, updated_at = datetime('now') WHERE id = ? AND deleted_at IS NULL"
+    ).run(new Date().toISOString(), id)
+    db.prepare('UPDATE notification_threads SET project_id = NULL WHERE project_id = ?').run(id)
+    db.prepare('UPDATE copilot_sessions SET project_id = NULL WHERE project_id = ?').run(id)
+  })
+  run()
+}
+
+/** Restore a soft-deleted project (clears the tombstone). */
+export function restoreProject(id: number): void {
+  getDb()
+    .prepare("UPDATE projects SET deleted_at = NULL, updated_at = datetime('now') WHERE id = ?")
+    .run(id)
 }
 
 /** Snoozes a project with the given mode. For date-based snooze, `until` must be an ISO datetime string. */
@@ -298,7 +345,7 @@ export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Pro
   ).get(id) as { cnt: number } | undefined
   
   const activeTodoCount = db.prepare(
-    'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0'
+    'SELECT COUNT(*) as cnt FROM project_todos WHERE project_id = ? AND done = 0 AND deleted_at IS NULL'
   ).get(id) as { cnt: number } | undefined
   
   // Compute copilot status for this project
@@ -323,6 +370,7 @@ export function snoozeProject(id: number, mode: SnoozeMode, until?: string): Pro
     unreadCount: unreadCount?.cnt ?? 0,
     activeTodoCount: activeTodoCount?.cnt ?? 0,
     copilotStatus: (copilotRow?.top_status as CopilotSessionStatus) ?? null,
+    driftState: driftStateForRow(row, new Date()),
   }
 }
 
@@ -335,7 +383,9 @@ export function wakeExpiredSnoozes(): number[] {
     .prepare(
       `UPDATE projects
        SET status = 'active', snooze_mode = NULL, snooze_until = NULL, updated_at = datetime('now')
-       WHERE status = 'snoozed' AND snooze_mode = 'date' AND datetime(snooze_until) <= datetime('now')
+       WHERE status = 'snoozed' AND snooze_mode = 'date'
+         AND deleted_at IS NULL
+         AND datetime(snooze_until) <= datetime('now')
        RETURNING id`
     )
     .all() as { id: number }[]
@@ -379,8 +429,16 @@ export function updateTodo(id: number, patch: ProjectTodoPatch): ProjectTodo {
   return toTodo(row)
 }
 
+/** Soft-delete a todo (undoable via restoreTodo). */
 export function deleteTodo(id: number): void {
-  getDb().prepare('DELETE FROM project_todos WHERE id = ?').run(id)
+  getDb()
+    .prepare('UPDATE project_todos SET deleted_at = ? WHERE id = ?')
+    .run(new Date().toISOString(), id)
+}
+
+/** Restore a soft-deleted todo. */
+export function restoreTodo(id: number): void {
+  getDb().prepare('UPDATE project_todos SET deleted_at = NULL WHERE id = ?').run(id)
 }
 
 // ── Links ─────────────────────────────────────────────────────────────────────

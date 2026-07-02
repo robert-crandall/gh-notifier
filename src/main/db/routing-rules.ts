@@ -169,7 +169,14 @@ export function routingRuleMatches(rule: RoutingRule, thread: NotificationThread
  */
 export function applyRoutingRulesToInbox(): { matched: number } {
   const db = getDb()
-  const rules = listRoutingRules().filter((r) => r.action === 'route')
+
+  // Only route to live (non-soft-deleted) projects.
+  const liveProjectIds = new Set(
+    (db.prepare('SELECT id FROM projects WHERE deleted_at IS NULL').all() as { id: number }[]).map((r) => r.id)
+  )
+  const rules = listRoutingRules().filter(
+    (r) => r.action === 'route' && r.projectId !== null && liveProjectIds.has(r.projectId)
+  )
   if (rules.length === 0) return { matched: 0 }
 
   return db.transaction(() => {

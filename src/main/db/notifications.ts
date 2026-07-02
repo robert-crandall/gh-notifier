@@ -185,11 +185,19 @@ export function upsertThreads(threads: ThreadSyncData[]): void {
     `SELECT project_id FROM notification_threads WHERE id = ?`
   ) as { get: (id: string) => { project_id: number | null } | undefined }
 
+  // Live (non-soft-deleted) project ids. A thread must never be routed to a
+  // soft-deleted project, else the next sync would resurrect a deleted project's work.
+  const liveProjectIds = new Set(
+    (db.prepare('SELECT id FROM projects WHERE deleted_at IS NULL').all() as { id: number }[]).map((r) => r.id)
+  )
+
   // Wake a notification-triggered snoozed project when it receives a new thread
   const wakeNotificationSnooze = getWakeNotificationSnoozeStmt()
 
   // Load routing rules once for the entire batch (first match wins, 'route' action only)
-  const routeRules = listRoutingRules().filter((r) => r.action === 'route' && r.projectId !== null)
+  const routeRules = listRoutingRules().filter(
+    (r) => r.action === 'route' && r.projectId !== null && liveProjectIds.has(r.projectId)
+  )
 
   const runAll = db.transaction(() => {
     for (const t of threads) {
@@ -227,6 +235,12 @@ export function upsertThreads(threads: ThreadSyncData[]): void {
             break
           }
         }
+      }
+
+      // Never land a thread on a soft-deleted project (covers a stale existing
+      // assignment or repo rule pointing at a since-deleted project).
+      if (projectId !== null && !liveProjectIds.has(projectId)) {
+        projectId = null
       }
 
       upsert.run(

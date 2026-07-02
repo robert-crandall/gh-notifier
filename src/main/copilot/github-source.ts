@@ -6,6 +6,7 @@
  */
 
 import { execFile } from 'child_process'
+import { accessSync, constants } from 'fs'
 import { promisify } from 'util'
 import { resolveProjectId } from './resolve-project'
 import type { CopilotSession, CopilotSessionStatus } from '../../shared/ipc-channels'
@@ -81,7 +82,7 @@ function resolveGhPath(): string {
   ]
   for (const p of candidates) {
     try {
-      require('fs').accessSync(p, require('fs').constants.X_OK)
+      accessSync(p, constants.X_OK)
       return p
     } catch { /* not found, try next */ }
   }

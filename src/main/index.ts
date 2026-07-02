@@ -3,8 +3,8 @@ import { join } from 'path'
 import { initDb } from './db'
 import { initAuth, getAuthStatus, savePat, logout, getOctokit } from './auth'
 import {
-  listProjects, getProject, createProject, updateProject, deleteProject,
-  createTodo, updateTodo, deleteTodo,
+  listProjects, getProject, createProject, updateProject, deleteProject, restoreProject,
+  createTodo, updateTodo, deleteTodo, restoreTodo,
   createLink, updateLink, deleteLink,
   snoozeProject,
 } from './db/projects'
@@ -25,12 +25,28 @@ import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncInterval
 import { startSnoozeWatcher } from './snooze'
 import { syncCopilotSessions } from './copilot/sync'
 import { getSessionsForProject, getAllStatuses } from './copilot/db'
+import { getDigest, markProjectFocused, markDigestSeen, dismissResurface } from './digest'
 import { getDb } from './db'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
-function createWindow(): void {
-  const mainWindow = new BrowserWindow({
+/** Broadcasts a push event to all renderer windows. */
+function broadcast(channel: 'notifications:updated' | 'copilot:updated' | 'projects:updated'): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    win.webContents.send(channel)
+  })
+}
+
+/** Emits projects:updated on a low-frequency tick so drift/cooldown transitions
+ * surface without the user taking an action (e.g. the app sat open overnight). */
+const DRIFT_TICK_MS = 60 * 1000
+let driftTimer: NodeJS.Timeout | null = null
+function startDriftWatcher(): void {
+  if (driftTimer !== null) return
+  driftTimer = setInterval(() => broadcast('projects:updated'), DRIFT_TICK_MS)
+}
+
+function createWindow(): void {  const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -97,7 +113,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('projects:get', (_event, id: number) => getProject(id))
   ipcMain.handle('projects:create', (_event, name: string) => createProject(name))
   ipcMain.handle('projects:update', (_event, id: number, patch: ProjectPatch) => updateProject(id, patch))
-  ipcMain.handle('projects:delete', (_event, id: number) => deleteProject(id))
+  ipcMain.handle('projects:delete', (_event, id: number) => {
+    deleteProject(id)
+    // Deleting a project returns its notifications to the Inbox and changes the
+    // rail, so refresh both surfaces.
+    broadcast('projects:updated')
+    broadcast('notifications:updated')
+  })
   ipcMain.handle('projects:snooze', (_event, id: number, mode: SnoozeMode, until?: string) =>
     snoozeProject(id, mode, until)
   )
@@ -235,8 +257,29 @@ app.whenReady().then(async () => {
     await syncCopilotSessions()
   })
 
+  // Focus: re-entry digest + drift handlers
+  ipcMain.handle('digest:get', (_event, projectId: number) => getDigest(projectId))
+  ipcMain.handle('projects:mark-focused', (_event, projectId: number) => {
+    markProjectFocused(projectId)
+    // The focused project stops drifting; refresh the rail + resurfacing.
+    broadcast('projects:updated')
+  })
+  ipcMain.handle('digest:dismiss', (_event, projectId: number, asOf: string) => {
+    markDigestSeen(projectId, asOf)
+  })
+  ipcMain.handle('projects:resurface-dismiss', (_event, projectId: number) => {
+    dismissResurface(projectId)
+    broadcast('projects:updated')
+  })
+  ipcMain.handle('projects:restore', (_event, projectId: number) => {
+    restoreProject(projectId)
+    broadcast('projects:updated')
+  })
+  ipcMain.handle('todos:restore', (_event, id: number) => restoreTodo(id))
+
   startNotificationSync()
   startSnoozeWatcher()
+  startDriftWatcher()
 
   createWindow()
 

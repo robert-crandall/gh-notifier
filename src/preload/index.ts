@@ -25,6 +25,11 @@ const api: ElectronApi = {
     const handler = () => callback()
     ipcRenderer.on('copilot:updated', handler)
     return () => { ipcRenderer.removeListener('copilot:updated', handler) }
+  },
+  onProjectsUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('projects:updated', handler)
+    return () => { ipcRenderer.removeListener('projects:updated', handler) }
   }
 }
 

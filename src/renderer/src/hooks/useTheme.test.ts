@@ -3,82 +3,91 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useTheme } from './useTheme'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function stubMatchMedia(prefersDark: boolean) {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: prefersDark && query.includes('dark'),
+function stubMatchMedia(prefersDark: boolean): void {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query.includes('dark') ? prefersDark : false,
     media: query,
     onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
     dispatchEvent: vi.fn(),
   }))
 }
 
 beforeEach(() => {
   localStorage.clear()
-  document.documentElement.removeAttribute('data-theme')
+  document.documentElement.removeAttribute('data-color-mode')
+  document.documentElement.removeAttribute('data-accent')
+  document.documentElement.removeAttribute('data-density')
   stubMatchMedia(false)
 })
 
-// ── useTheme ──────────────────────────────────────────────────────────────────
-
 describe('useTheme', () => {
-  it('reads a valid saved theme from localStorage on mount', () => {
-    localStorage.setItem('gh-projects-theme', 'dracula')
+  it('defaults to system color mode, slate accent, compact density', () => {
     const { result } = renderHook(() => useTheme())
-    expect(result.current.theme).toBe('dracula')
+    expect(result.current.colorMode).toBe('system')
+    expect(result.current.accent).toBe('slate')
+    expect(result.current.density).toBe('compact')
   })
 
-  it('applies the theme as the data-theme attribute on mount', () => {
-    localStorage.setItem('gh-projects-theme', 'nord')
-    renderHook(() => useTheme())
-    expect(document.documentElement.getAttribute('data-theme')).toBe('nord')
+  it('resolves system mode to light when the system prefers light', () => {
+    stubMatchMedia(false)
+    const { result } = renderHook(() => useTheme())
+    expect(result.current.resolvedColorMode).toBe('light')
+    expect(document.documentElement.getAttribute('data-color-mode')).toBe('light')
   })
 
-  it('falls back to "dark" when no saved theme and system prefers dark', () => {
+  it('resolves system mode to dark when the system prefers dark', () => {
     stubMatchMedia(true)
     const { result } = renderHook(() => useTheme())
-    expect(result.current.theme).toBe('dark')
+    expect(result.current.resolvedColorMode).toBe('dark')
+    expect(document.documentElement.getAttribute('data-color-mode')).toBe('dark')
   })
 
-  it('falls back to "light" when no saved theme and system prefers light', () => {
-    stubMatchMedia(false)
+  it('reads a stored color mode, accent, and density on mount', () => {
+    localStorage.setItem('focus-color-mode', 'dark')
+    localStorage.setItem('focus-accent', 'violet')
+    localStorage.setItem('focus-density', 'comfortable')
     const { result } = renderHook(() => useTheme())
-    expect(result.current.theme).toBe('light')
+    expect(result.current.colorMode).toBe('dark')
+    expect(result.current.accent).toBe('violet')
+    expect(result.current.density).toBe('comfortable')
+    expect(document.documentElement.getAttribute('data-color-mode')).toBe('dark')
+    expect(document.documentElement.getAttribute('data-accent')).toBe('violet')
+    expect(document.documentElement.getAttribute('data-density')).toBe('comfortable')
   })
 
-  it('setTheme updates the theme state', () => {
+  it('ignores invalid stored values and falls back to defaults', () => {
+    localStorage.setItem('focus-color-mode', 'chartreuse')
+    localStorage.setItem('focus-accent', 'neon')
     const { result } = renderHook(() => useTheme())
-    act(() => {
-      result.current.setTheme('dracula')
-    })
-    expect(result.current.theme).toBe('dracula')
+    expect(result.current.colorMode).toBe('system')
+    expect(result.current.accent).toBe('slate')
   })
 
-  it('setTheme persists the chosen theme to localStorage', () => {
+  it('setColorMode persists and updates the data-color-mode attribute', () => {
     const { result } = renderHook(() => useTheme())
-    act(() => {
-      result.current.setTheme('night')
-    })
-    expect(localStorage.getItem('gh-projects-theme')).toBe('night')
+    act(() => result.current.setColorMode('light'))
+    expect(result.current.colorMode).toBe('light')
+    expect(localStorage.getItem('focus-color-mode')).toBe('light')
+    expect(document.documentElement.getAttribute('data-color-mode')).toBe('light')
   })
 
-  it('setTheme updates the data-theme attribute', () => {
+  it('setAccent persists and updates the data-accent attribute', () => {
     const { result } = renderHook(() => useTheme())
-    act(() => {
-      result.current.setTheme('corporate')
-    })
-    expect(document.documentElement.getAttribute('data-theme')).toBe('corporate')
+    act(() => result.current.setAccent('blue'))
+    expect(result.current.accent).toBe('blue')
+    expect(localStorage.getItem('focus-accent')).toBe('blue')
+    expect(document.documentElement.getAttribute('data-accent')).toBe('blue')
   })
 
-  it('ignores an invalid value stored in localStorage and falls back to the system theme', () => {
-    localStorage.setItem('gh-projects-theme', 'not-a-real-theme')
-    stubMatchMedia(false)
+  it('setDensity persists and updates the data-density attribute', () => {
     const { result } = renderHook(() => useTheme())
-    expect(result.current.theme).toBe('light')
+    act(() => result.current.setDensity('comfortable'))
+    expect(result.current.density).toBe('comfortable')
+    expect(localStorage.getItem('focus-density')).toBe('comfortable')
+    expect(document.documentElement.getAttribute('data-density')).toBe('comfortable')
   })
 })
