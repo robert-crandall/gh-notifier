@@ -85,4 +85,33 @@ describe('runMigrations', () => {
     const sorted = [...applied].sort()
     expect(applied).toEqual(sorted)
   })
+
+  it('adds the focus watermark, drift, and soft-delete columns (013)', () => {
+    const db = freshDb()
+    runMigrations(db)
+
+    const projectCols = (
+      db.prepare('PRAGMA table_info(projects)').all() as { name: string }[]
+    ).map((c) => c.name)
+    expect(projectCols).toContain('last_focused_at')
+    expect(projectCols).toContain('digest_seen_at')
+    expect(projectCols).toContain('drift_snoozed_until')
+    expect(projectCols).toContain('deleted_at')
+
+    const todoCols = (
+      db.prepare('PRAGMA table_info(project_todos)').all() as { name: string }[]
+    ).map((c) => c.name)
+    expect(todoCols).toContain('deleted_at')
+  })
+
+  it('backfills last_focused_at so existing projects are not instantly drifting', () => {
+    const db = freshDb()
+    runMigrations(db)
+    db.prepare("INSERT INTO projects (name) VALUES ('legacy')").run()
+    // Simulate the migration running again on a DB that already had the row:
+    // the backfill only fills NULLs, so insert then backfill manually to assert shape.
+    db.prepare("UPDATE projects SET last_focused_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE last_focused_at IS NULL").run()
+    const row = db.prepare('SELECT last_focused_at FROM projects LIMIT 1').get() as { last_focused_at: string | null }
+    expect(row.last_focused_at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
 })

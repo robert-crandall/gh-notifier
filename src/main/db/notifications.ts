@@ -185,11 +185,19 @@ export function upsertThreads(threads: ThreadSyncData[]): void {
     `SELECT project_id FROM notification_threads WHERE id = ?`
   ) as { get: (id: string) => { project_id: number | null } | undefined }
 
+  // Live (non-soft-deleted) project ids. A thread must never be routed to a
+  // soft-deleted project, else the next sync would resurrect a deleted project's work.
+  const liveProjectIds = new Set(
+    (db.prepare('SELECT id FROM projects WHERE deleted_at IS NULL').all() as { id: number }[]).map((r) => r.id)
+  )
+
   // Wake a notification-triggered snoozed project when it receives a new thread
   const wakeNotificationSnooze = getWakeNotificationSnoozeStmt()
 
   // Load routing rules once for the entire batch (first match wins, 'route' action only)
-  const routeRules = listRoutingRules().filter((r) => r.action === 'route' && r.projectId !== null)
+  const routeRules = listRoutingRules().filter(
+    (r) => r.action === 'route' && r.projectId !== null && liveProjectIds.has(r.projectId)
+  )
 
   const runAll = db.transaction(() => {
     for (const t of threads) {
@@ -229,6 +237,12 @@ export function upsertThreads(threads: ThreadSyncData[]): void {
         }
       }
 
+      // Never land a thread on a soft-deleted project (covers a stale existing
+      // assignment or repo rule pointing at a since-deleted project).
+      if (projectId !== null && !liveProjectIds.has(projectId)) {
+        projectId = null
+      }
+
       upsert.run(
         t.id,
         projectId,
@@ -266,18 +280,25 @@ export function assignThread(
     .get(threadId) as ThreadRow | undefined
   if (!thread) return null
 
+  // Never assign to a soft-deleted project (a stale window could try); route to inbox instead.
+  let target = projectId
+  if (target !== null) {
+    const live = db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(target)
+    if (!live) target = null
+  }
+
   db.prepare(`UPDATE notification_threads SET project_id = ? WHERE id = ?`).run(
-    projectId,
+    target,
     threadId
   )
 
   // Wake notification-triggered snooze when manually assigning a thread to a project
-  if (projectId !== null) {
-    getWakeNotificationSnoozeStmt().run(projectId)
+  if (target !== null) {
+    getWakeNotificationSnoozeStmt().run(target)
   }
 
   // Only suggest a repo rule when assigning to a project (not moving to inbox)
-  if (projectId === null) return null
+  if (target === null) return null
 
   // Check if a rule already exists for this repo
   const existingRule = db
@@ -297,7 +318,7 @@ export function assignThread(
 
   const project = db
     .prepare(`SELECT name FROM projects WHERE id = ?`)
-    .get(projectId) as { name: string } | undefined
+    .get(target) as { name: string } | undefined
 
   const projectName = project?.name ?? ''
 
@@ -307,18 +328,18 @@ export function assignThread(
       type: 'opt-in',
       repoOwner: thread.repo_owner,
       repoName: thread.repo_name,
-      projectId,
+      projectId: target,
       projectName,
     }
   }
 
-  if (uniqueProjects.size === 1 && uniqueProjects.has(projectId)) {
+  if (uniqueProjects.size === 1 && uniqueProjects.has(target)) {
     // All other threads already go to the same project → opt-out (pre-checked)
     return {
       type: 'opt-out',
       repoOwner: thread.repo_owner,
       repoName: thread.repo_name,
-      projectId,
+      projectId: target,
       projectName,
     }
   }

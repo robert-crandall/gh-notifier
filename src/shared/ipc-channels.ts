@@ -15,6 +15,14 @@ export type ProjectStatus = 'active' | 'snoozed'
 
 export type SnoozeMode = 'manual' | 'date' | 'notification'
 
+/**
+ * Peripheral-memory state of a project relative to the user's attention.
+ * - `parked`: intentionally snoozed. Quiet.
+ * - `drifting`: active but not returned to for a while — gently resurfaced.
+ * - `active`: normal.
+ */
+export type DriftState = 'active' | 'parked' | 'drifting'
+
 /** Valid background sync intervals, in minutes. */
 export type SyncIntervalMinutes = 5 | 15 | 30 | 60
 export const SYNC_INTERVAL_OPTIONS: SyncIntervalMinutes[] = [5, 15, 30, 60]
@@ -65,6 +73,48 @@ export interface Project {
   snoozeUntil: string | null
   /** Highest-priority Copilot session status across all sessions for this project. Null if none. */
   copilotStatus: CopilotSessionStatus | null
+  /** ISO 8601 UTC of the last time this project was focused. Null until first focused. */
+  lastFocusedAt: string | null
+  /** Peripheral-memory classification used by the rail + resurfacing. */
+  driftState: DriftState
+}
+
+// ── Re-entry digest types ─────────────────────────────────────────────────────
+
+/** Category of a digest bullet; the renderer maps this to a Lucide icon. */
+export type DigestItemKind =
+  | 'agent-pr-ready'
+  | 'agent-waiting'
+  | 'agent-completed'
+  | 'agent-in-progress'
+  | 'notification-review'
+  | 'notification-activity'
+  | 'notifications-grouped'
+
+/** Semantic tone for a digest bullet; the renderer maps this to a color token. */
+export type DigestItemTone = 'info' | 'success' | 'attention' | 'danger' | 'violet' | 'neutral'
+
+export interface DigestItem {
+  /** Stable key for React lists. */
+  id: string
+  kind: DigestItemKind
+  tone: DigestItemTone
+  /** Blame-free, scannable copy. */
+  text: string
+  /** Optional deep link (PR/issue html_url). Null when there's nothing to open. */
+  href: string | null
+  /** Count for grouped items (e.g. "3 notifications"), else null. */
+  count: number | null
+}
+
+export interface ReentryDigest {
+  projectId: number
+  /**
+   * ISO 8601 UTC upper bound the digest was computed against (the query time).
+   * Passed back to `digest:dismiss` so dismissing can't mark later work as seen.
+   */
+  asOf: string
+  items: DigestItem[]
 }
 
 // ── Notification types ────────────────────────────────────────────────────────
@@ -460,6 +510,50 @@ export type IpcChannels = {
     args: []
     result: void
   }
+
+  // ── Focus: re-entry digest + drift ───────────────────────────────────────────
+
+  /** Computes the blame-free "since you were here" digest for a project. */
+  'digest:get': {
+    args: [projectId: number]
+    result: ReentryDigest
+  }
+
+  /** Advances a project's drift anchor (last_focused_at = now). Call on focus arrival. */
+  'projects:mark-focused': {
+    args: [projectId: number]
+    result: void
+  }
+
+  /**
+   * Marks the digest seen up to `asOf` (the ReentryDigest.asOf from digest:get),
+   * advancing digest_seen_at. Clamped in main so it can't skip later work.
+   */
+  'digest:dismiss': {
+    args: [projectId: number, asOf: string]
+    result: void
+  }
+
+  /**
+   * Suppresses a drifting project from resurfacing for a cooldown window
+   * ("not now"). The per-project frequency cap.
+   */
+  'projects:resurface-dismiss': {
+    args: [projectId: number]
+    result: void
+  }
+
+  /** Restores a soft-deleted project (clears deleted_at). */
+  'projects:restore': {
+    args: [projectId: number]
+    result: void
+  }
+
+  /** Restores a soft-deleted todo (clears deleted_at). */
+  'todos:restore': {
+    args: [id: number]
+    result: void
+  }
 }
 
 export type IpcChannelName = keyof IpcChannels
@@ -486,6 +580,13 @@ export interface ElectronApi {
   onPrefetchProgress: (callback: (progress: PrefetchProgress) => void) => () => void
   /** Registers a callback that fires whenever Copilot session state changes. Returns an unsubscribe fn. */
   onCopilotUpdated: (callback: () => void) => () => void
+  /**
+   * Registers a callback that fires when the main process changes project/drift
+   * state: the periodic drift tick and the project mutations that emit
+   * `projects:updated` (delete, restore, mark-focused, resurface-dismiss).
+   * Returns an unsubscribe fn.
+   */
+  onProjectsUpdated: (callback: () => void) => () => void
 }
 
 declare global {

@@ -1,0 +1,143 @@
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 24px 40px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerText {
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 2px 9px;
+  text-transform: capitalize;
+}
+
+.pillActive {
+  color: var(--success);
+  background: rgba(63, 185, 80, 0.12);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+.pillSnoozed {
+  color: var(--text-2);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-muted);
+}
+
+.pillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.notes {
+  margin: 8px 0 0;
+  color: var(--text-2);
+  font-size: 13px;
+  max-width: 720px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.menuWrap {
+  position: relative;
+  flex: none;
+}
+
+.menuButton {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.menuButton:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+.menuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: 36px;
+  z-index: 50;
+  min-width: 180px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.menuItem:hover {
+  background: var(--bg-subtle);
+}
+
+.menuDanger {
+  color: var(--danger);
+}
+
+.tail {
+  height: 8px;
+  flex: none;
+}

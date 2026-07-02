@@ -1,0 +1,87 @@
+.strip {
+  margin-top: 24px;
+  border: 1px solid var(--border-muted);
+  background: var(--bg-inset);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.headIcon {
+  color: var(--text-2);
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--row);
+  padding: 0 4px;
+  border-radius: var(--radius);
+}
+
+.row:hover {
+  background: var(--bg-subtle);
+}
+
+.name {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.name:hover {
+  color: var(--accent-text);
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--bg-window);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.action:hover {
+  background: var(--bg-elevated);
+  color: var(--text);
+}

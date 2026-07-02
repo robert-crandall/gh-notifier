@@ -1,41 +1,5 @@
-@import "tailwindcss";
-
-@plugin "daisyui" {
-  themes: light --default, dark, nord, dracula, night, dim, corporate, lemonade;
-}
-
-/* ─────────────────────────────────────────────────────────
-   Map app-specific CSS custom properties → DaisyUI tokens.
-   All existing CSS Modules use these vars, so they respond
-   to theme changes automatically.
-   ───────────────────────────────────────────────────────── */
-:root,
-[data-theme] {
-  /* Backgrounds */
-  --bg:             var(--color-base-100);
-  --bg-2:           var(--color-base-200);
-  --sidebar:        var(--color-base-300);
-
-  /* Borders — base-content at low opacity */
-  --border:         color-mix(in oklch, var(--color-base-content) 12%, transparent);
-  --border-2:       color-mix(in oklch, var(--color-base-content) 20%, transparent);
-  --sidebar-border: color-mix(in oklch, var(--color-base-content) 16%, transparent);
-
-  /* Text */
-  --text:           var(--color-base-content);
-  --text-2:         color-mix(in oklch, var(--color-base-content) 70%, transparent);
-  --text-3:         color-mix(in oklch, var(--color-base-content) 50%, transparent);
-
-  /* Accents */
-  --blue:           var(--color-primary);
-  --blue-dark:      color-mix(in oklch, var(--color-primary) 50%, black);
-  --blue-mid:       color-mix(in oklch, var(--color-primary) 70%, black);
-  --orange:         var(--color-warning);
-  --green:          var(--color-success);
-
-  /* Typography */
-  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-}
+@import './theme/fonts.css';
+@import './theme/tokens.css';
 
 *,
 *::before,
@@ -45,12 +9,76 @@
   padding: 0;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
-  background-color: var(--bg);
+  background-color: var(--bg-window);
   color: var(--text);
-  font-family: var(--font);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
   overflow: hidden;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-subtle);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -1px;
+}
+
+@keyframes focus-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--accent-border);
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+@keyframes focus-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
