@@ -85,16 +85,16 @@ const sessionRows = db
   .prepare(
     `SELECT id, status, title, html_url AS htmlUrl, linked_pr_url AS linkedPrUrl
      FROM copilot_sessions
-     WHERE project_id = 1 AND datetime(updated_at) > datetime(?) AND datetime(updated_at) > datetime(?) AND datetime(updated_at) <= datetime(?)
-     ORDER BY datetime(updated_at) DESC`
+     WHERE project_id = 1 AND julianday(updated_at) > julianday(?) AND julianday(updated_at) > julianday(?) AND julianday(updated_at) <= julianday(?)
+     ORDER BY julianday(updated_at) DESC`
   )
   .all(watermark, recencyFloor, asOf) as DigestSessionRow[]
 const notifRows = db
   .prepare(
     `SELECT id, type, reason, title, html_url AS htmlUrl
      FROM notification_threads
-     WHERE project_id = 1 AND unread = 1 AND datetime(updated_at) > datetime(?) AND datetime(updated_at) > datetime(?) AND datetime(updated_at) <= datetime(?)
-     ORDER BY datetime(updated_at) DESC`
+     WHERE project_id = 1 AND unread = 1 AND julianday(updated_at) > julianday(?) AND julianday(updated_at) > julianday(?) AND julianday(updated_at) <= julianday(?)
+     ORDER BY julianday(updated_at) DESC`
   )
   .all(watermark, recencyFloor, asOf) as DigestNotificationRow[]
 
@@ -112,10 +112,25 @@ const proj2 = db.prepare('SELECT created_at, digest_seen_at FROM projects WHERE 
 const watermark2 = proj2.digest_seen_at ?? proj2.created_at
 const afterDismiss = db
   .prepare(
-    `SELECT id FROM copilot_sessions WHERE project_id = 1 AND datetime(updated_at) > datetime(?) AND datetime(updated_at) > datetime(?) AND datetime(updated_at) <= datetime(?)`
+    `SELECT id FROM copilot_sessions WHERE project_id = 1 AND julianday(updated_at) > julianday(?) AND julianday(updated_at) > julianday(?) AND julianday(updated_at) <= julianday(?)`
   )
   .all(watermark2, recencyFloor, asOf) as { id: string }[]
 check('advancing digest_seen_at empties the digest', afterDismiss.length === 0)
+
+// Sub-second precision: activity 500ms after the watermark must still surface
+// (regression guard for datetime() truncation).
+const wm = new Date(Date.now() - 3600_000).toISOString()
+db.prepare('UPDATE projects SET digest_seen_at = ? WHERE id = 1').run(wm)
+db.prepare(
+  `INSERT INTO copilot_sessions (id, project_id, source, status, title, started_at, updated_at)
+   VALUES ('subsec', 1, 'github', 'completed', 'ms test', ?, ?)`
+).run(wm, new Date(Date.parse(wm) + 500).toISOString())
+const subsec = db
+  .prepare(
+    `SELECT id FROM copilot_sessions WHERE id = 'subsec' AND julianday(updated_at) > julianday(?)`
+  )
+  .all(wm) as { id: string }[]
+check('sub-second activity after the watermark is not truncated away', subsec.length === 1)
 
 // ── Drift classification (real pure fn) ───────────────────────────────────────
 check(

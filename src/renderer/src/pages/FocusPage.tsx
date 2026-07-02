@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { MoreHorizontal, Moon, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Moon, Trash2, Sun } from 'lucide-react'
 import type { Project, ProjectLink, ProjectTodo } from '@shared/ipc-channels'
 import { Icon } from '../components/Icon'
 import { ReentryDigest } from '../components/ReentryDigest'
@@ -83,16 +83,29 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
             <>
               <div className={styles.menuBackdrop} onClick={() => setMenuOpen(false)} />
               <div className={styles.menu}>
-                <button
-                  className={styles.menuItem}
-                  onClick={() => {
-                    setMenuOpen(false)
-                    props.onSnoozeCurrent()
-                  }}
-                >
-                  <Icon icon={Moon} size={14} />
-                  Snooze project
-                </button>
+                {detail.status === 'snoozed' ? (
+                  <button
+                    className={styles.menuItem}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      void updateProject({ status: 'active' })
+                    }}
+                  >
+                    <Icon icon={Sun} size={14} />
+                    Resume project
+                  </button>
+                ) : (
+                  <button
+                    className={styles.menuItem}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      props.onSnoozeCurrent()
+                    }}
+                  >
+                    <Icon icon={Moon} size={14} />
+                    Snooze project
+                  </button>
+                )}
                 <button
                   className={`${styles.menuItem} ${styles.menuDanger}`}
                   onClick={() => {

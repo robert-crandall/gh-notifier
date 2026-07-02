@@ -280,18 +280,25 @@ export function assignThread(
     .get(threadId) as ThreadRow | undefined
   if (!thread) return null
 
+  // Never assign to a soft-deleted project (a stale window could try); route to inbox instead.
+  let target = projectId
+  if (target !== null) {
+    const live = db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(target)
+    if (!live) target = null
+  }
+
   db.prepare(`UPDATE notification_threads SET project_id = ? WHERE id = ?`).run(
-    projectId,
+    target,
     threadId
   )
 
   // Wake notification-triggered snooze when manually assigning a thread to a project
-  if (projectId !== null) {
-    getWakeNotificationSnoozeStmt().run(projectId)
+  if (target !== null) {
+    getWakeNotificationSnoozeStmt().run(target)
   }
 
   // Only suggest a repo rule when assigning to a project (not moving to inbox)
-  if (projectId === null) return null
+  if (target === null) return null
 
   // Check if a rule already exists for this repo
   const existingRule = db
@@ -311,7 +318,7 @@ export function assignThread(
 
   const project = db
     .prepare(`SELECT name FROM projects WHERE id = ?`)
-    .get(projectId) as { name: string } | undefined
+    .get(target) as { name: string } | undefined
 
   const projectName = project?.name ?? ''
 
@@ -321,18 +328,18 @@ export function assignThread(
       type: 'opt-in',
       repoOwner: thread.repo_owner,
       repoName: thread.repo_name,
-      projectId,
+      projectId: target,
       projectName,
     }
   }
 
-  if (uniqueProjects.size === 1 && uniqueProjects.has(projectId)) {
+  if (uniqueProjects.size === 1 && uniqueProjects.has(target)) {
     // All other threads already go to the same project → opt-out (pre-checked)
     return {
       type: 'opt-out',
       repoOwner: thread.repo_owner,
       repoName: thread.repo_name,
-      projectId,
+      projectId: target,
       projectName,
     }
   }

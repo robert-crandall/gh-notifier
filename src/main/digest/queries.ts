@@ -31,8 +31,9 @@ interface NotificationQueryRow {
  * Read the Copilot sessions and unread notifications for a project that have
  * activity since the effective watermark. The effective watermark is the later
  * of the project's digest watermark and the recency floor — expressed as two
- * `datetime()`-normalized bounds so ISO and SQLite-format timestamps compare
- * correctly, and an upper bound (`asOf`) so a later dismiss can't skip work.
+ * `julianday()`-normalized bounds (millisecond-precise, format-agnostic across
+ * ISO and SQLite-format timestamps), plus an upper bound (`asOf`) so a later
+ * dismiss can't skip work.
  */
 export function getDigestData(projectId: number): DigestData {
   const db = getDb()
@@ -53,10 +54,10 @@ export function getDigestData(projectId: number): DigestData {
       `SELECT id, status, title, html_url AS htmlUrl, linked_pr_url AS linkedPrUrl
        FROM copilot_sessions
        WHERE project_id = ?
-         AND datetime(updated_at) > datetime(?)
-         AND datetime(updated_at) > datetime(?)
-         AND datetime(updated_at) <= datetime(?)
-       ORDER BY datetime(updated_at) DESC`
+         AND julianday(updated_at) > julianday(?)
+         AND julianday(updated_at) > julianday(?)
+         AND julianday(updated_at) <= julianday(?)
+       ORDER BY julianday(updated_at) DESC`
     )
     .all(projectId, watermark, recencyFloor, asOf) as SessionQueryRow[]
 
@@ -66,10 +67,10 @@ export function getDigestData(projectId: number): DigestData {
        FROM notification_threads
        WHERE project_id = ?
          AND unread = 1
-         AND datetime(updated_at) > datetime(?)
-         AND datetime(updated_at) > datetime(?)
-         AND datetime(updated_at) <= datetime(?)
-       ORDER BY datetime(updated_at) DESC`
+         AND julianday(updated_at) > julianday(?)
+         AND julianday(updated_at) > julianday(?)
+         AND julianday(updated_at) <= julianday(?)
+       ORDER BY julianday(updated_at) DESC`
     )
     .all(projectId, watermark, recencyFloor, asOf) as NotificationQueryRow[]
 

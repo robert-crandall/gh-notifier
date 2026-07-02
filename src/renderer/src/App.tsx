@@ -134,8 +134,13 @@ export function App(): JSX.Element {
     void deleteProject(removedId)
     setFocusedId(nextFocusAfterRemoval(removedId))
     showUndo(current ? `Deleted ${current.name}` : 'Project deleted', () => {
-      void window.electron.ipc.invoke('projects:restore', removedId).then(() => refreshProjects())
-      setFocusedId(removedId)
+      // Restore and refresh before refocusing so the "focused must exist" guard
+      // doesn't bounce focus away before the project is back in the list.
+      void (async () => {
+        await window.electron.ipc.invoke('projects:restore', removedId)
+        await refreshProjects()
+        setFocusedId(removedId)
+      })()
     })
   }, [focusedId, projects, deleteProject, nextFocusAfterRemoval, setFocusedId, showUndo, refreshProjects])
 
