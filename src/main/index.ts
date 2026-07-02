@@ -125,9 +125,12 @@ app.whenReady().then(async () => {
     broadcast('projects:updated')
     broadcast('notifications:updated')
   })
-  ipcMain.handle('projects:snooze', (_event, id: number, mode: SnoozeMode, until?: string) =>
-    snoozeProject(id, mode, until)
-  )
+  ipcMain.handle('projects:snooze', (_event, id: number, mode: SnoozeMode, until?: string) => {
+    const project = snoozeProject(id, mode, until)
+    // Snoozing moves the project into the Parked rail section; refresh subscribers.
+    broadcast('projects:updated')
+    return project
+  })
 
   // Todo handlers
   ipcMain.handle('todos:create', (_event, projectId: number, text: string) => createTodo(projectId, text))
