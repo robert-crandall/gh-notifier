@@ -290,6 +290,8 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
     docs.forEach((doc, i) => {
       if (!cache.has(doc)) missingIdx.push(i)
     })
+    // Vectors for docs embedded this call but not persisted (oversized batch).
+    const fresh = new Map<string, number[]>()
     if (missingIdx.length > 0) {
       const vecs = await embedder.embed(missingIdx.map((i) => docs[i]))
       // Fail fast if the embedder didn't return exactly one vector per document —
@@ -298,15 +300,20 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
       if (vecs.length !== missingIdx.length) {
         throw new Error(`embedder returned ${vecs.length} vectors for ${missingIdx.length} documents`)
       }
-      // Bound the cache with a simple whole-cache clear when the incoming batch
-      // would overflow. Done BEFORE inserting (never mid-batch) so it can't evict
-      // vectors just computed for the current corpus and wrongly filter them out.
-      if (cache.size + missingIdx.length > MAX_CACHE) cache.clear()
-      missingIdx.forEach((i, j) => cache.set(docs[i], vecs[j]))
+      // Only persist to the bounded cache when the batch itself fits; a batch
+      // larger than MAX_CACHE is used transiently for this query and not cached,
+      // so the persistent cache stays strictly bounded. Clear old entries first
+      // (never mid-batch) when a fitting batch would overflow.
+      const persist = missingIdx.length <= MAX_CACHE
+      if (persist && cache.size + missingIdx.length > MAX_CACHE) cache.clear()
+      missingIdx.forEach((i, j) => {
+        if (persist) cache.set(docs[i], vecs[j])
+        else fresh.set(docs[i], vecs[j])
+      })
     }
     const byId = new Map<number, number[]>()
     corpus.forEach((r, i) => {
-      const v = cache.get(docs[i])
+      const v = cache.get(docs[i]) ?? fresh.get(docs[i])
       if (v) byId.set(r.id, v)
     })
     return byId
