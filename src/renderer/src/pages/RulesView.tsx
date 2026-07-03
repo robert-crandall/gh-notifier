@@ -130,7 +130,7 @@ export function RulesView({ onClose, onRulesChanged }: RulesViewProps): JSX.Elem
 
   const afterMutation = useCallback(async (): Promise<void> => {
     // A rule change can invalidate a prior "Routed N threads" message, so clear it.
-    setApplyResult(null)
+    if (mountedRef.current) setApplyResult(null)
     await load()
     onRulesChanged?.()
   }, [load, onRulesChanged])
