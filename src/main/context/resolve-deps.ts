@@ -4,6 +4,7 @@ import { createCopilotDecideRunner } from './copilot-run'
 import { createMcpRunner } from './mcp-client'
 import { createDefaultRetriever } from './retrieve'
 import { createLocalEmbedder, type Embedder } from './embed'
+import { FAST_RECOMMEND_MODEL, type RecommendDeps } from './recommend'
 import type { ResolveDeps } from './resolve'
 
 /**
@@ -32,7 +33,11 @@ export function ensureIsolatedCopilotHome(baseDir: string): string {
  * wiring performs real semantic retrieval on a non-empty corpus with a
  * deterministic fake. Production always uses the local MiniLM embedder.
  */
-export function createResolveDeps(baseDir: string, model?: string, embedder?: Embedder): ResolveDeps {
+export function createResolveDeps(
+  baseDir: string,
+  model?: string,
+  embedder?: Embedder
+): ResolveDeps & RecommendDeps {
   const home = ensureIsolatedCopilotHome(baseDir)
   const cacheDir = join(baseDir, 'model-cache')
   // Ensure the model cache dir exists — otherwise the embedder can fail to load
@@ -41,6 +46,9 @@ export function createResolveDeps(baseDir: string, model?: string, embedder?: Em
   const resolvedEmbedder = embedder ?? createLocalEmbedder({ cacheDir })
   return {
     decideRunner: createCopilotDecideRunner({ isolatedHome: home, cwd: home, model }),
+    // Read-only recommendation ranking uses the SAME tool-less isolated runner
+    // with a fast model pinned — never a live read, never a value.
+    recommendRunner: createCopilotDecideRunner({ isolatedHome: home, cwd: home, model: FAST_RECOMMEND_MODEL }),
     mcpRunner: createMcpRunner(),
     assembleOptions: { retriever: createDefaultRetriever(resolvedEmbedder) },
   }

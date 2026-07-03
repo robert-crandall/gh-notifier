@@ -466,6 +466,21 @@ export function getProjectCard(projectId: number): ProjectCard {
   return toProjectCard(created)
 }
 
+/**
+ * Read the project card WITHOUT lazily creating it — for read-only callers (the
+ * recommendation path, #88) that must not write. Returns a default empty card
+ * when none is saved yet.
+ */
+export function getProjectCardReadOnly(projectId: number): ProjectCard {
+  const existing = getDb()
+    .prepare('SELECT * FROM project_cards WHERE project_id = ?')
+    .get(projectId) as ProjectCardRow | undefined
+  if (existing) return toProjectCard(existing)
+  // Match the DB's updated_at default shape (a parseable ISO timestamp) so a
+  // future caller can't trip on an unparseable empty string. Still read-only.
+  return { projectId, purpose: '', repos: [], services: [], activeGoal: '', glossary: {}, updatedAt: new Date().toISOString() }
+}
+
 /** Updates the project card (upsert). Only supplied fields change. */
 export function upsertProjectCard(projectId: number, patch: ProjectCardPatch): ProjectCard {
   const current = getProjectCard(projectId)

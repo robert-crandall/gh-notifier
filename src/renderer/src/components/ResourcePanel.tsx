@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type {
   CaptureProposal,
+  RecommendationResult,
   ResolveResult,
   Resource,
   ResourceGroup,
@@ -86,6 +87,41 @@ function AnswerCard({ result, onDismiss }: { result: ResolveResult; onDismiss: (
 
       {result.verdict === 'none' && (
         <div className={`${styles.answerText} ${styles.muted}`}>{result.answer}</div>
+      )}
+
+      {result.retrievalMode === 'lexical-fallback' && (
+        <div
+          className={styles.fallbackNote}
+          title="The local semantic model wasn't available, so this used keyword-only matching. Results may be less relevant."
+        >
+          <span className={styles.fallbackDot} />
+          Keyword-only matching (semantic model unavailable)
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Recommendation card (#88) ─────────────────────────────────────────────────
+
+function RecommendationCard({ result, onDismiss }: { result: RecommendationResult; onDismiss: () => void }): JSX.Element {
+  return (
+    <div className={styles.answerCard}>
+      <button type="button" className={styles.answerClose} onClick={onDismiss} aria-label="Dismiss recommendations">
+        <Icon icon={X} size={13} />
+      </button>
+
+      <div className={`${styles.answerText} ${result.items.length === 0 ? styles.muted : ''}`}>{result.summary}</div>
+
+      {result.items.length > 0 && (
+        <ul className={styles.recommendList}>
+          {result.items.map((it) => (
+            <li key={it.citation.resourceId} className={styles.recommendItem}>
+              <Citation {...it.citation} />
+              <span className={styles.recommendWhy}>{it.why}</span>
+            </li>
+          ))}
+        </ul>
       )}
 
       {result.retrievalMode === 'lexical-fallback' && (
@@ -213,6 +249,8 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
   const [question, setQuestion] = useState('')
   const [resolving, setResolving] = useState(false)
   const [answer, setAnswer] = useState<ResolveResult | null>(null)
+  const [recommending, setRecommending] = useState(false)
+  const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null)
   const [captureUrl, setCaptureUrl] = useState('')
   const [proposal, setProposal] = useState<CaptureProposal | null>(null)
   const [connecting, setConnecting] = useState<Resource | null>(null)
@@ -245,9 +283,10 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
 
   const ask = async (): Promise<void> => {
     const q = question.trim()
-    if (q.length === 0 || resolving) return
+    if (q.length === 0 || resolving || recommending) return
     setResolving(true)
     setAnswer(null)
+    setRecommendation(null)
     try {
       const result = await window.electron.ipc.invoke('resources:resolve', projectId, q)
       setAnswer(result)
@@ -268,6 +307,28 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
       })
     } finally {
       setResolving(false)
+    }
+  }
+
+  const recommend = async (): Promise<void> => {
+    const q = question.trim()
+    if (q.length === 0 || recommending || resolving) return
+    setRecommending(true)
+    setRecommendation(null)
+    setAnswer(null)
+    try {
+      const result = await window.electron.ipc.invoke('resources:recommend', projectId, q)
+      setRecommendation(result)
+    } catch (err) {
+      console.error('[Resources] recommend failed:', err)
+      setRecommendation({
+        items: [],
+        summary: "I couldn't rank saved sources just now.",
+        failureClass: 'connector_down',
+        retrievalMode: 'semantic',
+      })
+    } finally {
+      setRecommending(false)
     }
   }
 
@@ -357,10 +418,21 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void ask()}
         />
-        {resolving && <span className={styles.resolving}>Resolving…</span>}
+        {(resolving || recommending) && <span className={styles.resolving}>{recommending ? 'Ranking…' : 'Resolving…'}</span>}
+        <button
+          type="button"
+          className={styles.relevantBtn}
+          onClick={() => void recommend()}
+          disabled={question.trim().length === 0 || recommending || resolving}
+          title="Suggest saved sources relevant to this — read-only, from saved metadata"
+        >
+          <Icon icon={Zap} size={13} />
+          What’s relevant?
+        </button>
       </div>
 
       {answer && <AnswerCard result={answer} onDismiss={() => setAnswer(null)} />}
+      {recommendation && <RecommendationCard result={recommendation} onDismiss={() => setRecommendation(null)} />}
 
       {/* Capture */}
       <div className={styles.captureRow}>
