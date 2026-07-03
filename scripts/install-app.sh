@@ -13,6 +13,12 @@ if [ ! -f "build/icon.icns" ]; then
 fi
 
 echo "==> Building $APP_NAME..."
+# Refresh dependencies from the lockfile before packaging. electron-builder
+# collects production deps from whatever is on disk and SILENTLY omits any that
+# are missing, which is how a newly-added dependency (e.g. ws) can vanish from
+# app.asar and crash the installed app at launch. `prepackage` does a frozen
+# install plus the native rebuild that matches better-sqlite3 to Electron's ABI.
+bun run prepackage
 bun run build
 
 echo "==> Packaging app bundle..."
