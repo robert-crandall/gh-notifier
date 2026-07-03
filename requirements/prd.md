@@ -147,7 +147,7 @@ A unit of Copilot work attached to a project. Focus **drives installed Copilot**
    - The existing `gh agent-task` path. Used when the desktop app isn't running (or no local checkout resolves), and for pure delegate-and-leave work.
    - Surfaces back through the re-entry digest and the rail status dot when it's done or needs me.
 
-Both are session rows with a shared status shape (`in_progress → waiting(needs input) → pr_ready/done → completed | error`). Focus is **read-only toward both**: it launches/opens sessions and reads their status; it never steers them turn-by-turn.
+Both are session rows with one **user-facing status** — working / needs you / done (+ error). Underneath, the cloud path also passes through GitHub's own `pr_ready`/`completed` states, which map onto that same shape. Focus is **read-only toward both**: it launches/opens sessions and reads their status; it never steers them turn-by-turn.
 
 ### Inbox / routing / filters (demoted, not deleted)
 Unmapped notifications land in the Inbox (behind ⌘K, not on the home). Routing precedence unchanged: thread mapping > repo rule > inbox. Filters (author/org/repo/reason/state/type, AND logic, global floor + per-repo additive) unchanged. These are *inputs* that feed the digest and can spawn agent work - not the main surface.
@@ -268,7 +268,9 @@ main/
     capture.ts           # paste/enrich -> proposed typed record
   digest/                # re-entry digest + parked/drifting classification
   notifications/         # sync + routing + filters (existing, demoted)
-  db/ auth/ snooze.ts    # existing
+  db/                    # existing
+  auth/                  # existing
+  snooze.ts              # existing
 shared/  ipc-channels.ts # + delegate + session-status + resolve/recommend channels
 renderer/
   pages/Focus.tsx        # the single-focus home (replaces Dashboard as primary)
@@ -285,7 +287,7 @@ What remains worth stating honestly:
 
 1. **Resolver quality (the make-or-break gate — Gate 0).** One real project, ~25 typed records, ~20 fuzzy questions plus deliberate negative/ambiguous cases, a pass rubric fixed up front, kept as a regression harness. This gates the brain (MVP C + the read-only recommendation). MVP A/B never depended on it.
 2. **The desktop-app WS is unofficial and fragile.** It only works when the app is running; the token rotates per launch; local delegation needs a checkout on disk. Mitigation: one contained adapter + cloud `gh agent-task` fallback + honest degradation when the app is closed. If a spike-verified mechanic stops holding against a new app build, the adapter is the one place to fix, and the cloud fallback keeps delegation working meanwhile.
-3. **`better-sqlite3` + `ws`** build/run under `bun run setup` against Electron's ABI (`ws` is pure-JS, main-process only).
+3. **Verify `better-sqlite3` + `ws` build/run under `bun run setup`** against Electron's ABI. `ws` is JS-only in our usage (its optional native speedups — `bufferutil` / `utf-8-validate` — aren't required), and it's main-process only.
 
 ---
 
