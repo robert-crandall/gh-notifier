@@ -221,24 +221,21 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
   const acceptProposal = (title: string): void => {
     if (proposal === null) return
     const p = proposal
-    fire(
-      window.electron.ipc
-        .invoke('resources:create', projectId, {
-          title: title.trim().length > 0 ? title.trim() : p.title,
-          kind: p.kind,
-          source: p.source,
-          service: p.service,
-          env: p.env,
-          url: p.url,
-          externalRef: p.externalRef,
-          tags: p.tags,
-          provenance: 'captured',
-        })
-        .then((created) => {
-          showUndo('Resource saved', () => fire(window.electron.ipc.invoke('resources:delete', created.id)))
-        }),
-      'resources:create'
-    )
+    const save = async (): Promise<void> => {
+      const created = await window.electron.ipc.invoke('resources:create', projectId, {
+        title: title.trim().length > 0 ? title.trim() : p.title,
+        kind: p.kind,
+        source: p.source,
+        service: p.service,
+        env: p.env,
+        url: p.url,
+        externalRef: p.externalRef,
+        tags: p.tags,
+        provenance: 'captured',
+      })
+      showUndo('Resource saved', () => fire(window.electron.ipc.invoke('resources:delete', created.id)))
+    }
+    fire(save(), 'resources:create')
     setProposal(null)
     setCaptureUrl('')
   }
