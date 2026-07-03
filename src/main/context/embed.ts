@@ -35,6 +35,10 @@ export function createLocalEmbedder(options: EmbedderOptions = {}): Embedder {
         if (options.cacheDir !== undefined) env.cacheDir = options.cacheDir
         return pipeline('feature-extraction', MODEL_ID)
       })
+      // Don't cache a transient load failure forever — reset so later calls retry.
+      pipelinePromise.catch(() => {
+        pipelinePromise = null
+      })
     }
     return pipelinePromise
   }

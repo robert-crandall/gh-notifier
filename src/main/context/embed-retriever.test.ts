@@ -88,7 +88,7 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
     expect(res).toEqual([])
   })
 
-  it('re-embeds only changed records (cache by id + updatedAt)', async () => {
+  it('re-embeds only changed content (cache keyed by document, not updatedAt)', async () => {
     let embedCalls = 0
     const counting: Embedder = {
       embed: async (texts) => {
@@ -100,8 +100,9 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
     const retriever = createEmbeddingRetriever(counting)
     await retriever.retrieve('login', [r], 5) // embeds query + corpus
     const afterFirst = embedCalls
-    await retriever.retrieve('login again', [r], 5) // corpus cached -> only query embed
-    // The corpus wasn't re-embedded, so total calls grew by exactly 1 (the query).
+    // A health/usage bump moves updatedAt but not the document text -> no re-embed.
+    const bumped = { ...r, updatedAt: '2027-02-02T00:00:00.000Z' }
+    await retriever.retrieve('login again', [bumped], 5) // corpus cached -> only query embed
     expect(embedCalls).toBe(afterFirst + 1)
   })
 })

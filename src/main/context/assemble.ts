@@ -38,8 +38,11 @@ export interface AssembleOptions {
   retriever?: Retriever
 }
 
-const DEFAULT_POOL_SIZE = 10
-const DEFAULT_LIMIT = 5
+const DEFAULT_POOL_SIZE = 15
+// The decider sees up to this many candidates. Kept generous (not 5) so a
+// correct-but-lower-ranked semantic match still reaches the LLM — the
+// adversarial eval had a right answer at rank 7 that a cap of 5 hid.
+const DEFAULT_LIMIT = 8
 const DEFAULT_HEALTHY_RESERVE = 2
 
 function isHealthy(resource: Resource): boolean {

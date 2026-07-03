@@ -18,6 +18,8 @@ import { buildDecidePrompt } from '../prompt'
 import { parseAndValidateDecision } from '../verdict-contract'
 import { createCopilotDecideRunner } from '../copilot-run'
 import { createMcpRunner } from '../mcp-client'
+import { createDefaultRetriever } from '../retrieve'
+import { createLocalEmbedder } from '../embed'
 import type { ProjectCard } from '../../../shared/ipc-channels'
 
 const emptyCard: ProjectCard = {
@@ -46,6 +48,10 @@ async function main(): Promise<void> {
   const questions = loadQuestions()
   const home = isolatedHome()
   const decideRunner = createCopilotDecideRunner({ isolatedHome: home, cwd: home, timeoutMs: 60_000 })
+  // Use the PRODUCTION retriever (embedding + structured bonus) so this validates
+  // the real pipeline — including whether the LLM still says "none" on negatives
+  // when embeddings surface weak candidates.
+  const retriever = createDefaultRetriever(createLocalEmbedder())
 
   const outcomes: Outcome[] = []
 
@@ -56,7 +62,7 @@ async function main(): Promise<void> {
     while (idx < questions.length) {
       const i = idx++
       const question = questions[i]
-      const { candidates } = await assemble(question.q, emptyCard, resources)
+      const { candidates } = await assemble(question.q, emptyCard, resources, { retriever })
       if (candidates.length === 0) {
         outcomes[i] = { q: question.q, category: question.category, expectedId: question.expectedId, verdict: 'none', citedId: null, cited: false }
         process.stdout.write(`. `)

@@ -234,6 +234,15 @@ function dot(a: number[], b: number[]): number {
 }
 
 /**
+ * Cosine floor: drop only genuine noise so weak-but-real matches still reach the
+ * decider. It must stay low — the two-stage design relies on the LLM (not this
+ * floor) to reject candidates and answer "none". Set from the adversarial eval:
+ * a correct-but-weak match (authnd) scored ~0.16, so a 0.2 floor wrongly
+ * filtered it. The LLM rejects genuine negatives (verified in the live eval).
+ */
+const EMBED_MIN_SCORE = 0.1
+
+/**
  * How much a single structured exact-match nudges the (cosine-based) score.
  * Cosine is roughly [-1, 1]; this keeps embeddings primary while letting an
  * exact service/env/tag match break near-name-sibling ties (authnd vs authzd),
@@ -247,20 +256,30 @@ const EMBED_STRUCT_BONUS = 0.15
  * resource id + updatedAt, so only new/changed records are re-embedded.
  */
 export function createEmbeddingRetriever(embedder: Embedder): Retriever {
+  // Cache keyed by the embedded DOCUMENT text, so health/usage bumps (which move
+  // updatedAt but not content) don't force re-embedding, and identical content
+  // dedups. Bounded so it can't grow without limit.
   const cache = new Map<string, number[]>()
-  const cacheKey = (r: Resource): string => `${r.id}:${r.updatedAt}`
+  const MAX_CACHE = 5000
 
   async function embedCorpus(corpus: Resource[]): Promise<Map<number, number[]>> {
-    const missing = corpus.filter((r) => !cache.has(cacheKey(r)))
-    if (missing.length > 0) {
-      const vecs = await embedder.embed(missing.map(resourceDocument))
-      missing.forEach((r, i) => cache.set(cacheKey(r), vecs[i]))
+    const docs = corpus.map((r) => resourceDocument(r))
+    const missingIdx: number[] = []
+    docs.forEach((doc, i) => {
+      if (!cache.has(doc)) missingIdx.push(i)
+    })
+    if (missingIdx.length > 0) {
+      const vecs = await embedder.embed(missingIdx.map((i) => docs[i]))
+      missingIdx.forEach((i, j) => {
+        if (cache.size >= MAX_CACHE) cache.clear() // simple bound; re-embeds next time
+        cache.set(docs[i], vecs[j])
+      })
     }
     const byId = new Map<number, number[]>()
-    for (const r of corpus) {
-      const v = cache.get(cacheKey(r))
+    corpus.forEach((r, i) => {
+      const v = cache.get(docs[i])
       if (v) byId.set(r.id, v)
-    }
+    })
     return byId
   }
 
@@ -279,9 +298,8 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
           const bonus = structuredMatchBonus(questionTokens, resource) > 0 ? EMBED_STRUCT_BONUS : 0
           return { resource, score: cosine + bonus }
         })
-        // Drop weak/negative matches so an unrelated question yields no candidates
-        // (feeds the resolver's honest "no source saved").
-        .filter((c) => c.score > 0.2)
+        // Drop only genuine noise; the LLM decides "none" over what survives.
+        .filter((c) => c.score > EMBED_MIN_SCORE)
 
       scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
       return scored.slice(0, Math.max(0, limit))

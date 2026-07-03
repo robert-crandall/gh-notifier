@@ -17,23 +17,29 @@ async function main(): Promise<void> {
   const aligned = loadQuestions()
   const adversarial = loadAdversarialQuestions()
 
-  const line = (label: string, r: { top1Recall: number; top3Recall: number; fuzzyTotal: number }): string =>
-    `${label.padEnd(26)} top1 ${(r.top1Recall * 100).toFixed(1).padStart(5)}%   top3 ${(r.top3Recall * 100).toFixed(1).padStart(5)}%   (n=${r.fuzzyTotal})`
-
   console.log('Loading embedding model (downloads once)...')
   const t0 = Date.now()
   await embedding.retrieve('warmup', [], 1)
   console.log(`model ready in ${((Date.now() - t0) / 1000).toFixed(1)}s\n`)
 
   console.log('=== RETRIEVER EVAL (synthetic) ===')
-  console.log(line('lexical   / aligned', await runRetrievalEval(lexicalRetriever, 3, aligned)))
-  console.log(line('embedding / aligned', await runRetrievalEval(embedding, 3, aligned)))
+  console.log('recall@3 (strict top-3) and recall@8 (what the decider actually sees, cap=8):\n')
+  const report = async (label: string, r: typeof lexicalRetriever, qs = aligned): Promise<void> => {
+    const at3 = await runRetrievalEval(r, 3, qs)
+    const at8 = await runRetrievalEval(r, 8, qs)
+    console.log(
+      `${label.padEnd(26)} recall@3 ${(at3.top3Recall * 100).toFixed(1).padStart(5)}%   recall@8 ${(at8.top3Recall * 100).toFixed(1).padStart(5)}%   (n=${at3.fuzzyTotal})`
+    )
+  }
+  await report('lexical   / aligned', lexicalRetriever, aligned)
+  await report('embedding / aligned', embedding, aligned)
   console.log('')
-  console.log(line('lexical   / adversarial', await runRetrievalEval(lexicalRetriever, 3, adversarial)))
-  const embAdv = await runRetrievalEval(embedding, 3, adversarial)
-  console.log(line('embedding / adversarial', embAdv))
-  console.log(`\nembedding adversarial misses (hard/ambiguous phrasings; the LLM stage answers none/clarify, and the alias-capture loop closes these over time):`)
-  for (const m of embAdv.misses) console.log(`  - "${m.q}" -> expected ${m.expectedId}, got [${m.got.join(', ') || '(nothing)'}]`)
+  await report('lexical   / adversarial', lexicalRetriever, adversarial)
+  await report('embedding / adversarial', embedding, adversarial)
+
+  const embAdv8 = await runRetrievalEval(embedding, 8, adversarial)
+  console.log(`\nembedding adversarial misses at cap=8 (the decider never sees these; alias-capture-by-use closes them over time):`)
+  for (const m of embAdv8.misses) console.log(`  - "${m.q}" -> expected ${m.expectedId}, got [${m.got.join(', ') || '(nothing)'}]`)
 }
 
 void main().then(
