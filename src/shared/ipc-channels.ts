@@ -420,9 +420,11 @@ export interface ResolveCitation {
 
 /**
  * Which retrieval path produced a resolve's candidates. Keeps a degraded run
- * observable end-to-end: `semantic` = embeddings ran; `lexical-fallback` = the
- * embedding model failed at runtime and the resolver fell back to lexical;
- * `lexical` = a lexical retriever was configured (e.g. tests).
+ * observable end-to-end: `semantic` = the semantic (embedding) retriever path
+ * handled the query (it may short-circuit without invoking the model, e.g. an
+ * empty corpus); `lexical-fallback` = the embedding model failed at runtime and
+ * the resolver fell back to lexical; `lexical` = a lexical retriever was
+ * configured (e.g. tests).
  */
 export type RetrievalMode = 'semantic' | 'lexical-fallback' | 'lexical'
 
