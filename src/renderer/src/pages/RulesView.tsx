@@ -86,6 +86,7 @@ export function RulesView({ onClose, onRulesChanged }: RulesViewProps): JSX.Elem
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [applyResult, setApplyResult] = useState<string | null>(null)
+  const [isApplying, setIsApplying] = useState(false)
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -128,6 +129,8 @@ export function RulesView({ onClose, onRulesChanged }: RulesViewProps): JSX.Elem
   const suppressRules = routingRules.filter((r) => r.action === 'suppress')
 
   const afterMutation = useCallback(async (): Promise<void> => {
+    // A rule change can invalidate a prior "Routed N threads" message, so clear it.
+    setApplyResult(null)
     await load()
     onRulesChanged?.()
   }, [load, onRulesChanged])
@@ -164,10 +167,15 @@ export function RulesView({ onClose, onRulesChanged }: RulesViewProps): JSX.Elem
                 <button
                   type="button"
                   className={styles.secondaryButton}
+                  disabled={isApplying}
                   onClick={() => {
+                    if (isApplying) return
+                    setIsApplying(true)
                     void (async () => {
                       try {
                         const result = await window.electron.ipc.invoke('routing-rules:apply-to-inbox')
+                        // Reload first (which clears any prior message), then show the fresh count.
+                        await afterMutation()
                         if (mountedRef.current) {
                           setApplyResult(
                             result.matched === 0
@@ -175,14 +183,15 @@ export function RulesView({ onClose, onRulesChanged }: RulesViewProps): JSX.Elem
                               : `Routed ${result.matched} thread${result.matched === 1 ? '' : 's'}.`,
                           )
                         }
-                        await afterMutation()
                       } catch (err) {
                         console.error('[Rules] apply-to-inbox failed:', err)
+                      } finally {
+                        if (mountedRef.current) setIsApplying(false)
                       }
                     })()
                   }}
                 >
-                  Apply to inbox now
+                  {isApplying ? 'Applying…' : 'Apply to inbox now'}
                 </button>
               }
               footerNote={applyResult}
@@ -191,7 +200,7 @@ export function RulesView({ onClose, onRulesChanged }: RulesViewProps): JSX.Elem
               action="suppress"
               icon={EyeOff}
               heading="Filters"
-              description="Read-time filters. Threads matching a filter are hidden from the inbox and every project view."
+              description="Read-time filters. Threads matching a filter are hidden from the inbox and each project's notification list."
               rules={suppressRules}
               projects={projects}
               onChanged={afterMutation}
@@ -428,8 +437,8 @@ function RoutingRuleSection({
           <span className={styles.ruleOrder}>{i + 1}</span>
           <Icon icon={icon} size={15} className={styles.ruleIcon} />
           <span className={styles.ruleText}>{describeConditions(rule)}</span>
-          {action === 'route' && rule.projectName && (
-            <span className={styles.ruleTarget}>→ {rule.projectName}</span>
+          {action === 'route' && (
+            <span className={styles.ruleTarget}>→ {rule.projectName ?? `#${rule.projectId ?? '?'}`}</span>
           )}
           <button
             type="button"

@@ -129,6 +129,14 @@ describe('RulesView', () => {
     })
   })
 
+  it('shows a #id fallback for a route rule whose project name is missing', async () => {
+    mockInvoke({
+      routing: [routingRule({ id: 5, action: 'route', projectId: 9, projectName: null, matchType: 'Issue' })],
+    })
+    render(<RulesView onClose={vi.fn()} />)
+    expect(await screen.findByText('→ #9')).toBeTruthy()
+  })
+
   it('applies route rules to the inbox and reports the count', async () => {
     mockInvoke({ routing: [routingRule({ id: 1, action: 'route', matchType: 'PullRequest' })] })
     render(<RulesView onClose={vi.fn()} />)
