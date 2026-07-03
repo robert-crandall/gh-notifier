@@ -164,12 +164,24 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
           projectId={props.projectId}
           fixedRepo={delegate.fixedRepo}
           onClose={() => setDelegate(null)}
-          onLaunched={(session) => {
-            props.showUndo(
-              'Copilot is on it — I’ll fold the result into your digest.',
-              () => { if (session.htmlUrl) openExternal(session.htmlUrl) },
-              'Open'
-            )
+          onLaunched={(result) => {
+            if (result.kind === 'cloud') {
+              props.showUndo(
+                'Copilot is on it — I’ll fold the result into your digest.',
+                () => { if (result.session.htmlUrl) openExternal(result.session.htmlUrl) },
+                'Open'
+              )
+            } else {
+              const message =
+                result.kind === 'app-send-failed'
+                  ? 'Opened a Copilot session, but I couldn’t hand off the task — open it to retry.'
+                  : 'Copilot is on it in the desktop app.'
+              props.showUndo(
+                message,
+                () => { fire(window.electron.ipc.invoke('copilot:open-app-session', result.session.id), 'copilot:open-app-session') },
+                'Open'
+              )
+            }
           }}
         />
       )}

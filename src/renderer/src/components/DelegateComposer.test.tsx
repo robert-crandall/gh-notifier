@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import type { CopilotSession } from '@shared/ipc-channels'
+import type { CopilotSession, DelegateResult } from '@shared/ipc-channels'
 import { DelegateComposer } from './DelegateComposer'
 
 const invoke = vi.fn()
@@ -18,10 +18,11 @@ const session: CopilotSession = {
   htmlUrl: 'https://x/pull/1', startedAt: '', updatedAt: '', repoOwner: 'o', repoName: 'r',
   branch: null, linkedPrUrl: 'https://x/pull/1', pinnedProjectId: 1,
 }
+const cloudResult: DelegateResult = { kind: 'cloud', session }
 
 describe('DelegateComposer', () => {
-  it('pre-fills the prompt and launches with the fixed repo', async () => {
-    invoke.mockResolvedValue(session)
+  it('pre-fills the prompt and delegates with the fixed repo', async () => {
+    invoke.mockResolvedValue(cloudResult)
     const onLaunched = vi.fn()
     const onClose = vi.fn()
     render(
@@ -39,14 +40,14 @@ describe('DelegateComposer', () => {
 
     fireEvent.click(screen.getByText('Launch task'))
 
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith('copilot:launch', {
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('copilot:delegate', {
       prompt: 'Fix the flaky test',
       repoOwner: 'o',
       repoName: 'r',
       baseBranch: undefined,
       projectId: 1,
     }))
-    await waitFor(() => expect(onLaunched).toHaveBeenCalledWith(session))
+    await waitFor(() => expect(onLaunched).toHaveBeenCalledWith(cloudResult))
     expect(onClose).toHaveBeenCalled()
   })
 

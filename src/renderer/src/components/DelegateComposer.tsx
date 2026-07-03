@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles, X } from 'lucide-react'
-import type { CopilotSession, LaunchTarget } from '@shared/ipc-channels'
+import type { DelegateResult, LaunchTarget } from '@shared/ipc-channels'
 import { Icon } from './Icon'
 import styles from './DelegateComposer.module.css'
 
@@ -15,7 +15,7 @@ export interface DelegateComposerProps {
    */
   fixedRepo?: LaunchTarget
   onClose: () => void
-  onLaunched: (session: CopilotSession) => void
+  onLaunched: (result: DelegateResult) => void
 }
 
 const OTHER_REPO = '__other__'
@@ -28,7 +28,7 @@ function friendlyError(message: string): string {
   if (message.includes('GH_NOT_AUTHENTICATED')) {
     return 'gh isn’t authenticated for agent tasks. Run `gh auth login` in a terminal, then try again.'
   }
-  const stripped = message.replace(/^Error:\s*/, '').replace(/^LAUNCH_FAILED:\s*/, '')
+  const stripped = message.replace(/^Error:\s*/, '').replace(/^(LAUNCH_FAILED|DELEGATE_FAILED):\s*/, '')
   return stripped.length > 0 ? stripped : 'Could not launch the task.'
 }
 
@@ -102,14 +102,14 @@ export function DelegateComposer({
     setBusy(true)
     setError(null)
     try {
-      const session = await window.electron.ipc.invoke('copilot:launch', {
+      const result = await window.electron.ipc.invoke('copilot:delegate', {
         prompt: prompt.trim(),
         repoOwner: resolvedRepo.repoOwner,
         repoName: resolvedRepo.repoName,
         baseBranch: baseBranch.trim() || undefined,
         projectId,
       })
-      onLaunched(session)
+      onLaunched(result)
       onClose()
     } catch (err: unknown) {
       setError(friendlyError(err instanceof Error ? err.message : String(err)))

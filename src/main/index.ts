@@ -41,7 +41,9 @@ import { validateMcpServerInput, validateMcpServerPatch, validateToolName, valid
 import { listMcpTools } from './context/mcp-client'
 import { resolveQuestion } from './context/resolve'
 import { createResolveDeps } from './context/resolve-deps'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, McpServerInput, McpServerPatch, McpConnectInput } from '../shared/ipc-channels'
+import { delegateTask, appDelegateAvailability, buildAppSessionDeepLink, createDefaultDelegateDeps } from './agent/copilot-app/delegate'
+import { getAppDelegateEnabled, setAppDelegateEnabled, getReposRoot, setReposRoot } from './agent/copilot-app/settings'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, McpServerInput, McpServerPatch, McpConnectInput, DelegatePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
 /** Broadcasts a push event to all renderer windows. */
@@ -285,6 +287,7 @@ app.whenReady().then(async () => {
   })
 
   // Copilot session handlers
+  const delegateDeps = createDefaultDelegateDeps()
   ipcMain.handle('copilot:sessions-for-project', (_event, projectId: number) =>
     getSessionsForProject(projectId)
   )
@@ -321,6 +324,41 @@ app.whenReady().then(async () => {
     broadcast('projects:updated')
   })
   ipcMain.handle('copilot:launch-targets', (_event, projectId: number) => getLaunchTargets(projectId))
+
+  // Delegate: try the installed Copilot desktop app (flag on + running + local
+  // checkout), else fall back to a cloud gh agent-task. One adapter contains the
+  // app's unofficial WS; the cloud path stays the resilient fallback.
+  ipcMain.handle('copilot:delegate', async (_event, payload: DelegatePayload) => {
+    const result = await delegateTask(payload, delegateDeps)
+    broadcast('copilot:updated')
+    if (result.kind === 'cloud') {
+      // Match the cloud-launch reconcile: pull real title/status in the background.
+      void syncCopilotSessions().catch((err: unknown) => {
+        console.error('[copilot] Post-delegate reconcile sync failed:', err)
+      })
+    }
+    return result
+  })
+  ipcMain.handle('copilot:delegate-availability', (_event, repoOwner: string, repoName: string) =>
+    // Availability is repo-scoped; a project override is only consulted on the
+    // actual delegate call, so pass null here.
+    appDelegateAvailability(repoOwner, repoName, null, delegateDeps)
+  )
+  ipcMain.handle('copilot:open-app-session', async (_event, sessionId: string) => {
+    const deepLink = buildAppSessionDeepLink(sessionId)
+    if (deepLink === null) throw new Error('Invalid session id')
+    await shell.openExternal(deepLink)
+  })
+
+  // Desktop-app delegate settings.
+  ipcMain.handle('settings:get-app-delegate-enabled', () => getAppDelegateEnabled())
+  ipcMain.handle('settings:set-app-delegate-enabled', (_event, enabled: boolean) => {
+    setAppDelegateEnabled(enabled)
+  })
+  ipcMain.handle('settings:get-repos-root', () => getReposRoot())
+  ipcMain.handle('settings:set-repos-root', (_event, root: string) => {
+    setReposRoot(root)
+  })
 
   // Focus: re-entry digest + drift handlers
   ipcMain.handle('digest:get', (_event, projectId: number) => getDigest(projectId))

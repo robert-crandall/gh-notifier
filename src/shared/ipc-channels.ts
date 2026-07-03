@@ -83,6 +83,63 @@ export interface LaunchTarget {
   repoName: string
 }
 
+// ── Copilot desktop-app delegation (#86) ──────────────────────────────────────
+
+/** Status of a delegated Copilot desktop-app session (dedicated store). */
+export type CopilotAppSessionStatus =
+  | 'in_progress' // agent is actively working
+  | 'waiting'     // waiting for the user
+  | 'completed'   // session finished
+  | 'unknown'     // app closed / status unreadable
+
+/**
+ * A task delegated to the INSTALLED GitHub Copilot desktop app over its local
+ * WebSocket. Kept in a dedicated table (`copilot_app_sessions`), never mixed
+ * with cloud `gh agent-task` sessions.
+ */
+export interface CopilotAppSession {
+  id: string                     // WS session_id (uuid)
+  projectId: number | null
+  cwd: string                    // the local checkout the app runs in
+  title: string
+  status: CopilotAppSessionStatus
+  repoOwner: string | null
+  repoName: string | null
+  createdAt: string              // SQLite datetime, UTC ("YYYY-MM-DD HH:MM:SS")
+  updatedAt: string              // SQLite datetime, UTC ("YYYY-MM-DD HH:MM:SS")
+}
+
+/** Payload to delegate a task (tries the desktop app, falls back to cloud). */
+export interface DelegatePayload {
+  prompt: string
+  repoOwner: string
+  repoName: string
+  /** Base branch for the cloud fallback's PR; ignored by the app path. */
+  baseBranch?: string
+  /** Originating project, pinned so the session stays co-located. Null = none. */
+  projectId: number | null
+}
+
+/**
+ * The outcome of a delegate. Discriminated so the renderer knows how to open /
+ * track the result. The automatic ladder never returns `untracked` — that's a
+ * separate explicit "open untracked in the app" action.
+ */
+export type DelegateResult =
+  | { kind: 'app'; session: CopilotAppSession }
+  | { kind: 'app-send-failed'; session: CopilotAppSession }
+  | { kind: 'cloud'; session: CopilotSession }
+
+/** Why the desktop-app path wasn't taken for a delegate (diagnostic, non-fatal). */
+export type AppDelegateSkipReason =
+  | 'flag_disabled'   // the app-delegate feature flag is off
+  | 'app_not_running' // WS discovery files (ws.port/ws.token) absent — no connection is attempted
+  | 'no_local_cwd'    // no trusted local checkout resolved for the repo
+
+/** Default "repos root" used to resolve local checkouts (`~` expanded in main). */
+export const DEFAULT_REPOS_ROOT = '~/repos'
+
+
 export interface Project {
   id: number
   name: string
@@ -838,6 +895,65 @@ export type IpcChannels = {
   'copilot:launch-targets': {
     args: [projectId: number]
     result: LaunchTarget[]
+  }
+
+  /**
+   * Delegate a task: try the installed Copilot desktop app over its local WS
+   * (when the feature flag is on, the app is running, and a trusted local
+   * checkout resolves for the repo), else fall back to a cloud `gh agent-task`.
+   * Returns a discriminated `DelegateResult`. Rejects with an `Error` whose
+   * `message` is `'GH_NOT_AUTHENTICATED'`, or starts with `'DELEGATE_FAILED: '`
+   * (app path) or `'LAUNCH_FAILED: '` (cloud fallback path). The renderer strips
+   * both prefixes for display.
+   */
+  'copilot:delegate': {
+    args: [payload: DelegatePayload]
+    result: DelegateResult
+  }
+
+  /**
+   * Best-effort hint for where a delegate will land for a repo: flag on + WS
+   * discovery files present (app appears to be running) + a trusted local
+   * checkout resolves. It does NOT open the WS or handshake, so a real delegate
+   * can still fall back to cloud (e.g. a stale token). Never throws; returns a
+   * skip reason when the app path wouldn't be taken.
+   */
+  'copilot:delegate-availability': {
+    args: [repoOwner: string, repoName: string]
+    result: { appAvailable: true } | { appAvailable: false; reason: AppDelegateSkipReason }
+  }
+
+  /**
+   * Open a delegated desktop-app session in the Copilot app via the sanctioned
+   * `github-app://sessions/<id>` deep link. The id is validated before use.
+   */
+  'copilot:open-app-session': {
+    args: [sessionId: string]
+    result: void
+  }
+
+  /** Reads the app-delegate feature flag (default false). */
+  'settings:get-app-delegate-enabled': {
+    args: []
+    result: boolean
+  }
+
+  /** Sets the app-delegate feature flag. */
+  'settings:set-app-delegate-enabled': {
+    args: [enabled: boolean]
+    result: void
+  }
+
+  /** Reads the configured "repos root" used to resolve local checkouts. */
+  'settings:get-repos-root': {
+    args: []
+    result: string
+  }
+
+  /** Sets the "repos root" (raw string; `~` is expanded in main). */
+  'settings:set-repos-root': {
+    args: [root: string]
+    result: void
   }
 
   // ── Focus: re-entry digest + drift ───────────────────────────────────────────

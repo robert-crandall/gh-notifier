@@ -15,6 +15,7 @@ import {
 import {
   SYNC_INTERVAL_OPTIONS,
   MAX_SYNC_DAYS_OPTIONS,
+  DEFAULT_REPOS_ROOT,
   type SyncIntervalMinutes,
   type MaxSyncDays,
 } from '@shared/ipc-channels'
@@ -58,18 +59,24 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
   const [token, setToken] = useState('')
   const [syncInterval, setSyncInterval] = useState<SyncIntervalMinutes | null>(null)
   const [maxDays, setMaxDays] = useState<MaxSyncDays | null>(null)
+  const [appDelegate, setAppDelegate] = useState<boolean | null>(null)
+  const [reposRoot, setReposRoot] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     void (async () => {
       try {
-        const [interval, days] = await Promise.all([
+        const [interval, days, delegate, root] = await Promise.all([
           window.electron.ipc.invoke('settings:get-sync-interval'),
           window.electron.ipc.invoke('settings:get-max-sync-days'),
+          window.electron.ipc.invoke('settings:get-app-delegate-enabled'),
+          window.electron.ipc.invoke('settings:get-repos-root'),
         ])
         if (!active) return
         setSyncInterval(interval)
         setMaxDays(days)
+        setAppDelegate(delegate)
+        setReposRoot(root)
       } catch (err) {
         console.error('[Settings] load failed:', err)
       }
@@ -86,6 +93,18 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
   const changeMaxDays = (value: MaxSyncDays): void => {
     setMaxDays(value)
     fire(window.electron.ipc.invoke('settings:set-max-sync-days', value), 'settings:set-max-sync-days')
+  }
+  const changeAppDelegate = (value: boolean): void => {
+    setAppDelegate(value)
+    fire(window.electron.ipc.invoke('settings:set-app-delegate-enabled', value), 'settings:set-app-delegate-enabled')
+  }
+  const saveReposRoot = (): void => {
+    if (reposRoot === null) return
+    // Mirror main's normalization (blank → default) so the input reflects what
+    // was actually stored instead of looking like the save was lost.
+    const normalized = reposRoot.trim().length > 0 ? reposRoot.trim() : DEFAULT_REPOS_ROOT
+    setReposRoot(normalized)
+    fire(window.electron.ipc.invoke('settings:set-repos-root', normalized), 'settings:set-repos-root')
   }
 
   return (
@@ -221,6 +240,48 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
               <Icon icon={ChevronRight} size={16} />
             </span>
           </button>
+        </section>
+
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Copilot</h2>
+          <label className={styles.field}>
+            <span className={styles.label}>
+              Delegate to the Copilot app
+              <span className={styles.hint}> — experimental; hands tasks to the installed desktop app when it's running and the repo is checked out locally, otherwise the cloud agent.</span>
+            </span>
+            <input
+              type="checkbox"
+              className={styles.checkbox}
+              checked={appDelegate ?? false}
+              disabled={appDelegate === null}
+              onChange={(e) => changeAppDelegate(e.target.checked)}
+            />
+          </label>
+          <div className={styles.field}>
+            <span className={styles.label}>Repos root</span>
+            <div className={styles.tokenRow}>
+              <input
+                className={styles.tokenInput}
+                type="text"
+                value={reposRoot ?? ''}
+                placeholder="~/repos"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                disabled={reposRoot === null}
+                onChange={(e) => setReposRoot(e.target.value)}
+              />
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={reposRoot === null}
+                onClick={saveReposRoot}
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </section>
       </div>
     </main>
