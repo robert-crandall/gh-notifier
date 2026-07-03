@@ -90,10 +90,12 @@ describe('golden-vector hermetic eval', () => {
       const dv = golden.vectors[buildEmbedText(target)]
       expect(qv, `query vec for ${q.q}`).toBeDefined()
       expect(dv, `doc vec for ${q.expectedId}`).toBeDefined()
-      // L2-normalized vectors -> cosine == dot product.
+      // L2-normalized vectors -> cosine == dot product. Mirror the runtime drop
+      // condition EXACTLY (`< floor`): a target at exactly the floor is KEPT by
+      // the retriever, so it must not be flagged here.
       const cosine = qv.reduce((s, x, i) => s + x * dv[i], 0)
-      if (cosine <= EMBED_MIN_COSINE_FLOOR) {
-        belowFloor.push(`${q.expectedId}: cosine ${cosine.toFixed(4)} <= floor ${EMBED_MIN_COSINE_FLOOR}  ("${q.q}")`)
+      if (cosine < EMBED_MIN_COSINE_FLOOR) {
+        belowFloor.push(`${q.expectedId}: cosine ${cosine.toFixed(4)} < floor ${EMBED_MIN_COSINE_FLOOR}  ("${q.q}")`)
       }
     }
     if (belowFloor.length > 0) console.error('semantic targets below the raw-cosine floor:\n' + belowFloor.join('\n'))
