@@ -42,6 +42,8 @@ import { listMcpTools } from './context/mcp-client'
 import { resolveQuestion } from './context/resolve'
 import { createResolveDeps } from './context/resolve-deps'
 import { delegateTask, appDelegateAvailability, buildAppSessionDeepLink, createDefaultDelegateDeps } from './agent/copilot-app/delegate'
+import { linkTodoSession } from './agent/copilot-app/store'
+import { refreshTodoAppSessionsForProject } from './agent/copilot-app/status'
 import { getAppDelegateEnabled, setAppDelegateEnabled, getReposRoot, setReposRoot } from './agent/copilot-app/settings'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, McpServerInput, McpServerPatch, McpConnectInput, DelegatePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
@@ -349,6 +351,13 @@ app.whenReady().then(async () => {
     if (deepLink === null) throw new Error('Invalid session id')
     await shell.openExternal(deepLink)
   })
+  ipcMain.handle('todos:link-session', (_event, todoId: number, sessionId: string) => {
+    linkTodoSession(todoId, sessionId)
+    broadcast('projects:updated')
+  })
+  ipcMain.handle('copilot:app-sessions-for-project', (_event, projectId: number) =>
+    refreshTodoAppSessionsForProject(projectId)
+  )
 
   // Desktop-app delegate settings.
   ipcMain.handle('settings:get-app-delegate-enabled', () => getAppDelegateEnabled())

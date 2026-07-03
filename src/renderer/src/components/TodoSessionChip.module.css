@@ -1,0 +1,68 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px 26px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+
+.chip:hover {
+  background: var(--bg-hover, var(--bg-inset));
+  border-color: var(--text-3);
+}
+
+.icon {
+  color: var(--text-3);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex-shrink: 0;
+}
+
+.arrow {
+  color: var(--text-3);
+}
+
+/* is_running = 1 — actively working */
+.in_progress .dot {
+  background: var(--accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.in_progress {
+  color: var(--text);
+}
+
+/* is_running = 0 — idle */
+.waiting .dot {
+  background: var(--text-3);
+}
+
+.completed .dot {
+  background: var(--success, #2da44e);
+}
+
+.unknown .dot {
+  background: var(--text-3);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .in_progress .dot {
+    animation: none;
+  }
+}
