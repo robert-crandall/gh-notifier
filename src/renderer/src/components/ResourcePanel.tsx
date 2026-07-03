@@ -158,7 +158,9 @@ function ResourceRow({
   onDisconnect: (r: Resource) => void
 }): JSX.Element {
   const hasLink = resource.url !== null
-  const hasWiring = resource.mcpServer !== null && resource.toolName !== null
+  // Match main's wiring semantics (resolve/validateToolName trim): blank or
+  // whitespace-only server/tool is NOT wired.
+  const hasWiring = (resource.mcpServer?.trim().length ?? 0) > 0 && (resource.toolName?.trim().length ?? 0) > 0
   const live = hasWiring && serverLive
   return (
     <div className={styles.browseRow}>

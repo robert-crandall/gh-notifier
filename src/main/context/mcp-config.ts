@@ -108,6 +108,9 @@ export function validateMcpServerPatch(patch: McpServerPatch): McpPatchValidatio
     if (!Array.isArray(patch.envDelete) || !patch.envDelete.every((k): k is string => typeof k === 'string')) {
       return { ok: false, error: 'envDelete must be an array of strings' }
     }
+    for (const key of patch.envDelete) {
+      if (!isValidEnvKey(key)) return { ok: false, error: `Invalid env key: ${JSON.stringify(key)}` }
+    }
     out.envDelete = patch.envDelete
   }
 
