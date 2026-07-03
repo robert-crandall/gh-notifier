@@ -93,20 +93,20 @@ export function capCandidates(
 /**
  * Assembles the two-layer context for a question. Pure over its inputs — the DB
  * reads (card + corpus) happen in the caller (resolve.ts) so this stays testable
- * offline.
+ * offline. Async because the retriever may be embedding-backed.
  */
-export function assemble(
+export async function assemble(
   question: string,
   card: ProjectCard,
   corpus: Resource[],
   options: AssembleOptions = {}
-): AssembledContext {
+): Promise<AssembledContext> {
   const poolSize = options.poolSize ?? DEFAULT_POOL_SIZE
   const limit = options.limit ?? DEFAULT_LIMIT
   const healthyReserve = options.healthyReserve ?? DEFAULT_HEALTHY_RESERVE
   const retriever = options.retriever ?? lexicalRetriever
 
-  const pool = retriever.retrieve(question, corpus, poolSize)
+  const pool = await retriever.retrieve(question, corpus, poolSize)
   const capped = capCandidates(pool, limit, healthyReserve)
 
   return {

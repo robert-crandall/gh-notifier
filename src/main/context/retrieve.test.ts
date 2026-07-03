@@ -96,51 +96,51 @@ describe('scoreResource', () => {
 // ── retriever: recall + ranking ───────────────────────────────────────────────
 
 describe('lexicalRetriever', () => {
-  it('bridges fuzzy language via aliases (top-1)', () => {
+  it('bridges fuzzy language via aliases (top-1)', async () => {
     const corpus = [
       makeResource({ title: 'Service mesh p99 dashboard', service: 'mesh', aliases: ['mesh latency', 'service mesh latency'] }),
       makeResource({ title: 'Kafka consumer lag', service: 'ingest' }),
       makeResource({ title: 'Postgres connections', service: 'db' }),
     ]
-    const [top] = lexicalRetriever.retrieve('how is the service mesh latency?', corpus, 3)
+    const [top] = await lexicalRetriever.retrieve('how is the service mesh latency?', corpus, 3)
     expect(top.resource.title).toBe('Service mesh p99 dashboard')
   })
 
-  it('disambiguates near-name siblings via structured service match (Gate 0 note #3)', () => {
+  it('disambiguates near-name siblings via structured service match (Gate 0 note #3)', async () => {
     // authnd vs authzd: one letter apart. The exact service match must win.
     const authnd = makeResource({ title: 'Auth service errors', service: 'authnd', aliases: ['auth errors'] })
     const authzd = makeResource({ title: 'Authz service errors', service: 'authzd', aliases: ['authz errors'] })
     const corpus = [authnd, authzd]
 
-    const forAuthzd = lexicalRetriever.retrieve('errors for authzd', corpus, 2)
+    const forAuthzd = await lexicalRetriever.retrieve('errors for authzd', corpus, 2)
     expect(forAuthzd[0].resource.service).toBe('authzd')
 
-    const forAuthnd = lexicalRetriever.retrieve('errors for authnd', corpus, 2)
+    const forAuthnd = await lexicalRetriever.retrieve('errors for authnd', corpus, 2)
     expect(forAuthnd[0].resource.service).toBe('authnd')
   })
 
-  it('tolerates a typo via edit distance without beating an exact sibling', () => {
+  it('tolerates a typo via edit distance without beating an exact sibling', async () => {
     const authnd = makeResource({ title: 'Authn errors', service: 'authnd' })
     const authzd = makeResource({ title: 'Authz errors', service: 'authzd' })
     const corpus = [authnd, authzd]
     // "authznd" is edit distance 1 from authzd's title token but the question also
     // structurally names authzd — exact structured match must dominate.
-    const res = lexicalRetriever.retrieve('authzd errors', corpus, 2)
+    const res = await lexicalRetriever.retrieve('authzd errors', corpus, 2)
     expect(res[0].resource.service).toBe('authzd')
   })
 
-  it('returns nothing for a question with no overlap (feeds negative handling)', () => {
+  it('returns nothing for a question with no overlap (feeds negative handling)', async () => {
     const corpus = [makeResource({ title: 'Mesh latency', service: 'mesh' })]
-    expect(lexicalRetriever.retrieve('quarterly revenue forecast', corpus, 5)).toEqual([])
+    expect(await lexicalRetriever.retrieve('quarterly revenue forecast', corpus, 5)).toEqual([])
   })
 
-  it('respects the limit and is deterministic on ties', () => {
+  it('respects the limit and is deterministic on ties', async () => {
     const corpus = [
       makeResource({ title: 'latency one', service: 'svc' }),
       makeResource({ title: 'latency two', service: 'svc' }),
       makeResource({ title: 'latency three', service: 'svc' }),
     ]
-    const res = lexicalRetriever.retrieve('latency', corpus, 2)
+    const res = await lexicalRetriever.retrieve('latency', corpus, 2)
     expect(res).toHaveLength(2)
     // stable tie-break by id
     expect(res[0].resource.id).toBeLessThan(res[1].resource.id)

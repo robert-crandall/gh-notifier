@@ -22,7 +22,12 @@
   "keywords": [],
   "author": "robert-crandall",
   "license": "MIT",
+  "trustedDependencies": [
+    "onnxruntime-node",
+    "protobufjs"
+  ],
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/rest": "^22.0.1",
     "better-sqlite3": "^12.9.0",

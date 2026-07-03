@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     while (idx < questions.length) {
       const i = idx++
       const question = questions[i]
-      const { candidates } = assemble(question.q, emptyCard, resources)
+      const { candidates } = await assemble(question.q, emptyCard, resources)
       if (candidates.length === 0) {
         outcomes[i] = { q: question.q, category: question.category, expectedId: question.expectedId, verdict: 'none', citedId: null, cited: false }
         process.stdout.write(`. `)

@@ -1,4 +1,5 @@
 import type { Resource } from '../../shared/ipc-channels'
+import type { Embedder } from './embed'
 
 /**
  * Two-stage resolver, stage one: retrieval. This produces a *pure relevance*
@@ -23,7 +24,7 @@ export interface ScoredCandidate {
 
 export interface Retriever {
   /** Returns up to `limit` candidates ranked by descending relevance. Ties broken by id (stable). */
-  retrieve(question: string, corpus: Resource[], limit: number): ScoredCandidate[]
+  retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]>
 }
 
 // ── Tokenization ──────────────────────────────────────────────────────────────
@@ -159,6 +160,22 @@ function fieldHits(questionTokens: string[], fieldTokens: string[]): number {
   return score
 }
 
+/**
+ * Structured exact-match bonus for a resource: a question token that IS one of
+ * the resource's structured values (service/env/tag) decisively boosts it. This
+ * is the disambiguation from Gate 0 note #3 (authnd vs authzd) and is shared by
+ * both the lexical and embedding retrievers so near-name siblings never confuse
+ * the semantic layer either. Pure.
+ */
+export function structuredMatchBonus(questionTokens: string[], resource: Resource): number {
+  const structValues = resourceTokens(resource).structValues
+  let bonus = 0
+  for (const qt of questionTokens) {
+    if (structValues.has(qt)) bonus += EXACT_STRUCT_BONUS
+  }
+  return bonus
+}
+
 /** Pure relevance score of a resource for a set of question tokens. No health penalty. */
 export function scoreResource(questionTokens: string[], resource: Resource): number {
   if (questionTokens.length === 0) return 0
@@ -175,23 +192,122 @@ export function scoreResource(questionTokens: string[], resource: Resource): num
 
   // Structured exact-match dominance: a question token that IS a structured
   // value (service/env/tag) decisively boosts this record over near siblings.
-  for (const qt of questionTokens) {
-    if (ft.structValues.has(qt)) score += EXACT_STRUCT_BONUS
-  }
+  score += structuredMatchBonus(questionTokens, resource)
 
   return score
+}
+
+/** Synchronous lexical ranking (shared internals; the async retriever wraps this). */
+export function rankLexical(question: string, corpus: Resource[], limit: number): ScoredCandidate[] {
+  const questionTokens = tokenize(question)
+  const scored = corpus
+    .map((resource) => ({ resource, score: scoreResource(questionTokens, resource) }))
+    .filter((c) => c.score > 0)
+  // Descending score; stable tie-break by id so results are deterministic.
+  scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
+  return scored.slice(0, Math.max(0, limit))
 }
 
 // ── The lexical retriever ─────────────────────────────────────────────────────
 
 export const lexicalRetriever: Retriever = {
-  retrieve(question: string, corpus: Resource[], limit: number): ScoredCandidate[] {
-    const questionTokens = tokenize(question)
-    const scored = corpus
-      .map((resource) => ({ resource, score: scoreResource(questionTokens, resource) }))
-      .filter((c) => c.score > 0)
-    // Descending score; stable tie-break by id so results are deterministic.
-    scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
-    return scored.slice(0, Math.max(0, limit))
+  retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
+    return Promise.resolve(rankLexical(question, corpus, limit))
   },
+}
+
+// ── Embedding retriever (semantic recall for lexically-disjoint phrasing) ──────
+
+/** The text embedded per resource: everything a question might semantically match. */
+export function resourceDocument(resource: Resource): string {
+  const tagValues = Object.values(resource.tags).join(' ')
+  return [resource.title, resource.aliases.join(' '), resource.description, resource.service, resource.env, tagValues]
+    .filter((p) => p.trim().length > 0)
+    .join('. ')
+}
+
+function dot(a: number[], b: number[]): number {
+  let s = 0
+  const n = Math.min(a.length, b.length)
+  for (let i = 0; i < n; i++) s += a[i] * b[i]
+  return s
+}
+
+/**
+ * How much a single structured exact-match nudges the (cosine-based) score.
+ * Cosine is roughly [-1, 1]; this keeps embeddings primary while letting an
+ * exact service/env/tag match break near-name-sibling ties (authnd vs authzd),
+ * which pure embeddings alone confuse (Gate 0 note #3).
+ */
+const EMBED_STRUCT_BONUS = 0.15
+
+/**
+ * Creates a hybrid embedding retriever: semantic cosine similarity + the
+ * structured exact-match bonus. Corpus embeddings are cached in-memory keyed by
+ * resource id + updatedAt, so only new/changed records are re-embedded.
+ */
+export function createEmbeddingRetriever(embedder: Embedder): Retriever {
+  const cache = new Map<string, number[]>()
+  const cacheKey = (r: Resource): string => `${r.id}:${r.updatedAt}`
+
+  async function embedCorpus(corpus: Resource[]): Promise<Map<number, number[]>> {
+    const missing = corpus.filter((r) => !cache.has(cacheKey(r)))
+    if (missing.length > 0) {
+      const vecs = await embedder.embed(missing.map(resourceDocument))
+      missing.forEach((r, i) => cache.set(cacheKey(r), vecs[i]))
+    }
+    const byId = new Map<number, number[]>()
+    for (const r of corpus) {
+      const v = cache.get(cacheKey(r))
+      if (v) byId.set(r.id, v)
+    }
+    return byId
+  }
+
+  return {
+    async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
+      if (corpus.length === 0) return []
+      const [queryVec] = await embedder.embed([question])
+      const corpusVecs = await embedCorpus(corpus)
+      const questionTokens = tokenize(question)
+
+      const scored = corpus
+        .map((resource) => {
+          const vec = corpusVecs.get(resource.id)
+          if (vec === undefined) return { resource, score: 0 }
+          const cosine = dot(queryVec, vec)
+          const bonus = structuredMatchBonus(questionTokens, resource) > 0 ? EMBED_STRUCT_BONUS : 0
+          return { resource, score: cosine + bonus }
+        })
+        // Drop weak/negative matches so an unrelated question yields no candidates
+        // (feeds the resolver's honest "no source saved").
+        .filter((c) => c.score > 0.2)
+
+      scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
+      return scored.slice(0, Math.max(0, limit))
+    },
+  }
+}
+
+/**
+ * The production retriever: the hybrid embedding retriever (semantic cosine +
+ * structured tie-break) with a transparent lexical fallback if the embedding
+ * model can't load or an embed fails (offline, missing runtime). Pure lexical
+ * ranking is deliberately NOT fused in — on lexically-disjoint questions its
+ * coincidental token matches add noise that drags the right semantic result
+ * down (measured: fusion scored lower on the adversarial eval than embeddings
+ * alone). The structured bonus already recovers exact service/env/tag matches.
+ */
+export function createDefaultRetriever(embedder: Embedder): Retriever {
+  const embedding = createEmbeddingRetriever(embedder)
+  return {
+    async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
+      try {
+        return await embedding.retrieve(question, corpus, limit)
+      } catch (err) {
+        console.error('[retrieve] embedding retriever failed; falling back to lexical:', err)
+        return rankLexical(question, corpus, limit)
+      }
+    },
+  }
 }

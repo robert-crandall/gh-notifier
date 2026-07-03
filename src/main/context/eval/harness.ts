@@ -107,9 +107,12 @@ export interface RetrievalReport {
 }
 
 /** Runs the retrieval-stage eval and returns recall metrics. */
-export function runRetrievalEval(retriever: Retriever = lexicalRetriever, k = 3): RetrievalReport {
+export async function runRetrievalEval(
+  retriever: Retriever = lexicalRetriever,
+  k = 3,
+  questions: EvalQuestion[] = loadQuestions()
+): Promise<RetrievalReport> {
   const { resources, stringIdByNumericId } = toResourceFixtures(loadCorpus())
-  const questions = loadQuestions()
 
   let fuzzyTotal = 0
   let top1Hits = 0
@@ -119,7 +122,7 @@ export function runRetrievalEval(retriever: Retriever = lexicalRetriever, k = 3)
   const misses: RetrievalReport['misses'] = []
 
   for (const question of questions) {
-    const results = retriever.retrieve(question.q, resources, Math.max(k, 5))
+    const results = await retriever.retrieve(question.q, resources, Math.max(k, 5))
     const rankedIds = results.map((r) => stringIdByNumericId.get(r.resource.id) ?? '')
 
     if (question.category === 'fuzzy' && question.expectedId !== null) {
@@ -148,4 +151,10 @@ export function runRetrievalEval(retriever: Retriever = lexicalRetriever, k = 3)
     ambiguousSurfaced,
     misses,
   }
+}
+
+/** Loads the adversarial (lexically-disjoint) question set. */
+export function loadAdversarialQuestions(): EvalQuestion[] {
+  const raw = readFileSync(join(__dirname, 'questions.adversarial.json'), 'utf8')
+  return (JSON.parse(raw) as QuestionsFile).questions
 }
