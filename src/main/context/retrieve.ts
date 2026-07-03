@@ -173,9 +173,24 @@ function bonusFromStructValues(questionTokens: string[], structValues: Set<strin
   return bonus
 }
 
-/** Escapes a string for literal use inside a RegExp. */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/** True for a lowercased ASCII alphanumeric char (used for word boundaries). */
+function isAlnum(ch: string): boolean {
+  if (ch.length === 0) return false
+  const c = ch.charCodeAt(0)
+  return (c >= 48 && c <= 57) || (c >= 97 && c <= 122)
+}
+
+/** Whole-token containment (alnum boundaries) without RegExp compilation. */
+function containsToken(haystack: string, token: string): boolean {
+  let from = 0
+  for (;;) {
+    const idx = haystack.indexOf(token, from)
+    if (idx === -1) return false
+    const before = idx === 0 ? '' : haystack[idx - 1]
+    const after = idx + token.length >= haystack.length ? '' : haystack[idx + token.length]
+    if (!isAlnum(before) && !isAlnum(after)) return true
+    from = idx + 1
+  }
 }
 
 /**
@@ -189,7 +204,7 @@ function escapeRegExp(value: string): string {
 export function hasStructuredMatch(question: string, resource: Resource): boolean {
   const q = question.toLowerCase()
   for (const value of resourceStructValues(resource)) {
-    if (new RegExp(`(^|[^a-z0-9])${escapeRegExp(value)}([^a-z0-9]|$)`).test(q)) return true
+    if (containsToken(q, value)) return true
   }
   return false
 }
@@ -321,7 +336,7 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
 
   return {
     async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
-      if (corpus.length === 0) return []
+      if (corpus.length === 0 || limit <= 0) return [] // no embedding work for no-op calls
       const queryVecs = await embedder.embed([question])
       const queryVec = queryVecs[0]
       // Fail fast (rather than a later unclear error) if the embedder didn't
