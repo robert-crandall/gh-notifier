@@ -16,7 +16,7 @@
 - So the rebuild does three ADHD-native jobs: **hold one thing** · **re-orient me on return** · **absorb the tedious finish**.
 - The home is **one project in focus**, not a grid. Everything else is one keystroke away.
 - On open, a **"since you were last here"** digest catches me up - blame-free, no streaks, no time-shaming.
-- **Copilot is the spine, not a status dot.** Delegate work and walk away - to the installed Copilot desktop app when it's running (cloud `gh agent-task` as the fallback) - and ask the project brain fast, read-only questions via the installed Copilot CLI. Focus *drives* installed Copilot; it doesn't bundle one.
+- **Copilot is the spine, not a status dot.** Delegate work and walk away - to the installed Copilot desktop app when it's running (cloud `gh agent-task` as the fallback) - and ask the project brain fast, read-only questions where the installed Copilot CLI only *ranks/recommends* the relevant sources while the app itself owns every live read. Focus *drives* installed Copilot; it doesn't bundle one.
 - Projects accumulate **hundreds** of dashboards, queries, and docs. I won't remember them and I won't curate bookmarks - so the agent holds a per-project **context brain** and I retrieve by *asking* ("how's the service mesh latency?"), not by navigating a list.
 - Notifications, inbox, routing, filters all still exist - demoted to *supporting inputs* behind a quick-switcher.
 
