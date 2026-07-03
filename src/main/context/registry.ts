@@ -112,6 +112,21 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
+// ── Write-time normalization (avoid stray-whitespace duplicate groups / lookups) ─
+
+/** Trims; falls back to a default when the result is empty. */
+function trimOr(value: string | undefined, fallback: string): string {
+  const t = (value ?? '').trim()
+  return t.length > 0 ? t : fallback
+}
+
+/** Trims a nullable string; empty/whitespace becomes null. */
+function trimToNull(value: string | null | undefined): string | null {
+  if (value === undefined || value === null) return null
+  const t = value.trim()
+  return t.length > 0 ? t : null
+}
+
 // ── Row → domain mappers ──────────────────────────────────────────────────────
 
 export function toResource(row: ResourceRow): Resource {
@@ -228,18 +243,18 @@ export function createResource(projectId: number, input: ResourceInput): Resourc
       projectId,
       title,
       input.kind ?? 'link',
-      input.source ?? 'generic',
-      input.service ?? '',
-      input.env ?? '',
+      trimOr(input.source, 'generic'),
+      (input.service ?? '').trim(),
+      (input.env ?? '').trim(),
       JSON.stringify(input.tags ?? {}),
-      input.url ?? null,
+      trimToNull(input.url),
       input.description ?? '',
       JSON.stringify(input.aliases ?? []),
       input.provenance ?? 'manual',
-      input.mcpServer ?? null,
-      input.toolName ?? null,
+      trimToNull(input.mcpServer),
+      trimToNull(input.toolName),
       input.toolArgs != null ? JSON.stringify(input.toolArgs) : null,
-      input.externalRef ?? null
+      trimToNull(input.externalRef)
     ) as ResourceRow
   return toResource(row)
 }
@@ -268,22 +283,22 @@ export function updateResource(id: number, patch: ResourcePatch): Resource {
     .get(
       title,
       patch.kind ?? current.kind,
-      patch.source ?? current.source,
-      patch.service ?? current.service,
-      patch.env ?? current.env,
+      trimOr(patch.source ?? current.source, 'generic'),
+      (patch.service ?? current.service).trim(),
+      (patch.env ?? current.env).trim(),
       patch.tags !== undefined ? JSON.stringify(patch.tags) : current.tags_json,
-      patch.url !== undefined ? patch.url : current.url,
+      patch.url !== undefined ? trimToNull(patch.url) : current.url,
       patch.description ?? current.description,
       patch.aliases !== undefined ? JSON.stringify(patch.aliases) : current.aliases_json,
-      patch.pinnedGroup !== undefined ? patch.pinnedGroup : current.pinned_group,
-      patch.mcpServer !== undefined ? patch.mcpServer : current.mcp_server,
-      patch.toolName !== undefined ? patch.toolName : current.tool_name,
+      patch.pinnedGroup !== undefined ? trimToNull(patch.pinnedGroup) : current.pinned_group,
+      patch.mcpServer !== undefined ? trimToNull(patch.mcpServer) : current.mcp_server,
+      patch.toolName !== undefined ? trimToNull(patch.toolName) : current.tool_name,
       patch.toolArgs !== undefined
         ? patch.toolArgs != null
           ? JSON.stringify(patch.toolArgs)
           : null
         : current.tool_args_json,
-      patch.externalRef !== undefined ? patch.externalRef : current.external_ref,
+      patch.externalRef !== undefined ? trimToNull(patch.externalRef) : current.external_ref,
       id
     ) as ResourceRow
   return toResource(row)

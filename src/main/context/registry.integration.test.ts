@@ -148,6 +148,27 @@ describe('updateResource', () => {
   it('throws for a missing record', () => {
     expect(() => updateResource(9999, { title: 'Nope' })).toThrow(/not found/)
   })
+
+  it('normalizes whitespace on write (trims fields, empty wiring -> null)', () => {
+    const pid = seedProject()
+    const r = createResource(pid, {
+      title: 'X',
+      source: '  datadog  ',
+      service: ' checkout ',
+      mcpServer: '  dd-1  ',
+      toolName: '  query  ',
+      url: '   ',
+    })
+    expect(r.source).toBe('datadog')
+    expect(r.service).toBe('checkout')
+    expect(r.mcpServer).toBe('dd-1')
+    expect(r.toolName).toBe('query')
+    expect(r.url).toBeNull() // whitespace-only -> null
+
+    const updated = updateResource(r.id, { source: '  splunk  ', mcpServer: '   ' })
+    expect(updated.source).toBe('splunk')
+    expect(updated.mcpServer).toBeNull() // whitespace-only -> null
+  })
 })
 
 // ── health mutators ───────────────────────────────────────────────────────────

@@ -20,6 +20,9 @@ export type McpConfigValidation =
 /** Validates + normalizes a user-supplied MCP server config before it's stored. */
 export function validateMcpServerInput(label: unknown, config: unknown): McpConfigValidation {
   const trimmedLabel = typeof label === 'string' ? label.trim() : ''
+  if (trimmedLabel.length === 0) {
+    return { ok: false, error: 'MCP server needs a label' }
+  }
 
   if (config === null || typeof config !== 'object' || Array.isArray(config)) {
     return { ok: false, error: 'MCP config must be an object' }

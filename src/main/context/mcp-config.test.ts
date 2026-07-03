@@ -22,6 +22,11 @@ describe('validateMcpServerInput', () => {
     expect(validateMcpServerInput('X', {}).ok).toBe(false)
   })
 
+  it('rejects an empty/whitespace label', () => {
+    expect(validateMcpServerInput('   ', { command: 'x' }).ok).toBe(false)
+    expect(validateMcpServerInput('', { command: 'x' }).ok).toBe(false)
+  })
+
   it('rejects a non-object config', () => {
     expect(validateMcpServerInput('X', null).ok).toBe(false)
     expect(validateMcpServerInput('X', 'nope').ok).toBe(false)
