@@ -79,9 +79,9 @@ export function buildRecommendPrompt(
   })
 
   const cardLines = [
-    card.purpose ? `purpose: ${card.purpose}` : '',
-    card.services.length > 0 ? `services: ${card.services.join(', ')}` : '',
-    card.activeGoal ? `active goal: ${card.activeGoal}` : '',
+    card.purpose ? `purpose: ${oneLine(card.purpose)}` : '',
+    card.services.length > 0 ? `services: ${oneLine(card.services.join(', '))}` : '',
+    card.activeGoal ? `active goal: ${oneLine(card.activeGoal)}` : '',
   ].filter((l) => l.length > 0)
 
   const prompt = [
