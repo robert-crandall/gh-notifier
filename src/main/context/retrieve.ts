@@ -381,12 +381,18 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
  */
 export function createDefaultRetriever(embedder: Embedder): Retriever {
   const embedding = createEmbeddingRetriever(embedder)
+  let warnedFailure = false
   return {
     async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
       try {
         return await embedding.retrieve(question, corpus, limit)
       } catch (err) {
-        console.error('[retrieve] embedding retriever failed; falling back to lexical:', err)
+        // Log once per retriever instance so a persistently-unavailable model
+        // (offline first run / missing runtime) doesn't spam on every resolve.
+        if (!warnedFailure) {
+          warnedFailure = true
+          console.error('[retrieve] embedding retriever failed; falling back to lexical:', err)
+        }
         return rankLexical(question, corpus, limit)
       }
     },
