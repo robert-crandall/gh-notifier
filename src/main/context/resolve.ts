@@ -50,8 +50,10 @@ function toCitation(resource: Resource): ResolveCitation {
 
 function noneResult(
   answer: string,
-  failureClass: ResolveResult['failureClass'] = null,
-  retrievalMode: ResolveResult['retrievalMode'] = 'lexical'
+  // Required (no default) so a future call site can't silently mislabel a
+  // degraded resolve — every path must state which retrieval produced it.
+  retrievalMode: ResolveResult['retrievalMode'],
+  failureClass: ResolveResult['failureClass'] = null
 ): ResolveResult {
   return {
     verdict: 'none',
@@ -73,7 +75,9 @@ export async function resolveQuestion(
   deps: ResolveDeps
 ): Promise<ResolveResult> {
   const trimmed = question.trim()
-  if (trimmed.length === 0) return noneResult('Ask a question to resolve a source.')
+  // No retrieval runs for an empty question; report the configured (semantic)
+  // path rather than 'lexical', which would imply a lexical retriever was wired.
+  if (trimmed.length === 0) return noneResult('Ask a question to resolve a source.', 'semantic')
 
   const card = getProjectCard(projectId)
   const corpus = listResources(projectId)
@@ -81,7 +85,7 @@ export async function resolveQuestion(
 
   // No candidates at all -> honestly, no source saved.
   if (candidates.length === 0) {
-    const result = noneResult('No source saved for that.', null, retrievalMode)
+    const result = noneResult('No source saved for that.', retrievalMode)
     recordResolution({
       projectId,
       resourceId: null,
@@ -101,7 +105,7 @@ export async function resolveQuestion(
   if (!run.ok || run.content === null) {
     // Infra/model failure of the decide call — fail closed, mark NO resource suspect.
     const failureClass = run.failure === 'timeout' ? 'timeout' : run.failure === 'model_bad_output' ? 'model_bad_output' : 'connector_down'
-    const result = noneResult("I couldn't complete that lookup just now — try again in a moment.", failureClass, retrievalMode)
+    const result = noneResult("I couldn't complete that lookup just now — try again in a moment.", retrievalMode, failureClass)
     recordResolution({
       projectId,
       resourceId: null,
@@ -117,7 +121,7 @@ export async function resolveQuestion(
   const validated = parseAndValidateDecision(run.content, opaqueIds)
   if (!validated.ok) {
     // The model produced something we can't trust — fail closed to none.
-    const result = noneResult("I couldn't resolve that reliably.", 'model_bad_output', retrievalMode)
+    const result = noneResult("I couldn't resolve that reliably.", retrievalMode, 'model_bad_output')
     recordResolution({
       projectId,
       resourceId: null,
@@ -133,7 +137,7 @@ export async function resolveQuestion(
   const decision = validated.decision
 
   if (decision.verdict === 'none') {
-    const result = noneResult('No source saved for that.', null, retrievalMode)
+    const result = noneResult('No source saved for that.', retrievalMode)
     recordResolution({
       projectId,
       resourceId: null,
@@ -177,7 +181,7 @@ export async function resolveQuestion(
   const cited = decision.citedCandidateId !== null ? candidateByOpaqueId.get(decision.citedCandidateId) : undefined
   if (cited === undefined) {
     // Should be impossible after validation, but fail closed.
-    const result = noneResult("I couldn't resolve that reliably.", 'model_bad_output', retrievalMode)
+    const result = noneResult("I couldn't resolve that reliably.", retrievalMode, 'model_bad_output')
     recordResolution({
       projectId,
       resourceId: null,

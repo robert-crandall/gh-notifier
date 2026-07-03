@@ -218,7 +218,10 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
         clarifyQuestion: null,
         candidates: [],
         failureClass: 'connector_down',
-        retrievalMode: 'lexical',
+        // The IPC call itself failed, so no retrieval ran; report the configured
+        // (semantic) path rather than 'lexical', which would imply a lexical
+        // retriever was wired and mislead logs/telemetry.
+        retrievalMode: 'semantic',
       })
     } finally {
       setResolving(false)
