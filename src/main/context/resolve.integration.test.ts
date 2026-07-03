@@ -10,7 +10,7 @@ vi.mock('../db', () => ({ getDb: vi.fn() }))
 
 import { getDb } from '../db'
 import { runMigrations } from '../db/migrate'
-import { createResource, getResource, upsertMcpServer, upsertProjectCard, connectResourceToServer, disconnectResource } from './registry'
+import { createResource, getResource, upsertMcpServer, upsertProjectCard, connectResourceToServer, disconnectResource, deleteMcpServer } from './registry'
 import { resolveQuestion, buildDecidePrompt, type ResolveDeps } from './resolve'
 import { createMcpRunner } from './mcp-client'
 import type { DecideRunner, DecideRunResult } from './copilot-run'
@@ -370,5 +370,23 @@ describe('resolveQuestion — real echo-MCP round-trip', () => {
     })
     expect(res.verdict).toBe('source_available_no_live_value')
     expect(res.liveValue).toBeNull()
+    expect(res.failureClass).toBeNull()
   }, 25_000)
+
+  it('a wired resource whose server was soft-deleted resolves to no-live-value with failureClass null (not connector_down)', async () => {
+    const { pid, resourceId } = wiredEchoResource()
+    // The resource stays wired (mcpServer='echo'), but the server config is gone.
+    // This is the branch the #80 fix targets: a deliberately-deleted config is a
+    // config state, NOT an infra outage — so failureClass is null and the source
+    // is not marked suspect. The runner must never be reached.
+    deleteMcpServer(pid, 'echo')
+    const res = await resolveQuestion(pid, 'checkout latency', {
+      decideRunner: citeC1,
+      mcpRunner: mcpNeverCalled,
+    })
+    expect(res.verdict).toBe('source_available_no_live_value')
+    expect(res.liveValue).toBeNull()
+    expect(res.failureClass).toBeNull()
+    expect(getResource(resourceId)?.suspect).toBe(false)
+  })
 })
