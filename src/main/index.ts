@@ -40,6 +40,7 @@ import { proposeFromUrl } from './context/capture'
 import { validateMcpServerInput, validateMcpServerPatch, validateToolName, validateToolArgs, newMcpServerId } from './context/mcp-config'
 import { listMcpTools } from './context/mcp-client'
 import { resolveQuestion } from './context/resolve'
+import { recommendResources } from './context/recommend'
 import { createResolveDeps } from './context/resolve-deps'
 import { delegateTask, appDelegateAvailability, buildAppSessionDeepLink, createDefaultDelegateDeps } from './agent/copilot-app/delegate'
 import { linkTodoSession } from './agent/copilot-app/store'
@@ -424,6 +425,10 @@ app.whenReady().then(async () => {
     broadcast('resources:updated')
     return result
   })
+  ipcMain.handle('resources:recommend', (_event, projectId: number, question: string) =>
+    // Read-only: retrieve + rank saved metadata only. No health mutation, so no broadcast.
+    recommendResources(projectId, question, resolveDeps)
+  )
   ipcMain.handle('resources:card-get', (_event, projectId: number) => getProjectCard(projectId))
   ipcMain.handle('resources:card-upsert', (_event, projectId: number, patch: ProjectCardPatch) =>
     upsertProjectCard(projectId, patch)

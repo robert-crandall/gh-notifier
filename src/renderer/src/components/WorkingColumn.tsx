@@ -246,7 +246,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
           />
         )}
         {tab === 'notes' && <NotesPanel detail={props.detail} onSaveNotes={props.onSaveNotes} />}
-        {tab === 'resources' && <ResourcePanel projectId={props.detail.id} showUndo={props.showUndo} />}
+        {tab === 'resources' && <ResourcePanel key={props.detail.id} projectId={props.detail.id} showUndo={props.showUndo} />}
         {tab === 'notifications' && <NotificationsPanel projectId={props.detail.id} onDelegate={props.onDelegate} />}
       </div>
     </div>
