@@ -343,12 +343,12 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
     async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
       if (corpus.length === 0 || limit <= 0) return [] // no embedding work for no-op calls
       const queryVecs = await embedder.embed([question])
-      const queryVec = queryVecs[0]
-      // Fail fast (rather than a later unclear error) if the embedder didn't
-      // return a query vector; createDefaultRetriever falls back to lexical.
-      if (queryVec === undefined) {
-        throw new Error('embedder returned no vector for the query')
+      // Assert exactly one vector for the single-text request so a buggy embedder
+      // fails fast (to the lexical fallback) instead of masking a contract break.
+      if (queryVecs.length !== 1) {
+        throw new Error(`embedder returned ${queryVecs.length} vectors for a single query`)
       }
+      const queryVec = queryVecs[0]
       const corpusVecs = await embedCorpus(corpus)
 
       const scored = corpus
