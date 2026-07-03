@@ -16,6 +16,10 @@ beforeEach(() => {
         return Promise.resolve(15)
       case 'settings:get-max-sync-days':
         return Promise.resolve(7)
+      case 'settings:get-app-delegate-enabled':
+        return Promise.resolve(false)
+      case 'settings:get-repos-root':
+        return Promise.resolve('~/repos')
       default:
         return Promise.resolve(undefined)
     }
@@ -60,5 +64,24 @@ describe('SettingsView appearance', () => {
     render(<SettingsView theme={theme()} onClose={vi.fn()} onOpenRules={onOpenRules} />)
     fireEvent.click(await screen.findByText('Notification rules'))
     expect(onOpenRules).toHaveBeenCalled()
+  })
+
+  it('toggles the Copilot app-delegate flag and persists it', async () => {
+    render(<SettingsView theme={theme()} onClose={vi.fn()} onOpenRules={vi.fn()} />)
+    const toggle = (await screen.findByText('Delegate to the Copilot app')).closest('label')?.querySelector('input')
+    expect(toggle).toBeTruthy()
+    expect((toggle as HTMLInputElement).checked).toBe(false)
+    fireEvent.click(toggle as HTMLInputElement)
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('settings:set-app-delegate-enabled', true)
+    )
+  })
+
+  it('saves the repos root', async () => {
+    render(<SettingsView theme={theme()} onClose={vi.fn()} onOpenRules={vi.fn()} />)
+    const input = (await screen.findByPlaceholderText('~/repos')) as HTMLInputElement
+    fireEvent.change(input, { target: { value: '~/code' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('settings:set-repos-root', '~/code'))
   })
 })
