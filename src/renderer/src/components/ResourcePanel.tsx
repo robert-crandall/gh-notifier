@@ -240,11 +240,13 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
         tags: p.tags,
         provenance: 'captured',
       })
+      // Only clear the proposal/URL once the create actually succeeded, so a
+      // failure doesn't silently discard what the user pasted/edited.
+      setProposal(null)
+      setCaptureUrl('')
       showUndo('Resource saved', () => fire(window.electron.ipc.invoke('resources:delete', created.id)))
     }
     fire(save(), 'resources:create')
-    setProposal(null)
-    setCaptureUrl('')
   }
 
   const openResource = (r: Resource): void => {
@@ -252,8 +254,13 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
   }
 
   const deleteResource = (r: Resource): void => {
-    fire(window.electron.ipc.invoke('resources:delete', r.id))
-    showUndo('Resource removed', () => fire(window.electron.ipc.invoke('resources:restore', r.id)))
+    // Await the delete before claiming success — otherwise a failed delete would
+    // still show an undo toast for a record that's actually still present.
+    const run = async (): Promise<void> => {
+      await window.electron.ipc.invoke('resources:delete', r.id)
+      showUndo('Resource removed', () => fire(window.electron.ipc.invoke('resources:restore', r.id)))
+    }
+    fire(run(), 'resources:delete')
   }
 
   const hasResources = groups.some((g) => g.resources.length > 0)
