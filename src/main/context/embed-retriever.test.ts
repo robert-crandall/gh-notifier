@@ -80,6 +80,16 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
     expect(res[0].resource.service).toBe('authzd')
   })
 
+  it('detects a hyphenated structured value typed exactly (orders-db)', async () => {
+    // tokenize() would split "orders-db" into order/db; the raw-string check must
+    // still fire the structured tie-break for the exact hyphenated service.
+    const ordersDb = makeResource({ title: 'DB one', aliases: ['login'], service: 'orders-db' })
+    const other = makeResource({ title: 'DB two', aliases: ['login'], service: 'billing-db' })
+    const retriever = createEmbeddingRetriever(topicEmbedder())
+    const res = await retriever.retrieve('login errors on orders-db', [ordersDb, other], 2)
+    expect(res[0].resource.service).toBe('orders-db')
+  })
+
   it('returns nothing when nothing is semantically close (feeds honest none)', async () => {
     const authn = makeResource({ title: 'Auth errors', aliases: ['login'], service: 'authnd' })
     const retriever = createEmbeddingRetriever(topicEmbedder())

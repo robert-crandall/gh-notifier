@@ -50,8 +50,15 @@ export function createLocalEmbedder(options: EmbedderOptions = {}): Embedder {
       const output = await extractor(texts, { pooling: 'mean', normalize: true })
       // output is a Tensor of shape [texts.length, dims]; tolist() gives number[][].
       const rows: unknown = output.tolist()
-      if (!Array.isArray(rows) || rows.length !== texts.length || !rows.every((r) => Array.isArray(r))) {
-        throw new Error(`unexpected embedding output shape for ${texts.length} texts`)
+      if (
+        !Array.isArray(rows) ||
+        rows.length !== texts.length ||
+        !rows.every(
+          (r) =>
+            Array.isArray(r) && r.length > 0 && r.every((n) => typeof n === 'number' && Number.isFinite(n))
+        )
+      ) {
+        throw new Error(`unexpected embedding output shape/values for ${texts.length} texts`)
       }
       return rows as number[][]
     },

@@ -173,15 +173,25 @@ function bonusFromStructValues(questionTokens: string[], structValues: Set<strin
   return bonus
 }
 
+/** Escapes a string for literal use inside a RegExp. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 /**
- * Boolean structured hit-check (Gate 0 note #3: authnd vs authzd). A question
- * token that IS one of the resource's structured values (service/env/tag) is a
- * hit. Decoupled from the lexical weight constant so the embedding retriever's
+ * Boolean structured hit-check (Gate 0 note #3: authnd vs authzd). True when a
+ * structured value (service/env/tag) appears as a whole token in the raw
+ * question — matched against the raw string, NOT tokenize(), so hyphenated
+ * values like "orders-db" or "us-east" are detected when typed exactly.
+ * Decoupled from the lexical weight constant so the embedding retriever's
  * tie-break is unaffected if EXACT_STRUCT_BONUS is ever re-tuned. Pure.
  */
-export function hasStructuredMatch(questionTokens: string[], resource: Resource): boolean {
-  const structValues = resourceStructValues(resource)
-  return questionTokens.some((qt) => structValues.has(qt))
+export function hasStructuredMatch(question: string, resource: Resource): boolean {
+  const q = question.toLowerCase()
+  for (const value of resourceStructValues(resource)) {
+    if (new RegExp(`(^|[^a-z0-9])${escapeRegExp(value)}([^a-z0-9]|$)`).test(q)) return true
+  }
+  return false
 }
 
 /** Pure relevance score of a resource for a set of question tokens. No health penalty. */
@@ -313,14 +323,13 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
         throw new Error('embedder returned no vector for the query')
       }
       const corpusVecs = await embedCorpus(corpus)
-      const questionTokens = tokenize(question)
 
       const scored = corpus
         .map((resource) => {
           const vec = corpusVecs.get(resource.id)
           if (vec === undefined) return { resource, score: 0 }
           const cosine = dot(queryVec, vec)
-          const bonus = hasStructuredMatch(questionTokens, resource) ? EMBED_STRUCT_BONUS : 0
+          const bonus = hasStructuredMatch(question, resource) ? EMBED_STRUCT_BONUS : 0
           return { resource, score: cosine + bonus }
         })
         // Drop only genuine noise; the LLM decides "none" over what survives.
