@@ -5,7 +5,7 @@ import { Icon } from './Icon'
 import { fire } from '../ipc'
 import styles from './McpTools.module.css'
 
-/** One tool name per line; trims and drops blanks. */
+/** One command argument per line; trims and drops blanks. */
 function parseArgsLines(text: string): string[] {
   return text
     .split('\n')

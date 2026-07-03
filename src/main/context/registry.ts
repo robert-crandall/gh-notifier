@@ -610,7 +610,7 @@ export function updateMcpServer(
 export function deleteMcpServer(projectId: number, id: string): void {
   getDb()
     .prepare(
-      "UPDATE project_mcp_servers SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND project_id = ? AND deleted_at IS NULL"
+      "UPDATE project_mcp_servers SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND project_id = ? AND deleted_at IS NULL"
     )
     .run(id, projectId)
 }
@@ -618,7 +618,9 @@ export function deleteMcpServer(projectId: number, id: string): void {
 /** Restores a soft-deleted MCP server (undo). Resource links were preserved. */
 export function restoreMcpServer(projectId: number, id: string): void {
   getDb()
-    .prepare('UPDATE project_mcp_servers SET deleted_at = NULL WHERE id = ? AND project_id = ?')
+    .prepare(
+      "UPDATE project_mcp_servers SET deleted_at = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND project_id = ?"
+    )
     .run(id, projectId)
 }
 

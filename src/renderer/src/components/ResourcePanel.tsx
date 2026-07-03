@@ -218,17 +218,19 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
   useEffect(() => {
     let active = true
     const load = async (): Promise<void> => {
+      // Load independently so a transient mcp-list failure can't blank the
+      // resources list (and vice versa).
       try {
-        const [g, s] = await Promise.all([
-          window.electron.ipc.invoke('resources:groups', projectId),
-          window.electron.ipc.invoke('resources:mcp-list', projectId),
-        ])
-        if (active) {
-          setGroups(g)
-          setServers(s)
-        }
+        const g = await window.electron.ipc.invoke('resources:groups', projectId)
+        if (active) setGroups(g)
       } catch (err) {
-        console.error('[Resources] load failed:', err)
+        console.error('[Resources] groups load failed:', err)
+      }
+      try {
+        const s = await window.electron.ipc.invoke('resources:mcp-list', projectId)
+        if (active) setServers(s)
+      } catch (err) {
+        console.error('[Resources] mcp-list load failed:', err)
       }
     }
     void load()
