@@ -99,9 +99,10 @@ export function getAppSessionsForProject(projectId: number): CopilotAppSession[]
 
 /**
  * Link a delegated app session to the todo it came from (#87). Transactional +
- * validated: the todo must exist (not soft-deleted), the session must exist, and
- * their projects must match EXACTLY (a null-project session can't attach to a
- * todo). Never trusts the renderer for the relationship. Idempotent per pair.
+ * validated: the todo must exist (not soft-deleted), the session must exist,
+ * their projects must match EXACTLY (a null-project session can't attach), and
+ * the session must not already belong to a different todo (a session comes from
+ * exactly one todo). Never trusts the renderer. Idempotent per pair.
  */
 export function linkTodoSession(todoId: number, sessionId: string): void {
   const db = getDb()
@@ -116,6 +117,13 @@ export function linkTodoSession(todoId: number, sessionId: string): void {
     if (session === undefined || session === null) throw new Error('SESSION_NOT_FOUND')
     if (session.project_id !== todo.project_id) {
       throw new Error('PROJECT_MISMATCH')
+    }
+    // A session belongs to exactly one todo — fail fast if it's already elsewhere.
+    const existing = db
+      .prepare('SELECT todo_id FROM todo_copilot_app_sessions WHERE session_id = ?')
+      .get(sessionId) as { todo_id: number } | undefined | null
+    if (existing !== undefined && existing !== null && existing.todo_id !== todoId) {
+      throw new Error('SESSION_ALREADY_LINKED')
     }
     db.prepare(
       'INSERT OR IGNORE INTO todo_copilot_app_sessions (todo_id, session_id) VALUES (?, ?)'

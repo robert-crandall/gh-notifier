@@ -118,6 +118,17 @@ describe('todo ↔ app-session links (#87)', () => {
     expect(getTodoAppSessionsForProject(pid).map((p) => p.session.id).sort()).toEqual(['app-1', 'app-2'])
   })
 
+  it('rejects linking one session to two different todos (a session comes from one todo)', () => {
+    const pid = makeProject('P')
+    const todoA = makeTodo(pid, 'A')
+    const todoB = makeTodo(pid, 'B')
+    insertAppSession({ id: 'app-1', projectId: pid, cwd: '/x', title: 't', repoOwner: null, repoName: null })
+    linkTodoSession(todoA, 'app-1')
+    linkTodoSession(todoA, 'app-1') // same pair → idempotent, no throw
+    expect(() => linkTodoSession(todoB, 'app-1')).toThrow('SESSION_ALREADY_LINKED')
+    expect(getTodoAppSessionsForProject(pid)).toHaveLength(1)
+  })
+
   it('rejects a missing todo / missing session / project mismatch', () => {
     const pid = makeProject('P')
     const other = makeProject('Other')
