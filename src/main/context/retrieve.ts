@@ -273,10 +273,11 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
     })
     if (missingIdx.length > 0) {
       const vecs = await embedder.embed(missingIdx.map((i) => docs[i]))
-      missingIdx.forEach((i, j) => {
-        if (cache.size >= MAX_CACHE) cache.clear() // simple bound; re-embeds next time
-        cache.set(docs[i], vecs[j])
-      })
+      // Bound the cache. If this batch would overflow, drop the OLD entries first
+      // (never mid-batch — that would evict vectors just computed for this corpus
+      // and leave current resources with no vector, wrongly filtering them out).
+      if (cache.size + missingIdx.length > MAX_CACHE) cache.clear()
+      missingIdx.forEach((i, j) => cache.set(docs[i], vecs[j]))
     }
     const byId = new Map<number, number[]>()
     corpus.forEach((r, i) => {

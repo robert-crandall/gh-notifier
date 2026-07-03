@@ -28,9 +28,9 @@ export interface AssembledContext {
 }
 
 export interface AssembleOptions {
-  /** How many candidates to retrieve before capping. Default 10. */
+  /** How many candidates to retrieve before capping. Default 15. */
   poolSize?: number
-  /** Hard cap on candidates injected into the decision stage. Default 5. */
+  /** Hard cap on candidates injected into the decision stage. Default 8. */
   limit?: number
   /** Minimum healthy candidates to guarantee in the final set when available. Default 2. */
   healthyReserve?: number

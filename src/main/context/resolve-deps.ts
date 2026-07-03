@@ -27,7 +27,11 @@ export function ensureIsolatedCopilotHome(baseDir: string): string {
 
 export function createResolveDeps(baseDir: string, model?: string): ResolveDeps {
   const home = ensureIsolatedCopilotHome(baseDir)
-  const embedder = createLocalEmbedder({ cacheDir: join(baseDir, 'model-cache') })
+  const cacheDir = join(baseDir, 'model-cache')
+  // Ensure the model cache dir exists — otherwise the embedder can fail to load
+  // and silently fall back to lexical retrieval in production.
+  mkdirSync(cacheDir, { recursive: true })
+  const embedder = createLocalEmbedder({ cacheDir })
   return {
     decideRunner: createCopilotDecideRunner({ isolatedHome: home, cwd: home, model }),
     mcpRunner: createMcpRunner(),
