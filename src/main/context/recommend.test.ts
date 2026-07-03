@@ -40,7 +40,7 @@ describe('buildRecommendPrompt', () => {
     expect(b.candidateByOpaqueId.get('c1')?.resource.id).toBe(42)
     expect(b.prompt).toContain('id: c1')
     expect(b.prompt).not.toContain('id: 42')
-    expect(b.prompt).toContain('{"ids":["c1","c3"]}')
+    expect(b.prompt).toContain('{"ids":["c1"]}')
     expect(b.prompt.toLowerCase()).toContain('untrusted')
     expect(b.prompt).toContain('Question: what should I monitor?')
   })
