@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type ColorMode = 'light' | 'dark' | 'system'
-export type ResolvedColorMode = 'light' | 'dark'
+export type ColorMode = 'light' | 'dark' | 'dim' | 'high-contrast' | 'system'
+export type ResolvedColorMode = 'light' | 'dark' | 'dim' | 'high-contrast'
 export type Accent = 'slate' | 'blue' | 'green' | 'violet'
 export type Density = 'compact' | 'comfortable'
 
 export const ACCENTS: Accent[] = ['slate', 'blue', 'green', 'violet']
-export const COLOR_MODES: ColorMode[] = ['light', 'dark', 'system']
+export const COLOR_MODES: ColorMode[] = ['system', 'light', 'dark', 'dim', 'high-contrast']
 export const DENSITIES: Density[] = ['compact', 'comfortable']
+
+/** Human-readable label for a color mode (e.g. 'high-contrast' → 'High contrast'). */
+export const COLOR_MODE_LABELS: Record<ColorMode, string> = {
+  system: 'System',
+  light: 'Light',
+  dark: 'Dark',
+  dim: 'Dim',
+  'high-contrast': 'High contrast',
+}
 
 const COLOR_MODE_KEY = 'focus-color-mode'
 const ACCENT_KEY = 'focus-accent'

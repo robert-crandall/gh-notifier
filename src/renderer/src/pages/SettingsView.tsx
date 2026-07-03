@@ -9,6 +9,7 @@ import {
   type UseThemeResult,
   ACCENTS,
   COLOR_MODES,
+  COLOR_MODE_LABELS,
   DENSITIES,
 } from '../hooks/useTheme'
 import {
@@ -101,7 +102,18 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
           <h2 className={styles.sectionTitle}>Appearance</h2>
           <div className={styles.field}>
             <span className={styles.label}>Color mode</span>
-            <Segmented<ColorMode> options={COLOR_MODES} value={theme.colorMode} onChange={theme.setColorMode} />
+            <select
+              className={styles.select}
+              value={theme.colorMode}
+              onChange={(e) => theme.setColorMode(e.target.value as ColorMode)}
+              aria-label="Color mode"
+            >
+              {COLOR_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {COLOR_MODE_LABELS[mode]}
+                </option>
+              ))}
+            </select>
           </div>
           <div className={styles.field}>
             <span className={styles.label}>Accent</span>
