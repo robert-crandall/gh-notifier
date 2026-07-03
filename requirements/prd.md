@@ -16,7 +16,7 @@
 - So the rebuild does three ADHD-native jobs: **hold one thing** · **re-orient me on return** · **absorb the tedious finish**.
 - The home is **one project in focus**, not a grid. Everything else is one keystroke away.
 - On open, a **"since you were last here"** digest catches me up - blame-free, no streaks, no time-shaming.
-- **Copilot is the spine, not a status dot.** Two modes: delegate-and-walk-away (cloud agent) and sit-and-steer (embedded local agent chat).
+- **Copilot is the spine, not a status dot.** Delegate work and walk away - to the installed Copilot desktop app when it's running (cloud `gh agent-task` as the fallback) - and ask the project brain fast, read-only questions via the installed Copilot CLI. Focus *drives* installed Copilot; it doesn't bundle one.
 - Projects accumulate **hundreds** of dashboards, queries, and docs. I won't remember them and I won't curate bookmarks - so the agent holds a per-project **context brain** and I retrieve by *asking* ("how's the service mesh latency?"), not by navigating a list.
 - Notifications, inbox, routing, filters all still exist - demoted to *supporting inputs* behind a quick-switcher.
 
@@ -70,9 +70,9 @@ Held against my *ADHD Profile* and *Cognitive Interface Model*, three things are
 │  ○ project B  │  Wire the retry backoff into the sync loop    │
 │  ○ project C  │  [ Hand to Copilot ]  [ Edit ]  [ Done ]      │
 │               ├───────────────┬──────────────────────────────┤
-│  inbox (2)    │  Todos/Notes  │  Copilot (embedded agent)     │
-│               │  Resources ⌕  │  live streaming · tool status │
-│               │  Notifications│  inline permission cards      │
+│  inbox (2)    │  Todos/Notes  │  Copilot (delegated)          │
+│               │  Resources ⌕  │  session link · live status   │
+│               │  Notifications│  ask the brain (read-only)    │
 └───────────────┴───────────────┴──────────────────────────────┘
 ```
 
@@ -80,7 +80,7 @@ Held against my *ADHD Profile* and *Cognitive Interface Model*, three things are
 - **Re-entry digest (top of focus):** the signature feature. See below.
 - **Next action (center):** one line, big, editable inline. Primary button: **Hand to Copilot**. Secondary: Edit, Done.
 - **Working column:** Todos · Notes (scratch) · **Resources** (ask-first, see below) · Notifications for this project, as tabs. Progressive disclosure - operating shows the whole territory, but only for the *one* focus.
-- **Copilot panel (right):** the embedded agent conversation scoped to this project. This is the Scout-style spine (details below).
+- **Copilot panel (right):** the delegated-session view for this project - a link to the session running in the installed Copilot app plus its live status, and a read-only ask-the-brain box (details below).
 - **⌘K quick-switcher:** everything not the focus - jump projects, open inbox, settings, new project, launch a task. Keeps the surface calm while making the whole territory a keystroke away.
 
 Nothing here forces me to hold several unrelated projects in my head at once. The focus is deep and coupled; the rest is a landmark I navigate to.
@@ -136,22 +136,18 @@ Resurfacing rules (blame-free, no counts, no streaks):
 This is the deliberate answer to "won't single-focus make me forget everything else?" - the machine holds the periphery so I don't have to.
 
 ### Agent session (the Copilot spine)
-A unit of Copilot work attached to a project. Two sources, **one session model + one state machine**:
+A unit of Copilot work attached to a project. Focus **drives installed Copilot** rather than embedding one - two delegate paths, **one session model**:
 
-1. **Local embedded agent (interactive - "sit and steer")**
-   - Runs the **Copilot CLI as a subprocess** via `@github/copilot-sdk`, cwd = the project's local repo/worktree.
-   - Live: streaming text, in-flight tool-status row, reasoning, token usage.
-   - **Inline permission cards** (not modal dialogs) for tool actions: allow / allow-for-session / always-allow (persists a *pattern*, not a literal) / deny.
-   - This is where I *work with* the agent on the interesting, coupled problem.
+1. **Delegate to the installed Copilot desktop app (preferred)**
+   - Over the app's local WebSocket: `create_session` (cwd = the project's local checkout) → `send_message`. Focus stores the returned session id.
+   - The app runs it locally; Focus shows a link to that session plus its live status (working / needs you / done).
+   - This is the app's **unofficial** internal protocol, so it's isolated behind one adapter (`src/main/agent/copilot-app/`) with the cloud path as the resilient fallback. Requires the app to be running and, for local delegation, a checkout of the repo on disk.
 
-2. **Cloud agent task (delegate - "walk away")**
-   - The existing `gh agent-task` path. Launch from a next-action / todo / notification, then leave.
-   - It surfaces back through the re-entry digest and the rail status dot when it's done or needs me.
-   - This is where I offload the tedious **last 10%**.
+2. **Cloud agent task (fallback / walk-away)**
+   - The existing `gh agent-task` path. Used when the desktop app isn't running (or no local checkout resolves), and for pure delegate-and-leave work.
+   - Surfaces back through the re-entry digest and the rail status dot when it's done or needs me.
 
-Both are `AgentSession` rows with a shared status machine:
-`idle → submitted → streaming → waiting(needs input / needs approval) → done | error`
-(cloud maps `in_progress → waiting → pr_ready → completed` onto the same shape).
+Both are session rows with a shared status shape (`in_progress → waiting(needs input) → pr_ready/done → completed | error`). Focus is **read-only toward both**: it launches/opens sessions and reads their status; it never steers them turn-by-turn.
 
 ### Inbox / routing / filters (demoted, not deleted)
 Unmapped notifications land in the Inbox (behind ⌘K, not on the home). Routing precedence unchanged: thread mapping > repo rule > inbox. Filters (author/org/repo/reason/state/type, AND logic, global floor + per-repo additive) unchanged. These are *inputs* that feed the digest and can spawn agent work - not the main surface.
@@ -185,18 +181,17 @@ Unmapped notifications land in the Inbox (behind ⌘K, not on the home). Routing
 - **Retrieve:** ask in English ("how's the service mesh latency?") → resolver picks the source (inspectable citation), runs it via the wired MCP server when possible, answers with the live value + link. Honest when a source is missing.
 - **Maintenance as a byproduct of use:** failed retrievals / broken links mark records *suspect* automatically; stale records surface only when relevant to the current question, never as a chore list. Semantic rewrites of important mappings need one-tap approval.
 - **Browse:** auto-grouped Resources view (by tool / service / derived topic); grouping computed, overrides rare + visible. Never a taxonomy I maintain.
-- **MCP wiring:** the embedded agent is configured with the project's relevant MCP servers (Datadog, Splunk, Kusto, …) - Scout-style - so retrieval *answers* instead of just pointing.
+- **Recommend across sources (read-only):** for a broader operational question ("rolling out this flag - what should I monitor?"), the resolver returns the top-k relevant resources with a one-line *why* each and citations, ranked by a fast Copilot model over resource metadata. It never asserts a live value it didn't read - citations mean "relevant," not "verified."
+- **MCP wiring:** the app-owned resolver reads the project's wired MCP servers (Datadog, Splunk, Kusto, …) directly - so retrieval *answers* with a live value instead of just pointing. The app owns every live read; Copilot only ranks/recommends, never executes the read.
 
-### 5. Copilot - embedded local agent (the new spine)
-- Per-project agent conversation panel. Start a turn from the next action, a todo, a notification, or a freeform prompt.
-- Backend-agnostic **session port** (borrowed from Scout): shared code never couples to the SDK; Copilot is one backend, cloud `gh agent-task` is another, future backends slot in.
-- Renderer subscribes to **throttled `session:view` snapshots** (~100ms), not raw event firehose. State machine drives the UI.
-- Inline permission cards with risk/category badges + output preview; always-allow persists a reproducible *pattern* with an **explicit, narrow scope** (per-project, per-tool, bounded arg pattern) so it can't silently widen into blanket permission.
-- Transcripts persisted locally and **re-hydrated on resume** so returning to a session re-orients me.
-- **Sandbox:** the agent works in a per-project git **worktree** by default, so "YOLO speed" has a trailing safety net (recoverable by design, matches my risk profile).
+### 5. Copilot - delegate to the installed app (the spine)
+- Hand a task to Copilot from the next action, a todo, a notification, or a freeform prompt. Focus delegates it to the **installed GitHub Copilot desktop app** over its local WebSocket and stores the returned session id - no bundled CLI, no embedded chat to steer.
+- Layered delegation: the desktop app when it's running and a trusted local checkout resolves → cloud `gh agent-task` otherwise. An explicit "open untracked in the app" deep link is available as a manual escape hatch.
+- The delegated session shows up **on its todo**: a "Copilot working on this →" link (`github-app://sessions/<id>`) plus live status, only for sessions Focus created. Degrades gracefully when the app is closed (last-known status; the link still launches it).
+- The WS is the app's **unofficial** protocol, contained behind one adapter (`src/main/agent/copilot-app/`) so an app update can only break one seam; the cloud path stays the resilient fallback. Never log/leak the WS token (it rotates per app launch).
 
-### 6. Copilot - cloud agent tasks (delegate)
-- Launch a `gh agent-task` from any action/todo/notification with one click; then walk away.
+### 6. Copilot - cloud agent tasks (delegate / fallback)
+- Launch a `gh agent-task` from any action/todo/notification with one click; then walk away. Also the **resilient fallback** when the desktop app isn't running or no local checkout resolves.
 - Tracked in the same session model; status dot on the rail; result folded into the re-entry digest.
 - Read-only w.r.t. GitHub beyond launching + unsubscribe (no commenting, no review write-back) in v1.
 
@@ -243,57 +238,54 @@ Non-negotiable constraints (carried from v1, reinforced by the profiles):
 
 New/changed pieces:
 
-- **Agent backend port** (`IAgentBackend`): `start(prompt, ctx)`, `send(sessionId, msg)`, `abort(sessionId)`, `resolvePermission(...)`, event stream. Implementations: `copilot-local` (SDK/CLI subprocess) and `github-cloud` (`gh agent-task`). Shared session/session-view code is backend-blind.
-- **Turn accumulator + normalizer:** raw SDK/CLI events → canonical `TurnEvent`s → throttled `session:view` snapshots broadcast to the renderer.
-- **Agent session store:** metadata in SQLite; transcripts on disk (encrypted via Electron `safeStorage`, Scout-style); re-hydrate on resume.
+- **Copilot-app adapter** (`src/main/agent/copilot-app/`): the single seam over the desktop app's **unofficial** local WebSocket - discover (port/token), a typed protocol (`create_session`/`send_message`/`session_created`/status), a trusted-cwd resolver, and a delegate strategy that falls back to cloud `gh agent-task`. Contained so an app update can only break one module.
+- **Delegated-session tracking:** store the session ids Focus created; read their status **read-only** (targeted query of the app's local session store, or its WS event stream, filtered to our ids) so the todo chip + rail dot reflect live progress. Only ever surface sessions Focus delegated.
+- **Session stores:** cloud `gh agent-task` sessions mirror into `copilot_sessions` (synced from `gh agent-task list`); delegated desktop-app sessions live in a dedicated `copilot_app_sessions` store (id, project, cwd, status) so the two kinds never collide. No local transcript store - the app owns its own transcripts.
 - **Context & resource subsystem** (the make-or-break piece): a **two-layer context model**, not a markdown dump.
   - *Project card* (small, always injected): purpose, repos, services, active goal, aliases.
   - *Resource registry* (typed records in SQLite, retrieved on demand): title, kind, url-or-query, service, env, aliases, description, provenance, confidence, last_used, last_verified, failure_count.
   - *Context assembler* (own module, tested + hard-capped): given a question, injects the project card + top-scored resources only.
-  - *Resolver* (own module, backed by the eval harness): fuzzy question → cited source; runs it via MCP when available; returns "no source saved" instead of guessing; marks records suspect on failure.
-- **Per-project MCP config:** the `copilot-local` backend starts each session with the project's wired MCP servers (Datadog / Splunk / Kusto / …) so retrieval can run live queries, not just point at links (Scout pattern).
-- **Worktree manager:** create/reuse a git worktree per project for the local agent's cwd; the safety net for agent file writes.
+  - *Resolver* (own module, backed by the eval harness): fuzzy question → cited source; runs it via MCP when available; returns "no source saved" instead of guessing; marks records suspect on failure. A fast read-only **recommendation** mode ranks the top-k relevant resources over their metadata via the installed `copilot` CLI (fast model), citations-as-suggestions, never asserting an unread value.
+- **App-owned MCP reads:** the resolver reads the project's wired MCP servers directly to produce live values; the decide/recommend steps spawn the installed `copilot` CLI **tool-less** (no MCP, no writes) so Copilot only ranks and the app owns every read. No per-agent MCP wiring to bundle.
+- **Trusted-cwd resolver:** desktop delegation needs a real on-disk checkout; Focus only delegates over WS when a configured, validated checkout matches the exact `owner/repo` (a git worktree with a matching remote), else it falls back to cloud. Focus never manages the user's checkouts itself.
 - **Digest engine:** computes the re-entry digest from `last_seen_at` + session/notification/PR deltas, and classifies projects parked vs. drifting.
 
 ```
 main/
   agent/
-    port.ts              # IAgentBackend + shared session types
-    copilot-local/       # @github/copilot-sdk subprocess backend (+ per-project MCP config)
-    github-cloud/        # gh agent-task backend (evolves current src/main/copilot/)
-    normalize.ts         # raw events -> canonical TurnEvent
-    session-view.ts      # accumulate + throttle -> snapshots
-    store.ts             # metadata (SQLite) + transcript (disk, encrypted)
-    worktree.ts          # per-project git worktree sandbox
+    copilot-app/         # the one adapter over the desktop app's local WS
+      discover.ts        # read ~/.copilot/run/ws.{port,token} (read-only)
+      protocol.ts        # typed create_session/send_message/session_* messages
+      cwd.ts             # trusted local-checkout resolver (exact owner/repo)
+      client.ts          # one ws connection (no Origin header)
+      delegate.ts        # WS -> cloud fallback strategy (discriminated result)
+      store.ts           # copilot_app_sessions (id, project, cwd, status)
+    github-cloud/        # gh agent-task path (evolves current src/main/copilot/)
   context/
     registry.ts          # typed resource records (SQLite) + provenance/health
     assemble.ts          # two-layer context: project card + on-demand retrieval (capped)
-    resolve.ts           # fuzzy question -> cited source (+ eval harness)
+    resolve.ts           # fuzzy question -> cited source; recommend top-k (fast CLI)
     capture.ts           # paste/enrich -> proposed typed record
   digest/                # re-entry digest + parked/drifting classification
   notifications/         # sync + routing + filters (existing, demoted)
   db/ auth/ snooze.ts    # existing
-shared/  ipc-channels.ts # + agent + context + digest channels
+shared/  ipc-channels.ts # + delegate + session-status + resolve/recommend channels
 renderer/
   pages/Focus.tsx        # the single-focus home (replaces Dashboard as primary)
-  components/FocusRail, ReentryDigest, AgentPanel, PermissionCard, QuickSwitcher, ResourcePanel
+  components/FocusRail, ReentryDigest, DelegateComposer, TodoSessionChip, QuickSwitcher, ResourcePanel
 ```
 
 ---
 
-## Open technical validations (do NOT hand-wave these)
+## Open technical validations
 
-Before committing to the embedded-agent milestones, verify:
+**The resolver is the make-or-break spike (Gate 0), kept as a regression harness.** The embedded-agent validations that used to live here - SDK availability/licensing, CLI bundling/auth, worktree ergonomics, permission-card coverage, per-agent MCP config - are **retired**: a WS spike proved Focus can drive the *installed* Copilot desktop app and reuse the *installed* `copilot` CLI, so there's no 254 MB binary to bundle, sign, or license, and no embedded permission surface to build.
 
-1. **Resolver quality (the make-or-break spike, do this FIRST).** Pick one real project; ingest ~25 real dashboards/queries as typed records with known-correct answers. Ask ~20 real fuzzy questions ("how's mesh latency?") **plus deliberate negative/ambiguous cases** (things with no saved source, and things that could match two sources). Define the **pass rubric up front**: fixed corpus, expected source ID per question, ≥ target % right-source-chosen, ≥ target % correct "no source saved" on negatives, and correct clarify-or-top-candidates behavior on ambiguous ones. Keep it as a regression harness in the repo. **If this doesn't clear the bar, the "project brain" thesis (MVP C/D) is wrong - but MVP A/B don't depend on it, so they can still ship.**
-2. **`@github/copilot-sdk` availability + licensing** for a personal, non-Microsoft app. Scout bundles it; confirm we can depend on it (or fall back to spawning the `copilot` CLI directly with our own protocol). **Blocker-class risk.**
-3. **Copilot CLI bundling / auth** - how the subprocess authenticates (reuse `~/.copilot`? isolated home like Scout's `~/.scout/copilot`?), and build-size impact.
-4. **Worktree sandbox ergonomics** - creating/cleaning worktrees per project without surprising the user's real checkout.
-5. **Permission-card coverage** - which tool categories must prompt (shell, file write, network) vs. auto-allow (reads).
-6. **Resource enrichment + per-project MCP config** - enriching a pasted dashboard URL may need auth (Datadog/Splunk/Kusto behind SSO); prefer resolving titles/metadata *through the wired MCP server* over scraping the URL. Confirm the SDK lets us attach per-project MCP servers and that the observability MCPs expose the lookups the resolver needs.
-7. **`better-sqlite3` + new native deps** still build against Electron's ABI under `bun run setup`.
+What remains worth stating honestly:
 
-These become spikes at the front of the milestone plan. Note the dependency: the resolver spike (1) validates the *core value* and needs almost none of the embedded-agent machinery (2-6) - it can run against MCP tools directly. If (2) fails, the embedded-agent spine degrades gracefully to a richer cloud-agent experience; the project brain survives either way.
+1. **Resolver quality (the make-or-break gate — Gate 0).** One real project, ~25 typed records, ~20 fuzzy questions plus deliberate negative/ambiguous cases, a pass rubric fixed up front, kept as a regression harness. This gates the brain (MVP C + the read-only recommendation). MVP A/B never depended on it.
+2. **The desktop-app WS is unofficial and fragile.** It only works when the app is running; the token rotates per launch; local delegation needs a checkout on disk. Mitigation: one contained adapter + cloud `gh agent-task` fallback + honest degradation when the app is closed. If a spike-verified mechanic stops holding against a new app build, the adapter is the one place to fix, and the cloud fallback keeps delegation working meanwhile.
+3. **`better-sqlite3` + `ws`** build/run under `bun run setup` against Electron's ABI (`ws` is pure-JS, main-process only).
 
 ---
 
@@ -313,10 +305,10 @@ These become spikes at the front of the milestone plan. Note the dependency: the
 
 ## Success criteria (staged gates, smallest-first)
 
-Not one all-or-nothing bar. Each gate ships daily personal value on its own, and the risky embedded-agent platform is deliberately last.
+Not one all-or-nothing bar. Each gate ships daily personal value on its own, and the Copilot-app integration is deliberately last.
 
 **Gate 0 - Resolver spike (proof, not shippable):**
-- The resolver picks the right source and answers with a citation (or honestly says "no source saved") on the real eval set - run against MCP tools directly, no app shell yet. This gates everything else; if it fails, rethink the brain before building UI.
+- The resolver picks the right source and answers with a citation (or honestly says "no source saved") on the real eval set - run against MCP tools directly, no app shell yet. This gates MVP C and the read-only recommendation path (not MVP A/B); if it fails, rethink the brain before building the brain UI.
 
 **MVP A - Single-focus shell + re-entry:**
 1. Home opens to a single focused project; other projects are landmarks + ⌘K, never a competing dashboard.
@@ -332,13 +324,14 @@ Not one all-or-nothing bar. Each gate ships daily personal value on its own, and
 7. Adding a resource is one low-friction step (paste → agent proposes a typed record → one-tap accept); no hand-built tree/taxonomy; browse view auto-grouped.
 8. Stale/broken resources are marked suspect on failure and surface only when relevant - no chore list.
 
-**MVP D - Embedded local agent (only after Gate 0 + validations 2-6 pass):**
-9. I can start a **local embedded** Copilot turn scoped to a project, watch it stream, and approve tool actions via scoped inline permission cards.
-10. Agent sessions persist and re-hydrate on resume.
+**Copilot-app integration (only after Gate 0 + MVP A-C) - replaces the retired embedded agent:**
+9. I hand a task to Copilot and it runs in the **installed desktop app** over its local WS (cloud `gh agent-task` when the app isn't running) - no bundled binary.
+10. A delegated todo shows a live "Copilot is on it" status and a one-click link that reopens the session in the app.
+11. Asking a broad operational question ("what should I monitor for this rollout?") returns the top-k relevant saved resources with a why each and citations - read-only, via the installed CLI - or honestly says it has nothing saved.
 
 **Cross-cutting (land across the gates, not a final big-bang):**
-11. Notifications still sync, route, filter, auto-close, and unsubscribe - from the demoted surface.
-12. Snooze works in all three modes with no nagging.
-13. The Primer-inspired design system (monochrome + blue, Mona Sans/Monaspace, Lucide, data-attribute theming) in light + dark + one more mode. Deliberately not gating the cognition-layer proof.
+12. Notifications still sync, route, filter, auto-close, and unsubscribe - from the demoted surface.
+13. Snooze works in all three modes with no nagging.
+14. The Primer-inspired design system (monochrome + blue, Mona Sans/Monaspace, Lucide, data-attribute theming) in light + dark + one more mode. Deliberately not gating the cognition-layer proof.
 
 **Success looks like:** I open the app, it tells me *one* thing and catches me up on what moved. I ask it "how's X?" and it answers from the project's brain, with a citation, instead of making me hunt a bookmark. The boring finish is one click from being handed to Copilot. Drifting threads come back to me on their own. Nothing nags, nothing shames, nothing needs grooming.
