@@ -94,6 +94,11 @@
   color: var(--text-3);
 }
 
+.todoItem {
+  display: flex;
+  flex-direction: column;
+}
+
 .todoRow {
   display: flex;
   align-items: center;

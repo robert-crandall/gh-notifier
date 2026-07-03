@@ -139,6 +139,12 @@ export type AppDelegateSkipReason =
 /** Default "repos root" used to resolve local checkouts (`~` expanded in main). */
 export const DEFAULT_REPOS_ROOT = '~/repos'
 
+/** A delegated app session paired with the todo it was launched from (#87). */
+export interface TodoAppSession {
+  todoId: number
+  session: CopilotAppSession
+}
+
 
 export interface Project {
   id: number
@@ -930,6 +936,26 @@ export type IpcChannels = {
   'copilot:open-app-session': {
     args: [sessionId: string]
     result: void
+  }
+
+  /**
+   * Links a delegated desktop-app session to the todo it was launched from (#87).
+   * Validated + transactional in main: the todo and session must exist and their
+   * projects must match. Idempotent per (todo, session) pair.
+   */
+  'todos:link-session': {
+    args: [todoId: number, sessionId: string]
+    result: void
+  }
+
+  /**
+   * Returns the delegated app sessions linked to a project's todos, each paired
+   * with its todo id, after refreshing their live status from the app's local
+   * store (read-only). Only surfaces sessions Focus created.
+   */
+  'copilot:app-sessions-for-project': {
+    args: [projectId: number]
+    result: TodoAppSession[]
   }
 
   /** Reads the app-delegate feature flag (default false). */

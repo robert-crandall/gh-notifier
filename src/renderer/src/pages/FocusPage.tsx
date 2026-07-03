@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MoreHorizontal, Moon, Trash2, Sun, BellRing } from 'lucide-react'
-import type { LaunchTarget, Project, ProjectTodo } from '@shared/ipc-channels'
+import type { CopilotAppSession, LaunchTarget, Project, ProjectTodo, TodoAppSession } from '@shared/ipc-channels'
 import { Icon } from '../components/Icon'
 import { ReentryDigest } from '../components/ReentryDigest'
 import { NextAction } from '../components/NextAction'
@@ -38,8 +38,51 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
   } = useProjectDetail(props.projectId, props.onProjectChanged)
   const { digest, dismiss } = useDigest(props.projectId)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [delegate, setDelegate] = useState<{ prompt: string; fixedRepo?: LaunchTarget } | null>(null)
+  const [delegate, setDelegate] = useState<{ prompt: string; fixedRepo?: LaunchTarget; todoId?: number } | null>(null)
+  const [appSessions, setAppSessions] = useState<TodoAppSession[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
+
+  // Load + refresh the delegated app sessions on this project's todos (#87): on
+  // project change, on window focus, and on a light interval while mounted.
+  const projectId = props.projectId
+  useEffect(() => {
+    let active = true
+    const load = async (): Promise<void> => {
+      try {
+        const list = await window.electron.ipc.invoke('copilot:app-sessions-for-project', projectId)
+        if (active) setAppSessions(list)
+      } catch (err) {
+        console.error('[FocusPage] Failed to load app sessions:', err)
+      }
+    }
+    void load()
+    const onFocus = (): void => { void load() }
+    window.addEventListener('focus', onFocus)
+    const timer = window.setInterval(() => { void load() }, 20000)
+    return () => {
+      active = false
+      window.removeEventListener('focus', onFocus)
+      window.clearInterval(timer)
+    }
+  }, [projectId])
+
+  const appSessionsByTodo = useMemo(() => {
+    const map = new Map<number, CopilotAppSession[]>()
+    for (const { todoId, session } of appSessions) {
+      const list = map.get(todoId)
+      if (list) list.push(session)
+      else map.set(todoId, [session])
+    }
+    return map
+  }, [appSessions])
+
+  const reloadAppSessions = async (): Promise<void> => {
+    try {
+      setAppSessions(await window.electron.ipc.invoke('copilot:app-sessions-for-project', projectId))
+    } catch (err) {
+      console.error('[FocusPage] Failed to reload app sessions:', err)
+    }
+  }
 
   if (isLoading || detail === null) {
     return <main className={styles.main} />
@@ -152,7 +195,8 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
         onToggleTodo={(todo) => fire(updateTodo(todo.id, { done: !todo.done }))}
         onDeleteTodo={handleDeleteTodo}
         onSaveNotes={(notes) => fire(updateProject({ notes }))}
-        onDelegate={(prompt, fixedRepo) => setDelegate({ prompt, fixedRepo })}
+        onDelegate={(prompt, fixedRepo, todoId) => setDelegate({ prompt, fixedRepo, todoId })}
+        appSessionsByTodo={appSessionsByTodo}
         showUndo={props.showUndo}
       />
 
@@ -172,6 +216,19 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
                 'Open'
               )
             } else {
+              // App session: link it to the originating todo (#87) so its live
+              // status shows there, then refresh the todo chips.
+              const todoId = delegate.todoId
+              if (todoId !== undefined) {
+                void (async () => {
+                  try {
+                    await window.electron.ipc.invoke('todos:link-session', todoId, result.session.id)
+                    await reloadAppSessions()
+                  } catch (err) {
+                    console.error('[FocusPage] Failed to link app session to todo:', err)
+                  }
+                })()
+              }
               const message =
                 result.kind === 'app-send-failed'
                   ? 'Opened a Copilot session, but I couldn’t hand off the task — open it to retry.'

@@ -16,10 +16,11 @@ import {
   Trash2,
   Sparkles,
 } from 'lucide-react'
-import type { NotificationThread, NotificationType, ProjectDetail, ProjectTodo, LaunchTarget } from '@shared/ipc-channels'
+import type { NotificationThread, NotificationType, ProjectDetail, ProjectTodo, LaunchTarget, CopilotAppSession } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
 import { ResourcePanel } from './ResourcePanel'
+import { TodoSessionChip } from './TodoSessionChip'
 import { fire, openExternal } from '../ipc'
 import styles from './WorkingColumn.module.css'
 
@@ -31,8 +32,10 @@ interface WorkingColumnProps {
   onToggleTodo: (todo: ProjectTodo) => void
   onDeleteTodo: (todo: ProjectTodo) => void
   onSaveNotes: (notes: string) => void
-  /** Hand a todo or notification to a cloud Copilot agent task. */
-  onDelegate: (prompt: string, fixedRepo?: LaunchTarget) => void
+  /** Hand a todo or notification to Copilot. `todoId` is set when it came from a todo. */
+  onDelegate: (prompt: string, fixedRepo?: LaunchTarget, todoId?: number) => void
+  /** Delegated Copilot desktop-app sessions per todo id (#87). */
+  appSessionsByTodo: Map<number, CopilotAppSession[]>
   /** Undo toast used by the Resources tab's destructive actions. */
   showUndo: (message: string, onUndo: () => void, actionLabel?: string) => void
 }
@@ -53,7 +56,8 @@ function TodosPanel({
   onToggleTodo,
   onDeleteTodo,
   onDelegate,
-}: Pick<WorkingColumnProps, 'detail' | 'onCreateTodo' | 'onToggleTodo' | 'onDeleteTodo' | 'onDelegate'>): JSX.Element {
+  appSessionsByTodo,
+}: Pick<WorkingColumnProps, 'detail' | 'onCreateTodo' | 'onToggleTodo' | 'onDeleteTodo' | 'onDelegate' | 'appSessionsByTodo'>): JSX.Element {
   const [text, setText] = useState('')
   const active = detail.todos.filter((t) => !t.done)
   const done = detail.todos.filter((t) => t.done)
@@ -78,15 +82,20 @@ function TodosPanel({
         />
       </div>
       {active.map((t) => (
-        <div key={t.id} className={styles.todoRow}>
-          <button type="button" className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
-          <span className={styles.todoText}>{t.text}</span>
-          <button type="button" className={styles.rowAction} onClick={() => onDelegate(t.text)} aria-label="Delegate to Copilot" title="Delegate to Copilot">
-            <Icon icon={Sparkles} size={13} />
-          </button>
-          <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
-            <Icon icon={Trash2} size={13} />
-          </button>
+        <div key={t.id} className={styles.todoItem}>
+          <div className={styles.todoRow}>
+            <button type="button" className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
+            <span className={styles.todoText}>{t.text}</span>
+            <button type="button" className={styles.rowAction} onClick={() => onDelegate(t.text, undefined, t.id)} aria-label="Delegate to Copilot" title="Delegate to Copilot">
+              <Icon icon={Sparkles} size={13} />
+            </button>
+            <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
+              <Icon icon={Trash2} size={13} />
+            </button>
+          </div>
+          {(appSessionsByTodo.get(t.id) ?? []).map((s) => (
+            <TodoSessionChip key={s.id} session={s} />
+          ))}
         </div>
       ))}
       {done.length > 0 && <div className={styles.divider} />}
@@ -233,6 +242,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
             onToggleTodo={props.onToggleTodo}
             onDeleteTodo={props.onDeleteTodo}
             onDelegate={props.onDelegate}
+            appSessionsByTodo={props.appSessionsByTodo}
           />
         )}
         {tab === 'notes' && <NotesPanel detail={props.detail} onSaveNotes={props.onSaveNotes} />}
