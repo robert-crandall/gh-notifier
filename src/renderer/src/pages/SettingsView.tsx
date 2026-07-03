@@ -266,7 +266,6 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
                 spellCheck={false}
                 disabled={reposRoot === null}
                 onChange={(e) => setReposRoot(e.target.value)}
-                onBlur={saveReposRoot}
               />
               <button
                 type="button"

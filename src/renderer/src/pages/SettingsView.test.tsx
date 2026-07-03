@@ -81,7 +81,7 @@ describe('SettingsView appearance', () => {
     render(<SettingsView theme={theme()} onClose={vi.fn()} onOpenRules={vi.fn()} />)
     const input = (await screen.findByPlaceholderText('~/repos')) as HTMLInputElement
     fireEvent.change(input, { target: { value: '~/code' } })
-    fireEvent.blur(input)
+    fireEvent.click(screen.getByText('Save'))
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('settings:set-repos-root', '~/code'))
   })
 })

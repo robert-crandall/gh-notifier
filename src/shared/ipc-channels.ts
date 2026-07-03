@@ -105,8 +105,8 @@ export interface CopilotAppSession {
   status: CopilotAppSessionStatus
   repoOwner: string | null
   repoName: string | null
-  createdAt: string              // ISO 8601
-  updatedAt: string              // ISO 8601
+  createdAt: string              // SQLite datetime, UTC ("YYYY-MM-DD HH:MM:SS")
+  updatedAt: string              // SQLite datetime, UTC ("YYYY-MM-DD HH:MM:SS")
 }
 
 /** Payload to delegate a task (tries the desktop app, falls back to cloud). */
