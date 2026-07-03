@@ -47,6 +47,10 @@ describe('resolver retrieval eval (offline, synthetic)', () => {
     // The adversarial questions are genuinely lexically disjoint: lexical
     // retrieval falls well short of Gate 0's 100% top-3 bar. This assertion
     // guards against the eval quietly becoming lexically-aligned (a false pass).
+    if (adversarial.topKRecall >= 0.9) {
+      // If lexical unexpectedly does well, the set probably re-aligned — surface it.
+      console.error('adversarial set no longer disjoint for lexical; hits:', JSON.stringify(adversarial, null, 2))
+    }
     expect(adversarial.topKRecall).toBeLessThan(0.9)
   })
 })

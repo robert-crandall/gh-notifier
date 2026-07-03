@@ -117,14 +117,18 @@ interface FieldTokens {
   structValues: Set<string>
 }
 
-/** Precompute a resource's tokenized fields. Pure; exported for tests. */
-export function resourceTokens(resource: Resource): FieldTokens {
-  const tagValues = Object.values(resource.tags)
-  const structValues = new Set<string>(
-    [resource.service, resource.env, ...tagValues]
+/** The lowercased structured values (service/env/tag) for exact-match matching. Cheap. */
+export function resourceStructValues(resource: Resource): Set<string> {
+  return new Set<string>(
+    [resource.service, resource.env, ...Object.values(resource.tags)]
       .map((v) => v.toLowerCase().trim())
       .filter((v) => v.length > 0)
   )
+}
+
+/** Precompute a resource's tokenized fields. Pure; exported for tests. */
+export function resourceTokens(resource: Resource): FieldTokens {
+  const tagValues = Object.values(resource.tags)
   return {
     title: tokenize(resource.title),
     aliases: resource.aliases.flatMap(tokenize),
@@ -133,7 +137,7 @@ export function resourceTokens(resource: Resource): FieldTokens {
     tags: tagValues.flatMap(tokenize),
     description: tokenize(resource.description),
     source: tokenize(resource.source),
-    structValues,
+    structValues: resourceStructValues(resource),
   }
 }
 
@@ -177,7 +181,9 @@ function bonusFromStructValues(questionTokens: string[], structValues: Set<strin
  * the semantic layer either. Pure.
  */
 export function structuredMatchBonus(questionTokens: string[], resource: Resource): number {
-  return bonusFromStructValues(questionTokens, resourceTokens(resource).structValues)
+  // Only needs the structured values — avoid the full field tokenization, which
+  // matters in the embedding retriever's per-resource-per-query hot path.
+  return bonusFromStructValues(questionTokens, resourceStructValues(resource))
 }
 
 /** Pure relevance score of a resource for a set of question tokens. No health penalty. */
