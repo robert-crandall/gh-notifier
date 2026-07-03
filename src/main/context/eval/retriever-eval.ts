@@ -31,7 +31,7 @@ async function main(): Promise<void> {
     const at3 = await runRetrievalEval(r, 3, qs)
     const at8 = await runRetrievalEval(r, 8, qs)
     console.log(
-      `${label.padEnd(26)} recall@3 ${(at3.top3Recall * 100).toFixed(1).padStart(5)}%   recall@8 ${(at8.top3Recall * 100).toFixed(1).padStart(5)}%   (n=${at3.fuzzyTotal})`
+      `${label.padEnd(26)} recall@3 ${(at3.topKRecall * 100).toFixed(1).padStart(5)}%   recall@8 ${(at8.topKRecall * 100).toFixed(1).padStart(5)}%   (n=${at3.fuzzyTotal})`
     )
   }
   await report('lexical   / aligned', lexicalRetriever, aligned)

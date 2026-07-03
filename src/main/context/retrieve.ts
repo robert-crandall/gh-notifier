@@ -160,6 +160,15 @@ function fieldHits(questionTokens: string[], fieldTokens: string[]): number {
   return score
 }
 
+/** Adds the exact-match bonus for question tokens that hit a precomputed struct-value set. */
+function bonusFromStructValues(questionTokens: string[], structValues: Set<string>): number {
+  let bonus = 0
+  for (const qt of questionTokens) {
+    if (structValues.has(qt)) bonus += EXACT_STRUCT_BONUS
+  }
+  return bonus
+}
+
 /**
  * Structured exact-match bonus for a resource: a question token that IS one of
  * the resource's structured values (service/env/tag) decisively boosts it. This
@@ -168,12 +177,7 @@ function fieldHits(questionTokens: string[], fieldTokens: string[]): number {
  * the semantic layer either. Pure.
  */
 export function structuredMatchBonus(questionTokens: string[], resource: Resource): number {
-  const structValues = resourceTokens(resource).structValues
-  let bonus = 0
-  for (const qt of questionTokens) {
-    if (structValues.has(qt)) bonus += EXACT_STRUCT_BONUS
-  }
-  return bonus
+  return bonusFromStructValues(questionTokens, resourceTokens(resource).structValues)
 }
 
 /** Pure relevance score of a resource for a set of question tokens. No health penalty. */
@@ -190,9 +194,8 @@ export function scoreResource(questionTokens: string[], resource: Resource): num
     fieldHits(questionTokens, ft.description) * WEIGHTS.description +
     fieldHits(questionTokens, ft.source) * WEIGHTS.source
 
-  // Structured exact-match dominance: a question token that IS a structured
-  // value (service/env/tag) decisively boosts this record over near siblings.
-  score += structuredMatchBonus(questionTokens, resource)
+  // Structured exact-match dominance, reusing the already-computed struct values.
+  score += bonusFromStructValues(questionTokens, ft.structValues)
 
   return score
 }

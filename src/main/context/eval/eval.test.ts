@@ -31,8 +31,8 @@ describe('resolver retrieval eval (offline, synthetic)', () => {
   })
 
   it('lexical clears 100% top-3 recall on the ALIGNED set (Gate 0 bar)', () => {
-    if (aligned.top3Recall < 1) console.error('aligned top-3 misses:', JSON.stringify(aligned.misses, null, 2))
-    expect(aligned.top3Recall).toBe(1)
+    if (aligned.topKRecall < 1) console.error('aligned top-3 misses:', JSON.stringify(aligned.misses, null, 2))
+    expect(aligned.topKRecall).toBe(1)
   })
 
   it('lexical clears >= 80% top-1 recall on the ALIGNED set', () => {
@@ -47,7 +47,7 @@ describe('resolver retrieval eval (offline, synthetic)', () => {
     // The adversarial questions are genuinely lexically disjoint: lexical
     // retrieval falls well short of Gate 0's 100% top-3 bar. This assertion
     // guards against the eval quietly becoming lexically-aligned (a false pass).
-    expect(adversarial.top3Recall).toBeLessThan(0.9)
+    expect(adversarial.topKRecall).toBeLessThan(0.9)
   })
 })
 

@@ -95,11 +95,14 @@ export function toResourceFixtures(records: EvalRecord[]): {
 }
 
 export interface RetrievalReport {
+  /** The k used for the recall@k metric (top-k membership). */
+  k: number
   fuzzyTotal: number
   top1Hits: number
-  top3Hits: number
+  topKHits: number
   top1Recall: number
-  top3Recall: number
+  /** Fraction of fuzzy questions whose expected source appears in the top `k`. */
+  topKRecall: number
   ambiguousTotal: number
   ambiguousSurfaced: number
   /** Per-question detail for debugging failures. */
@@ -116,7 +119,7 @@ export async function runRetrievalEval(
 
   let fuzzyTotal = 0
   let top1Hits = 0
-  let top3Hits = 0
+  let topKHits = 0
   let ambiguousTotal = 0
   let ambiguousSurfaced = 0
   const misses: RetrievalReport['misses'] = []
@@ -129,7 +132,7 @@ export async function runRetrievalEval(
       fuzzyTotal++
       if (rankedIds[0] === question.expectedId) top1Hits++
       if (rankedIds.slice(0, k).includes(question.expectedId)) {
-        top3Hits++
+        topKHits++
       } else {
         misses.push({ q: question.q, expectedId: question.expectedId, got: rankedIds.slice(0, k) })
       }
@@ -142,11 +145,12 @@ export async function runRetrievalEval(
   }
 
   return {
+    k,
     fuzzyTotal,
     top1Hits,
-    top3Hits,
+    topKHits,
     top1Recall: fuzzyTotal === 0 ? 0 : top1Hits / fuzzyTotal,
-    top3Recall: fuzzyTotal === 0 ? 0 : top3Hits / fuzzyTotal,
+    topKRecall: fuzzyTotal === 0 ? 0 : topKHits / fuzzyTotal,
     ambiguousTotal,
     ambiguousSurfaced,
     misses,
