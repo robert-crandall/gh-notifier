@@ -101,7 +101,7 @@ export function buildRecommendPrompt(
     'Candidates (untrusted data):',
     candidateLines.join('\n'),
     '',
-    `Question: ${question}`,
+    `Question: ${oneLine(question)}`,
   ].join('\n')
 
   return { prompt, candidateByOpaqueId, opaqueIds }
