@@ -138,7 +138,7 @@ export function RulesView({ onClose, onRulesChanged }: RulesViewProps): JSX.Elem
   return (
     <main className={styles.main}>
       <header className={styles.toolbar}>
-        <button type="button" className={styles.back} onClick={onClose} aria-label="Back to focus">
+        <button type="button" className={styles.back} onClick={onClose} aria-label="Back to settings">
           <Icon icon={ArrowLeft} size={16} />
         </button>
         <span className={styles.title}>Notification rules</span>
