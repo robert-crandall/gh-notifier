@@ -230,10 +230,13 @@ describe('resolveQuestion', () => {
       'checkout latency',
       deps(decideRunnerReturning('{"verdict":"confident","citedCandidateId":"c1"}'), mcpNeverCalled)
     )
-    // Boundary violation is treated as a config/infra issue, not a live value.
+    // Boundary violation: no live value, and (per the failureClass fix) this is a
+    // config/boundary state, not an infra outage — so failureClass is null. The
+    // security guarantee (the cross-project server is never run) holds because
+    // mcpNeverCalled would throw if invoked.
     expect(res.verdict).toBe('source_available_no_live_value')
     expect(res.liveValue).toBeNull()
-    expect(res.failureClass).toBe('connector_down')
+    expect(res.failureClass).toBeNull()
   })
 
   it('treats an empty/whitespace mcpServer or toolName as no live source', async () => {

@@ -3,7 +3,7 @@ import { assemble, type AssembleOptions, type AssembledCandidate } from './assem
 import { buildDecidePrompt } from './prompt'
 import { parseAndValidateDecision } from './verdict-contract'
 import type { DecideRunner } from './copilot-run'
-import type { McpRunner } from './mcp-client'
+import { sanitizeMcpText, type McpRunner } from './mcp-client'
 import {
   getProjectCard,
   listResources,
@@ -241,8 +241,9 @@ async function runCitedSource(
 
   const server = getMcpServer(mcpServerId)
   if (server === null || server.projectId !== projectId) {
-    // The wiring is gone or points outside this project (config/boundary issue),
-    // not the source itself — do NOT mark suspect.
+    // The wiring is gone/soft-deleted or points outside this project — a
+    // config/boundary state, NOT an infra outage. So failureClass is null (not
+    // connector_down) and the source is not marked suspect.
     markResourceUsed(resource.id, false)
     const result: ResolveResult = {
       verdict: 'source_available_no_live_value',
@@ -251,7 +252,7 @@ async function runCitedSource(
       liveValue: null,
       clarifyQuestion: null,
       candidates: [],
-      failureClass: 'connector_down',
+      failureClass: null,
       retrievalMode,
     }
     recordResolution({
@@ -261,7 +262,7 @@ async function runCitedSource(
       verdict: 'source_available_no_live_value',
       citedResourceId: resource.id,
       answer: result.answer,
-      failureClass: 'connector_down',
+      failureClass: null,
     })
     return result
   }
@@ -294,9 +295,12 @@ async function runCitedSource(
 
   // The read failed. Classify bad-source vs bad-infra.
   const failure = read.failure ?? 'connector_down'
+  // Scrub any configured secret the server may have echoed into the reason before
+  // it's persisted to last_error_message and shown in the suspect tooltip.
+  const reason = read.reason !== null ? sanitizeMcpText(read.reason, server.config.env) : null
   if (failure === 'query_invalid' || failure === 'no_data') {
     // The SOURCE itself is bad -> mark suspect + down-rank going forward.
-    markResourceSuspect(resource.id, failure === 'no_data' ? 'no_data' : 'invalid', failure, read.reason)
+    markResourceSuspect(resource.id, failure === 'no_data' ? 'no_data' : 'invalid', failure, reason)
   }
   // Infra failures (auth_missing/connector_down/timeout) do NOT mark the source suspect.
 

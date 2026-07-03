@@ -379,6 +379,59 @@ export interface McpStdioConfig {
 
 export type McpServerInput = Pick<McpServerConfig, 'label'> & { config: McpStdioConfig }
 
+/**
+ * Redacted view of a wired MCP server for the RENDERER. Deliberately carries no
+ * env VALUES — only the key names — so secrets never cross the IPC boundary. The
+ * full config (with env values) stays main-only via getMcpServer(), used solely
+ * by the resolver's app-owned MCP read.
+ */
+export interface McpServerSummary {
+  id: string
+  projectId: number
+  label: string
+  command: string
+  args: string[]
+  /** Names of the configured env vars; values are intentionally omitted. */
+  envKeys: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Explicit patch for an existing MCP server. Secrets flow ONE WAY: `envSet` adds
+ * or replaces keys, `envDelete` removes keys, and any env key not named in either
+ * is preserved server-side. This avoids a "leave blank to keep" guess and means
+ * the renderer never has to hold or re-send a stored secret value.
+ */
+export interface McpServerPatch {
+  label?: string
+  command?: string
+  args?: string[]
+  envSet?: Record<string, string>
+  envDelete?: string[]
+}
+
+/** A tool advertised by a wired MCP server (from listTools). */
+export interface McpToolInfo {
+  name: string
+  description?: string
+  inputSchema?: unknown
+}
+
+/**
+ * Result of probing a server's tools — the honest "does it start, and what can
+ * it do". A success means the server process started and answered a listTools
+ * handshake; it does NOT prove a real read (or auth for one) will succeed.
+ */
+export type McpToolsResult = { ok: true; tools: McpToolInfo[] } | { ok: false; error: string }
+
+/** Wires a resource to a configured server tool so a resolve can pull a live value. */
+export interface McpConnectInput {
+  serverId: string
+  toolName: string
+  toolArgs: Record<string, unknown>
+}
+
 /** A proposed typed record produced from a pasted/dropped URL, for one-tap accept. */
 export interface CaptureProposal {
   title: string
@@ -897,22 +950,52 @@ export type IpcChannels = {
     result: ProjectCard
   }
 
-  /** Lists a project's wired MCP servers. */
+  /** Lists a project's live (non-deleted) wired MCP servers, REDACTED (no secret values). */
   'resources:mcp-list': {
     args: [projectId: number]
-    result: McpServerConfig[]
+    result: McpServerSummary[]
   }
 
-  /** Creates or updates a wired MCP server. Pass null id to create. */
-  'resources:mcp-upsert': {
-    args: [projectId: number, id: string | null, input: McpServerInput]
-    result: McpServerConfig
+  /** Creates a wired MCP server (full config incl. secrets, entered once). Returns a redacted summary. */
+  'resources:mcp-create': {
+    args: [projectId: number, input: McpServerInput]
+    result: McpServerSummary
   }
 
-  /** Deletes a wired MCP server (scoped to its project). */
+  /** Updates a wired MCP server via an explicit patch (secrets one-way). Returns a redacted summary. */
+  'resources:mcp-update': {
+    args: [projectId: number, id: string, patch: McpServerPatch]
+    result: McpServerSummary
+  }
+
+  /** Soft-deletes a wired MCP server (undoable; resource links are preserved). */
   'resources:mcp-delete': {
     args: [projectId: number, id: string]
     result: void
+  }
+
+  /** Restores a soft-deleted MCP server. */
+  'resources:mcp-restore': {
+    args: [projectId: number, id: string]
+    result: void
+  }
+
+  /** Probes a server: starts it and lists its tools (honest connection check; no tool run). */
+  'resources:mcp-list-tools': {
+    args: [projectId: number, id: string]
+    result: McpToolsResult
+  }
+
+  /** Wires a resource to a configured server tool (validated in main). Returns the updated resource. */
+  'resources:mcp-connect': {
+    args: [resourceId: number, input: McpConnectInput]
+    result: Resource
+  }
+
+  /** Clears a resource's live wiring. Returns the updated resource. */
+  'resources:mcp-disconnect': {
+    args: [resourceId: number]
+    result: Resource
   }
 }
 

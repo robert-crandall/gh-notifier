@@ -371,6 +371,15 @@
   flex: none;
 }
 
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--accent-text);
+  flex: none;
+}
+
 .rowAction {
   background: none;
   border: none;

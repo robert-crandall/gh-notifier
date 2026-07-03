@@ -23,9 +23,14 @@ import {
   getProjectCard,
   upsertProjectCard,
   listMcpServers,
+  listMcpServerSummaries,
   getMcpServer,
   upsertMcpServer,
+  updateMcpServer,
   deleteMcpServer,
+  restoreMcpServer,
+  connectResourceToServer,
+  disconnectResource,
 } from './registry'
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
@@ -307,7 +312,7 @@ describe('MCP servers', () => {
     expect(getMcpServer('dd-1')).toBeNull()
   })
 
-  it('deleting a server clears referencing resources and is project-scoped', () => {
+  it('soft-deletes (preserving resource links), is project-scoped, and restores losslessly', () => {
     const a = seedProject('A')
     const b = seedProject('B')
     upsertMcpServer(a, 'srv', { label: 'S', config: { command: 'x', args: [], env: {} } })
@@ -317,10 +322,17 @@ describe('MCP servers', () => {
     deleteMcpServer(b, 'srv')
     expect(getMcpServer('srv')).not.toBeNull()
 
-    // Correct project: server gone AND the resource's dangling reference cleared.
+    // Correct project: the server reads as gone (so resolves degrade to no live
+    // value), but the resource link is PRESERVED so the delete is undoable.
     deleteMcpServer(a, 'srv')
     expect(getMcpServer('srv')).toBeNull()
-    expect(getResource(r.id)?.mcpServer).toBeNull()
+    expect(listMcpServers(a)).toHaveLength(0)
+    expect(getResource(r.id)?.mcpServer).toBe('srv')
+
+    // Restore brings the server back with the link intact — lossless undo.
+    restoreMcpServer(a, 'srv')
+    expect(getMcpServer('srv')).not.toBeNull()
+    expect(getResource(r.id)?.mcpServer).toBe('srv')
   })
 
   it('rejects a cross-project upsert of an existing server id', () => {
@@ -330,6 +342,73 @@ describe('MCP servers', () => {
     expect(() => upsertMcpServer(b, 'shared-id', { label: 'B', config: { command: 'y', args: [], env: {} } })).toThrow(
       /another project/
     )
+  })
+})
+
+describe('MCP server summaries + patch merge + wiring', () => {
+  it('summaries redact env values but keep the key names', () => {
+    const pid = seedProject()
+    upsertMcpServer(pid, 's', {
+      label: 'S',
+      config: { command: 'dd', args: ['--stdio'], env: { DD_KEY: 'secret', DD_APP: 'secret2' } },
+    })
+    const [summary] = listMcpServerSummaries(pid)
+    expect(summary).toMatchObject({ id: 's', label: 'S', command: 'dd', args: ['--stdio'] })
+    expect(summary.envKeys.sort()).toEqual(['DD_APP', 'DD_KEY'])
+    // The serialized summary must not contain any secret value.
+    expect(JSON.stringify(summary)).not.toContain('secret')
+  })
+
+  it('updateMcpServer merges env one-way (set/replace, delete, preserve)', () => {
+    const pid = seedProject()
+    upsertMcpServer(pid, 's', {
+      label: 'S',
+      config: { command: 'c', args: [], env: { KEEP: 'k', REPLACE: 'old', DROP: 'd' } },
+    })
+    updateMcpServer(pid, 's', {
+      label: 'S2',
+      envSet: { REPLACE: 'new', ADDED: 'a' },
+      envDelete: ['DROP'],
+    })
+    const server = getMcpServer('s')
+    expect(server?.label).toBe('S2')
+    expect(server?.config.env).toEqual({ KEEP: 'k', REPLACE: 'new', ADDED: 'a' })
+  })
+
+  it('updateMcpServer preserves command/args when omitted', () => {
+    const pid = seedProject()
+    upsertMcpServer(pid, 's', { label: 'S', config: { command: 'c', args: ['--x'], env: {} } })
+    updateMcpServer(pid, 's', { label: 'S2', envSet: {}, envDelete: [] })
+    const server = getMcpServer('s')
+    expect(server?.config.command).toBe('c')
+    expect(server?.config.args).toEqual(['--x'])
+  })
+
+  it('connectResourceToServer wires a resource and rejects a cross-project server', () => {
+    const a = seedProject('A')
+    const b = seedProject('B')
+    upsertMcpServer(a, 'srv-a', { label: 'A', config: { command: 'x', args: [], env: {} } })
+    upsertMcpServer(b, 'srv-b', { label: 'B', config: { command: 'x', args: [], env: {} } })
+    const r = createResource(a, { title: 'Checkout' })
+
+    const wired = connectResourceToServer(r.id, 'srv-a', 'query', { metric: 'p99' })
+    expect(wired.mcpServer).toBe('srv-a')
+    expect(wired.toolName).toBe('query')
+    expect(wired.toolArgs).toEqual({ metric: 'p99' })
+
+    expect(() => connectResourceToServer(r.id, 'srv-b', 'query', {})).toThrow(/another project/)
+    expect(() => connectResourceToServer(r.id, 'missing', 'query', {})).toThrow(/not found/)
+  })
+
+  it('disconnectResource clears the wiring', () => {
+    const pid = seedProject()
+    upsertMcpServer(pid, 'srv', { label: 'S', config: { command: 'x', args: [], env: {} } })
+    const r = createResource(pid, { title: 'Checkout' })
+    connectResourceToServer(r.id, 'srv', 'query', {})
+    const cleared = disconnectResource(r.id)
+    expect(cleared.mcpServer).toBeNull()
+    expect(cleared.toolName).toBeNull()
+    expect(cleared.toolArgs).toBeNull()
   })
 })
 
