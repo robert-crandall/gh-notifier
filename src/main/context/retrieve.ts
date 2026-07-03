@@ -174,16 +174,10 @@ function bonusFromStructValues(questionTokens: string[], structValues: Set<strin
 }
 
 /**
- * Structured exact-match bonus for a resource: a question token that IS one of
- * the resource's structured values (service/env/tag) decisively boosts it. This
- * is the disambiguation from Gate 0 note #3 (authnd vs authzd) and is shared by
- * both the lexical and embedding retrievers so near-name siblings never confuse
- * the semantic layer either. Pure.
- */
-/**
- * Boolean structured hit-check, decoupled from the lexical weight constant. The
- * embedding retriever uses this for its tie-break so it is unaffected if
- * EXACT_STRUCT_BONUS is ever re-tuned (or zeroed) for lexical scoring. Pure.
+ * Boolean structured hit-check (Gate 0 note #3: authnd vs authzd). A question
+ * token that IS one of the resource's structured values (service/env/tag) is a
+ * hit. Decoupled from the lexical weight constant so the embedding retriever's
+ * tie-break is unaffected if EXACT_STRUCT_BONUS is ever re-tuned. Pure.
  */
 export function hasStructuredMatch(questionTokens: string[], resource: Resource): boolean {
   const structValues = resourceStructValues(resource)
@@ -311,7 +305,13 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
   return {
     async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
       if (corpus.length === 0) return []
-      const [queryVec] = await embedder.embed([question])
+      const queryVecs = await embedder.embed([question])
+      const queryVec = queryVecs[0]
+      // Fail fast (rather than a later unclear error) if the embedder didn't
+      // return a query vector; createDefaultRetriever falls back to lexical.
+      if (queryVec === undefined) {
+        throw new Error('embedder returned no vector for the query')
+      }
       const corpusVecs = await embedCorpus(corpus)
       const questionTokens = tokenize(question)
 
