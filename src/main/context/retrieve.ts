@@ -281,9 +281,14 @@ export function buildEmbedText(resource: Resource): string {
     .join('. ')
 }
 
-/** The text embedded for a query. Centralized so golden + runtime match exactly. */
+/**
+ * The text embedded for a query. Centralized so golden + runtime match exactly.
+ * Trims so incidental leading/trailing whitespace from a call site (some trim,
+ * some pass the raw question) can't produce a second embed-text/golden key that
+ * differs only by whitespace.
+ */
 export function buildQueryText(question: string): string {
-  return question
+  return question.trim()
 }
 
 function dot(a: number[], b: number[]): number {
