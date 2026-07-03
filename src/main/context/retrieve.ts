@@ -362,7 +362,7 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
           return { resource, score: cosine + bonus }
         })
         // Drop only genuine noise; the LLM decides "none" over what survives.
-        .filter((c) => c.score > EMBED_MIN_SCORE)
+        .filter((c) => c.score >= EMBED_MIN_SCORE)
 
       scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
       return scored.slice(0, Math.max(0, limit))
