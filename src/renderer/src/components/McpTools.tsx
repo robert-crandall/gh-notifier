@@ -13,6 +13,15 @@ function parseArgsLines(text: string): string[] {
     .filter((s) => s.length > 0)
 }
 
+/** Stringify that never throws (server-controlled inputSchema may hold a BigInt etc.). */
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
 interface EnvRow {
   key: string
   value: string
@@ -260,7 +269,11 @@ export function ConnectResourceDialog({
   servers: McpServerSummary[]
   onClose: () => void
 }): JSX.Element {
-  const [serverId, setServerId] = useState(resource.mcpServer ?? servers[0]?.id ?? '')
+  const [serverId, setServerId] = useState(
+    resource.mcpServer !== null && servers.some((s) => s.id === resource.mcpServer)
+      ? resource.mcpServer
+      : (servers[0]?.id ?? '')
+  )
   const [toolName, setToolName] = useState(resource.toolName ?? '')
   const [argsText, setArgsText] = useState(JSON.stringify(resource.toolArgs ?? {}, null, 2))
   const [tools, setTools] = useState<McpToolInfo[] | null>(null)
@@ -359,7 +372,7 @@ export function ConnectResourceDialog({
               {selectedTool?.inputSchema !== undefined && (
                 <details className={styles.schema}>
                   <summary>Input schema</summary>
-                  <pre>{JSON.stringify(selectedTool.inputSchema, null, 2)}</pre>
+                  <pre>{safeStringify(selectedTool.inputSchema)}</pre>
                 </details>
               )}
             </div>
