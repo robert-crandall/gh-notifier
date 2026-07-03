@@ -49,8 +49,11 @@ export function createLocalEmbedder(options: EmbedderOptions = {}): Embedder {
       const extractor = await getPipeline()
       const output = await extractor(texts, { pooling: 'mean', normalize: true })
       // output is a Tensor of shape [texts.length, dims]; tolist() gives number[][].
-      const rows = output.tolist() as number[][]
-      return rows
+      const rows: unknown = output.tolist()
+      if (!Array.isArray(rows) || rows.length !== texts.length || !rows.every((r) => Array.isArray(r))) {
+        throw new Error(`unexpected embedding output shape for ${texts.length} texts`)
+      }
+      return rows as number[][]
     },
   }
 }

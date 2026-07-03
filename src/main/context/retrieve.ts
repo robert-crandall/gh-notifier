@@ -180,10 +180,14 @@ function bonusFromStructValues(questionTokens: string[], structValues: Set<strin
  * both the lexical and embedding retrievers so near-name siblings never confuse
  * the semantic layer either. Pure.
  */
-export function structuredMatchBonus(questionTokens: string[], resource: Resource): number {
-  // Only needs the structured values — avoid the full field tokenization, which
-  // matters in the embedding retriever's per-resource-per-query hot path.
-  return bonusFromStructValues(questionTokens, resourceStructValues(resource))
+/**
+ * Boolean structured hit-check, decoupled from the lexical weight constant. The
+ * embedding retriever uses this for its tie-break so it is unaffected if
+ * EXACT_STRUCT_BONUS is ever re-tuned (or zeroed) for lexical scoring. Pure.
+ */
+export function hasStructuredMatch(questionTokens: string[], resource: Resource): boolean {
+  const structValues = resourceStructValues(resource)
+  return questionTokens.some((qt) => structValues.has(qt))
 }
 
 /** Pure relevance score of a resource for a set of question tokens. No health penalty. */
@@ -284,6 +288,12 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
     })
     if (missingIdx.length > 0) {
       const vecs = await embedder.embed(missingIdx.map((i) => docs[i]))
+      // Fail fast if the embedder didn't return exactly one vector per document —
+      // otherwise a short/misordered result would silently cache invalid vectors
+      // (score 0 -> wrongly filtered). createDefaultRetriever falls back to lexical.
+      if (vecs.length !== missingIdx.length) {
+        throw new Error(`embedder returned ${vecs.length} vectors for ${missingIdx.length} documents`)
+      }
       // Bound the cache with a simple whole-cache clear when the incoming batch
       // would overflow. Done BEFORE inserting (never mid-batch) so it can't evict
       // vectors just computed for the current corpus and wrongly filter them out.
@@ -310,7 +320,7 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
           const vec = corpusVecs.get(resource.id)
           if (vec === undefined) return { resource, score: 0 }
           const cosine = dot(queryVec, vec)
-          const bonus = structuredMatchBonus(questionTokens, resource) > 0 ? EMBED_STRUCT_BONUS : 0
+          const bonus = hasStructuredMatch(questionTokens, resource) ? EMBED_STRUCT_BONUS : 0
           return { resource, score: cosine + bonus }
         })
         // Drop only genuine noise; the LLM decides "none" over what survives.
