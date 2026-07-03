@@ -365,7 +365,8 @@
   transition: opacity var(--transition);
 }
 
-.browseRow:hover .rowAction {
+.browseRow:hover .rowAction,
+.browseRow:focus-within .rowAction {
   opacity: 1;
 }
 

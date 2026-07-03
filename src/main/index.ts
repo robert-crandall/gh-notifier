@@ -371,8 +371,8 @@ app.whenReady().then(async () => {
     broadcast('resources:updated')
     return server
   })
-  ipcMain.handle('resources:mcp-delete', (_event, id: string) => {
-    deleteMcpServer(id)
+  ipcMain.handle('resources:mcp-delete', (_event, projectId: number, id: string) => {
+    deleteMcpServer(projectId, id)
     broadcast('resources:updated')
   })
 

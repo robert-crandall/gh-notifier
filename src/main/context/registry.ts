@@ -486,8 +486,18 @@ export function getMcpServer(id: string): McpServerConfig | null {
 
 /** Creates or updates an MCP server config. `id` is stable across updates. */
 export function upsertMcpServer(projectId: number, id: string, input: McpServerInput): McpServerConfig {
+  const db = getDb()
+  // Fail closed on a cross-project overwrite: a server id already owned by
+  // another project must not be reconfigured from this one.
+  const existing = db.prepare('SELECT project_id FROM project_mcp_servers WHERE id = ?').get(id) as
+    | { project_id: number }
+    | undefined
+  if (existing && existing.project_id !== projectId) {
+    throw new Error('MCP server belongs to another project')
+  }
+
   const configJson = JSON.stringify(input.config)
-  const row = getDb()
+  const row = db
     .prepare(
       `INSERT INTO project_mcp_servers (id, project_id, label, config_json)
        VALUES (?, ?, ?, ?)
@@ -501,6 +511,18 @@ export function upsertMcpServer(projectId: number, id: string, input: McpServerI
   return toMcpServer(row)
 }
 
-export function deleteMcpServer(id: string): void {
-  getDb().prepare('DELETE FROM project_mcp_servers WHERE id = ?').run(id)
+/**
+ * Deletes a wired MCP server, scoped to its project (fail-closed boundary), and
+ * clears any resources in that project that referenced it so resolves don't fail
+ * as connector_down after an intentional delete.
+ */
+export function deleteMcpServer(projectId: number, id: string): void {
+  const db = getDb()
+  const run = db.transaction(() => {
+    db.prepare(
+      "UPDATE resources SET mcp_server = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE project_id = ? AND mcp_server = ?"
+    ).run(projectId, id)
+    db.prepare('DELETE FROM project_mcp_servers WHERE id = ? AND project_id = ?').run(id, projectId)
+  })
+  run()
 }

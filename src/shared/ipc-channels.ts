@@ -897,9 +897,9 @@ export type IpcChannels = {
     result: McpServerConfig
   }
 
-  /** Deletes a wired MCP server. */
+  /** Deletes a wired MCP server (scoped to its project). */
   'resources:mcp-delete': {
-    args: [id: string]
+    args: [projectId: number, id: string]
     result: void
   }
 }

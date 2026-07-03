@@ -302,9 +302,34 @@ describe('MCP servers', () => {
     expect(listMcpServers(pid)).toHaveLength(1)
     expect(getMcpServer('dd-1')?.label).toBe('Datadog prod')
 
-    deleteMcpServer('dd-1')
+    deleteMcpServer(pid, 'dd-1')
     expect(listMcpServers(pid)).toHaveLength(0)
     expect(getMcpServer('dd-1')).toBeNull()
+  })
+
+  it('deleting a server clears referencing resources and is project-scoped', () => {
+    const a = seedProject('A')
+    const b = seedProject('B')
+    upsertMcpServer(a, 'srv', { label: 'S', config: { command: 'x', args: [], env: {} } })
+    const r = createResource(a, { title: 'Q', mcpServer: 'srv', toolName: 'query' })
+
+    // A delete scoped to the wrong project is a no-op.
+    deleteMcpServer(b, 'srv')
+    expect(getMcpServer('srv')).not.toBeNull()
+
+    // Correct project: server gone AND the resource's dangling reference cleared.
+    deleteMcpServer(a, 'srv')
+    expect(getMcpServer('srv')).toBeNull()
+    expect(getResource(r.id)?.mcpServer).toBeNull()
+  })
+
+  it('rejects a cross-project upsert of an existing server id', () => {
+    const a = seedProject('A')
+    const b = seedProject('B')
+    upsertMcpServer(a, 'shared-id', { label: 'A', config: { command: 'x', args: [], env: {} } })
+    expect(() => upsertMcpServer(b, 'shared-id', { label: 'B', config: { command: 'y', args: [], env: {} } })).toThrow(
+      /another project/
+    )
   })
 })
 
