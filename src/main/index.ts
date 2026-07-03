@@ -29,11 +29,21 @@ import { launchAgentTask } from './copilot/launch'
 import { getLaunchTargets } from './copilot/launch-targets'
 import { getDigest, markProjectFocused, markDigestSeen, dismissResurface } from './digest'
 import { getDb } from './db'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload } from '../shared/ipc-channels'
+import {
+  listResources, createResource, updateResource, deleteResource, restoreResource,
+  getProjectCard, upsertProjectCard,
+  listMcpServers, upsertMcpServer, deleteMcpServer,
+} from './context/registry'
+import { groupResources } from './context/group'
+import { proposeFromUrl } from './context/capture'
+import { validateMcpServerInput, newMcpServerId } from './context/mcp-config'
+import { resolveQuestion } from './context/resolve'
+import { createResolveDeps } from './context/resolve-deps'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, McpServerInput } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
 /** Broadcasts a push event to all renderer windows. */
-function broadcast(channel: 'notifications:updated' | 'copilot:updated' | 'projects:updated'): void {
+function broadcast(channel: 'notifications:updated' | 'copilot:updated' | 'projects:updated' | 'resources:updated'): void {
   BrowserWindow.getAllWindows().forEach((win) => {
     win.webContents.send(channel)
   })
@@ -315,6 +325,56 @@ app.whenReady().then(async () => {
     broadcast('projects:updated')
   })
   ipcMain.handle('todos:restore', (_event, id: number) => restoreTodo(id))
+
+  // ── Resources / project brain (MVP C) ────────────────────────────────────────
+
+  // Resolver deps: an isolated Copilot home (no user MCP servers, no tools for
+  // the decide call) + an app-owned MCP client for the actual read.
+  const resolveDeps = createResolveDeps(app.getPath('userData'))
+
+  ipcMain.handle('resources:list', (_event, projectId: number) => listResources(projectId))
+  ipcMain.handle('resources:groups', (_event, projectId: number) => groupResources(listResources(projectId)))
+  ipcMain.handle('resources:capture-proposal', (_event, url: string) => proposeFromUrl(url))
+  ipcMain.handle('resources:create', (_event, projectId: number, input: ResourceInput) => {
+    const resource = createResource(projectId, input)
+    broadcast('resources:updated')
+    return resource
+  })
+  ipcMain.handle('resources:update', (_event, id: number, patch: ResourcePatch) => {
+    const resource = updateResource(id, patch)
+    broadcast('resources:updated')
+    return resource
+  })
+  ipcMain.handle('resources:delete', (_event, id: number) => {
+    deleteResource(id)
+    broadcast('resources:updated')
+  })
+  ipcMain.handle('resources:restore', (_event, id: number) => {
+    restoreResource(id)
+    broadcast('resources:updated')
+  })
+  ipcMain.handle('resources:resolve', async (_event, projectId: number, question: string) => {
+    const result = await resolveQuestion(projectId, question, resolveDeps)
+    // A resolve can change health state (suspect / last_used); refresh the browse view.
+    broadcast('resources:updated')
+    return result
+  })
+  ipcMain.handle('resources:card-get', (_event, projectId: number) => getProjectCard(projectId))
+  ipcMain.handle('resources:card-upsert', (_event, projectId: number, patch: ProjectCardPatch) =>
+    upsertProjectCard(projectId, patch)
+  )
+  ipcMain.handle('resources:mcp-list', (_event, projectId: number) => listMcpServers(projectId))
+  ipcMain.handle('resources:mcp-upsert', (_event, projectId: number, id: string | null, input: McpServerInput) => {
+    const validation = validateMcpServerInput(input.label, input.config)
+    if (!validation.ok) throw new Error(validation.error)
+    const server = upsertMcpServer(projectId, id ?? newMcpServerId(), validation.value)
+    broadcast('resources:updated')
+    return server
+  })
+  ipcMain.handle('resources:mcp-delete', (_event, projectId: number, id: string) => {
+    deleteMcpServer(projectId, id)
+    broadcast('resources:updated')
+  })
 
   startNotificationSync()
   startSnoozeWatcher()

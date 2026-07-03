@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { MoreHorizontal, Moon, Trash2, Sun } from 'lucide-react'
-import type { LaunchTarget, Project, ProjectLink, ProjectTodo } from '@shared/ipc-channels'
+import type { LaunchTarget, Project, ProjectTodo } from '@shared/ipc-channels'
 import { Icon } from '../components/Icon'
 import { ReentryDigest } from '../components/ReentryDigest'
 import { NextAction } from '../components/NextAction'
@@ -34,8 +34,6 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
     updateTodo,
     deleteTodo,
     restoreTodo,
-    createLink,
-    deleteLink,
   } = useProjectDetail(props.projectId, props.onProjectChanged)
   const { digest, dismiss } = useDigest(props.projectId)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -56,11 +54,6 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
   const handleDeleteTodo = (todo: ProjectTodo): void => {
     fire(deleteTodo(todo.id))
     props.showUndo('Todo removed', () => fire(restoreTodo(todo.id)))
-  }
-
-  const handleDeleteLink = (link: ProjectLink): void => {
-    fire(deleteLink(link.id))
-    props.showUndo('Resource removed', () => fire(createLink(link.label, link.url)))
   }
 
   return (
@@ -146,9 +139,8 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
         onToggleTodo={(todo) => fire(updateTodo(todo.id, { done: !todo.done }))}
         onDeleteTodo={handleDeleteTodo}
         onSaveNotes={(notes) => fire(updateProject({ notes }))}
-        onCreateLink={(label, url) => fire(createLink(label, url))}
-        onDeleteLink={handleDeleteLink}
         onDelegate={(prompt, fixedRepo) => setDelegate({ prompt, fixedRepo })}
+        showUndo={props.showUndo}
       />
 
       <div className={styles.tail} />

@@ -253,6 +253,201 @@ export interface CreateRoutingRulePayload {
   matchOrg?: string
 }
 
+// ── Resource registry / project brain (MVP C) ─────────────────────────────────
+
+/** Typed kind of a saved resource. */
+export type ResourceKind = 'dashboard' | 'metric_query' | 'saved_search' | 'doc' | 'link'
+
+/** How a resource record entered the registry. */
+export type ResourceProvenance = 'captured' | 'manual' | 'imported' | 'agent'
+
+/** Health of a resource's executable query, updated as a byproduct of use. */
+export type ResourceValidationState = 'unverified' | 'valid' | 'invalid' | 'no_data'
+
+/**
+ * A typed resource record. Each dashboard / saved query / doc / link is one of
+ * these, not a bookmark. Retrieved on demand by the resolver, never all injected.
+ */
+export interface Resource {
+  id: number
+  projectId: number
+  title: string
+  kind: ResourceKind
+  /** Tool/system the source lives in (e.g. 'datadog', 'splunk', 'github', 'generic'). */
+  source: string
+  service: string
+  env: string
+  /** Machine-derived structured disambiguation attributes (namespace/cluster/system/team/…). */
+  tags: Record<string, string>
+  /** Human fallback link. Null when the source is a pure executable query. */
+  url: string | null
+  description: string
+  /** Alias/glossary terms that bridge fuzzy language to this record. */
+  aliases: string[]
+  provenance: ResourceProvenance
+  confidence: number
+  lastUsed: string | null
+  lastVerified: string | null
+  failureCount: number
+  /** True when the source itself is suspect (a query that 400'd / returned no-data). */
+  suspect: boolean
+  /** Rare, visible browse override (pin/rename a computed group). Null = auto. */
+  pinnedGroup: string | null
+  /** Id of the wired per-project MCP server. Null = no live source. */
+  mcpServer: string | null
+  toolName: string | null
+  /** Args passed to the MCP tool. */
+  toolArgs: Record<string, unknown> | null
+  /** Source-native id (dashboard id, saved-search id, …). */
+  externalRef: string | null
+  validationState: ResourceValidationState
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Fields accepted when creating a resource. Everything but title is optional. */
+export interface ResourceInput {
+  title: string
+  kind?: ResourceKind
+  source?: string
+  service?: string
+  env?: string
+  tags?: Record<string, string>
+  url?: string | null
+  description?: string
+  aliases?: string[]
+  provenance?: ResourceProvenance
+  mcpServer?: string | null
+  toolName?: string | null
+  toolArgs?: Record<string, unknown> | null
+  externalRef?: string | null
+}
+
+/** Partial update to a resource (user-editable fields only). */
+export type ResourcePatch = Partial<
+  Pick<
+    Resource,
+    | 'title'
+    | 'kind'
+    | 'source'
+    | 'service'
+    | 'env'
+    | 'tags'
+    | 'url'
+    | 'description'
+    | 'aliases'
+    | 'pinnedGroup'
+    | 'mcpServer'
+    | 'toolName'
+    | 'toolArgs'
+    | 'externalRef'
+  >
+>
+
+/** The tiny, always-injected per-project brief. */
+export interface ProjectCard {
+  projectId: number
+  purpose: string
+  repos: string[]
+  services: string[]
+  activeGoal: string
+  /** term -> definition. */
+  glossary: Record<string, string>
+  updatedAt: string
+}
+
+export type ProjectCardPatch = Partial<Pick<ProjectCard, 'purpose' | 'repos' | 'services' | 'activeGoal' | 'glossary'>>
+
+/** A wired MCP server whose read-only tools the app-owned client may run. */
+export interface McpServerConfig {
+  id: string
+  projectId: number
+  label: string
+  /** { command, args[], env{} } for the stdio transport. */
+  config: McpStdioConfig
+  createdAt: string
+  updatedAt: string
+}
+
+export interface McpStdioConfig {
+  command: string
+  args: string[]
+  env: Record<string, string>
+}
+
+export type McpServerInput = Pick<McpServerConfig, 'label'> & { config: McpStdioConfig }
+
+/** A proposed typed record produced from a pasted/dropped URL, for one-tap accept. */
+export interface CaptureProposal {
+  title: string
+  kind: ResourceKind
+  source: string
+  service: string
+  env: string
+  url: string | null
+  externalRef: string | null
+  tags: Record<string, string>
+}
+
+/** The verdict of a resolve. See the safety contract: the app owns every guarantee. */
+export type ResolveVerdict =
+  | 'confident'                      // cited source + app-owned live value
+  | 'source_available_no_live_value' // cited source, no live read possible
+  | 'clarify'                        // near-tie: one question / top candidates
+  | 'none'                           // no source saved
+
+export type ResolveFailureClass =
+  | 'query_invalid'
+  | 'no_data'
+  | 'auth_missing'
+  | 'connector_down'
+  | 'timeout'
+  | 'model_bad_output'
+  | 'user_cancelled'
+
+/** A citation to a resource, inspectable by the user. */
+export interface ResolveCitation {
+  resourceId: number
+  title: string
+  kind: ResourceKind
+  source: string
+  url: string | null
+  /** True when this record last failed and is relevant to the current question. */
+  suspect: boolean
+}
+
+/**
+ * The result of asking the resolver a question. `confident` and
+ * `source_available_no_live_value` carry a single `citation`; `clarify` carries
+ * its options in `candidates` (and leaves `citation` null); `none` carries
+ * neither.
+ */
+export interface ResolveResult {
+  verdict: ResolveVerdict
+  /** Natural-language answer (e.g. "p99 240ms" or "no source saved for that"). */
+  answer: string
+  /** The cited source for confident / source_available_no_live_value verdicts. */
+  citation: ResolveCitation | null
+  /** App-owned live value pulled via the MCP client. Null unless verdict='confident'. */
+  liveValue: string | null
+  /** One clarifying question, when verdict='clarify'. */
+  clarifyQuestion: string | null
+  /** Top candidate citations, when verdict='clarify'. */
+  candidates: ResolveCitation[]
+  /** Set when the resolve failed; classifies bad-source vs bad-infra. */
+  failureClass: ResolveFailureClass | null
+}
+
+/** A computed browse group of resources (by source / service / topic). */
+export interface ResourceGroup {
+  /** Stable key for React lists + pin/rename overrides. */
+  key: string
+  label: string
+  resources: Resource[]
+}
+
 // ── Request-response channels ─────────────────────────────────────────────────
 
 export type IpcChannels = {
@@ -623,6 +818,90 @@ export type IpcChannels = {
     args: [id: number]
     result: void
   }
+
+  // ── Resources / project brain (MVP C) ────────────────────────────────────────
+
+  /** Lists a project's live resources. */
+  'resources:list': {
+    args: [projectId: number]
+    result: Resource[]
+  }
+
+  /** Auto-grouped browse view for a project's resources. */
+  'resources:groups': {
+    args: [projectId: number]
+    result: ResourceGroup[]
+  }
+
+  /** Proposes a typed record from a pasted/dropped URL (deterministic, no network). */
+  'resources:capture-proposal': {
+    args: [url: string]
+    result: CaptureProposal
+  }
+
+  /** Creates a resource. */
+  'resources:create': {
+    args: [projectId: number, input: ResourceInput]
+    result: Resource
+  }
+
+  /** Updates a resource (user-editable fields). */
+  'resources:update': {
+    args: [id: number, patch: ResourcePatch]
+    result: Resource
+  }
+
+  /** Soft-deletes a resource (undoable). */
+  'resources:delete': {
+    args: [id: number]
+    result: void
+  }
+
+  /** Restores a soft-deleted resource. */
+  'resources:restore': {
+    args: [id: number]
+    result: void
+  }
+
+  /**
+   * Resolves a fuzzy question against the project's brain. Runs off the render
+   * thread: retrieve -> untrusted decide -> app-owned MCP read. Async; may take
+   * a few seconds. Every non-`none` result carries an inspectable citation.
+   */
+  'resources:resolve': {
+    args: [projectId: number, question: string]
+    result: ResolveResult
+  }
+
+  /** Returns the project card (lazily created). */
+  'resources:card-get': {
+    args: [projectId: number]
+    result: ProjectCard
+  }
+
+  /** Updates the project card. */
+  'resources:card-upsert': {
+    args: [projectId: number, patch: ProjectCardPatch]
+    result: ProjectCard
+  }
+
+  /** Lists a project's wired MCP servers. */
+  'resources:mcp-list': {
+    args: [projectId: number]
+    result: McpServerConfig[]
+  }
+
+  /** Creates or updates a wired MCP server. Pass null id to create. */
+  'resources:mcp-upsert': {
+    args: [projectId: number, id: string | null, input: McpServerInput]
+    result: McpServerConfig
+  }
+
+  /** Deletes a wired MCP server (scoped to its project). */
+  'resources:mcp-delete': {
+    args: [projectId: number, id: string]
+    result: void
+  }
 }
 
 export type IpcChannelName = keyof IpcChannels
@@ -656,6 +935,8 @@ export interface ElectronApi {
    * Returns an unsubscribe fn.
    */
   onProjectsUpdated: (callback: () => void) => () => void
+  /** Registers a callback that fires whenever a project's resource registry changes. Returns an unsubscribe fn. */
+  onResourcesUpdated: (callback: () => void) => () => void
 }
 
 declare global {

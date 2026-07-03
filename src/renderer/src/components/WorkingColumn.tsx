@@ -13,13 +13,13 @@ import {
   MessageSquare,
   GitCommit,
   CircleAlert,
-  ExternalLink,
   Trash2,
   Sparkles,
 } from 'lucide-react'
-import type { NotificationThread, NotificationType, ProjectDetail, ProjectLink, ProjectTodo, LaunchTarget } from '@shared/ipc-channels'
+import type { NotificationThread, NotificationType, ProjectDetail, ProjectTodo, LaunchTarget } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
+import { ResourcePanel } from './ResourcePanel'
 import { fire, openExternal } from '../ipc'
 import styles from './WorkingColumn.module.css'
 
@@ -31,10 +31,10 @@ interface WorkingColumnProps {
   onToggleTodo: (todo: ProjectTodo) => void
   onDeleteTodo: (todo: ProjectTodo) => void
   onSaveNotes: (notes: string) => void
-  onCreateLink: (label: string, url: string) => void
-  onDeleteLink: (link: ProjectLink) => void
   /** Hand a todo or notification to a cloud Copilot agent task. */
   onDelegate: (prompt: string, fixedRepo?: LaunchTarget) => void
+  /** Undo toast used by the Resources tab's destructive actions. */
+  showUndo: (message: string, onUndo: () => void, actionLabel?: string) => void
 }
 
 function relativeTime(iso: string): string {
@@ -120,58 +120,6 @@ function NotesPanel({ detail, onSaveNotes }: Pick<WorkingColumnProps, 'detail' |
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => draft !== detail.notes && onSaveNotes(draft)}
     />
-  )
-}
-
-// ── Resources (existing project links) ────────────────────────────────────────
-
-function ResourcesPanel({
-  detail,
-  onCreateLink,
-  onDeleteLink,
-}: Pick<WorkingColumnProps, 'detail' | 'onCreateLink' | 'onDeleteLink'>): JSX.Element {
-  const [label, setLabel] = useState('')
-  const [url, setUrl] = useState('')
-
-  const submit = (): void => {
-    const l = label.trim()
-    const u = url.trim()
-    if (l.length === 0 || u.length === 0) return
-    onCreateLink(l, u)
-    setLabel('')
-    setUrl('')
-  }
-
-  return (
-    <div className={styles.resources}>
-      <div className={styles.linkAdd}>
-        <input className={styles.linkInput} value={label} placeholder="Label" onChange={(e) => setLabel(e.target.value)} />
-        <input
-          className={styles.linkInput}
-          value={url}
-          placeholder="https://…"
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-        />
-        <button type="button" className={styles.linkAddBtn} onClick={submit} aria-label="Add resource">
-          <Icon icon={Plus} size={15} />
-        </button>
-      </div>
-      {detail.links.map((link) => (
-        <div key={link.id} className={styles.resourceRow}>
-          <button type="button" className={styles.resourceLink} onClick={() => openExternal(link.url)}>
-            <Icon icon={ExternalLink} size={15} className={styles.muted} />
-            <span className={styles.resourceLabel}>{link.label}</span>
-          </button>
-          <button type="button" className={styles.rowAction} onClick={() => onDeleteLink(link)} aria-label="Delete resource">
-            <Icon icon={Trash2} size={13} />
-          </button>
-        </div>
-      ))}
-      {detail.links.length === 0 && (
-        <div className={styles.empty}>No resources yet. Paste a dashboard, query, or doc link above.</div>
-      )}
-    </div>
   )
 }
 
@@ -288,9 +236,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
           />
         )}
         {tab === 'notes' && <NotesPanel detail={props.detail} onSaveNotes={props.onSaveNotes} />}
-        {tab === 'resources' && (
-          <ResourcesPanel detail={props.detail} onCreateLink={props.onCreateLink} onDeleteLink={props.onDeleteLink} />
-        )}
+        {tab === 'resources' && <ResourcePanel projectId={props.detail.id} showUndo={props.showUndo} />}
         {tab === 'notifications' && <NotificationsPanel projectId={props.detail.id} onDelegate={props.onDelegate} />}
       </div>
     </div>

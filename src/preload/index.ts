@@ -30,6 +30,11 @@ const api: ElectronApi = {
     const handler = () => callback()
     ipcRenderer.on('projects:updated', handler)
     return () => { ipcRenderer.removeListener('projects:updated', handler) }
+  },
+  onResourcesUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('resources:updated', handler)
+    return () => { ipcRenderer.removeListener('resources:updated', handler) }
   }
 }
 

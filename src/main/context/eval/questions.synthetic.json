@@ -1,0 +1,56 @@
+{
+  "_comment": "SYNTHETIC eval questions for the resolver. expectedId references corpus.synthetic.json record ids. category: fuzzy (one right source), negative (no source saved), ambiguous (near-tie: resolver should clarify / show top candidates). acceptableIds lists the plausible sources for ambiguous questions.",
+  "questions": [
+    { "q": "how slow is checkout right now?", "expectedId": "checkout-latency-dash", "category": "fuzzy" },
+    { "q": "are checkouts failing?", "expectedId": "checkout-errors-search", "category": "fuzzy" },
+    { "q": "add to cart is throwing errors", "expectedId": "cart-errors-dash", "category": "fuzzy" },
+    { "q": "why are product pages slow?", "expectedId": "catalog-latency-dash", "category": "fuzzy" },
+    { "q": "how does search ranking actually work?", "expectedId": "search-relevance-doc", "category": "fuzzy" },
+    { "q": "how much search traffic are we getting?", "expectedId": "search-qps-dash", "category": "fuzzy" },
+    { "q": "are cards getting declined?", "expectedId": "payments-decline-dash", "category": "fuzzy" },
+    { "q": "how slow is the payment gateway?", "expectedId": "payments-latency-query", "category": "fuzzy" },
+    { "q": "shipping labels are lagging", "expectedId": "shipping-delay-dash", "category": "fuzzy" },
+    { "q": "sign in failures spiking", "expectedId": "authnd-errors-dash", "category": "fuzzy" },
+    { "q": "access denied spikes", "expectedId": "authzd-errors-dash", "category": "fuzzy" },
+    { "q": "errors on the authnd service", "expectedId": "authnd-errors-dash", "category": "fuzzy" },
+    { "q": "errors on the authzd service", "expectedId": "authzd-errors-dash", "category": "fuzzy" },
+    { "q": "is the email queue backed up?", "expectedId": "notifications-queue-dash", "category": "fuzzy" },
+    { "q": "is kafka falling behind?", "expectedId": "ingest-lag-dash", "category": "fuzzy" },
+    { "q": "front door is throwing 5xx", "expectedId": "edgeproxy-5xx-dash", "category": "fuzzy" },
+    { "q": "orders db load", "expectedId": "db-primary-cpu-dash", "category": "fuzzy" },
+    { "q": "is the read replica behind?", "expectedId": "db-replica-lag-query", "category": "fuzzy" },
+    { "q": "who do I page for an incident?", "expectedId": "oncall-runbook-doc", "category": "fuzzy" },
+    { "q": "how much are we spending on cloud?", "expectedId": "cost-explorer-link", "category": "fuzzy" },
+    { "q": "how slow are recommendations?", "expectedId": "recommendations-latency-dash", "category": "fuzzy" },
+
+    { "q": "what's our database backup status?", "expectedId": null, "category": "negative" },
+    { "q": "how is our unit test coverage trending?", "expectedId": null, "category": "negative" },
+    { "q": "quarterly revenue forecast", "expectedId": null, "category": "negative" },
+    { "q": "what's the office wifi password?", "expectedId": null, "category": "negative" },
+
+    {
+      "q": "how's latency looking?",
+      "expectedId": null,
+      "category": "ambiguous",
+      "acceptableIds": [
+        "checkout-latency-dash",
+        "catalog-latency-dash",
+        "payments-latency-query",
+        "edgeproxy-latency-dash",
+        "recommendations-latency-dash"
+      ]
+    },
+    {
+      "q": "any errors right now?",
+      "expectedId": null,
+      "category": "ambiguous",
+      "acceptableIds": [
+        "checkout-errors-search",
+        "cart-errors-dash",
+        "authnd-errors-dash",
+        "authzd-errors-dash",
+        "edgeproxy-5xx-dash"
+      ]
+    }
+  ]
+}
