@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Database as BunDb } from 'bun:sqlite'
+import { join } from 'path'
 import type BetterSQLite3 from 'better-sqlite3'
 
 vi.mock('electron', () => ({
@@ -9,8 +10,9 @@ vi.mock('../db', () => ({ getDb: vi.fn() }))
 
 import { getDb } from '../db'
 import { runMigrations } from '../db/migrate'
-import { createResource, getResource, upsertMcpServer, upsertProjectCard } from './registry'
+import { createResource, getResource, upsertMcpServer, upsertProjectCard, connectResourceToServer, disconnectResource } from './registry'
 import { resolveQuestion, buildDecidePrompt, type ResolveDeps } from './resolve'
+import { createMcpRunner } from './mcp-client'
 import type { DecideRunner, DecideRunResult } from './copilot-run'
 import type { McpRunner, McpRunResult } from './mcp-client'
 import type { AssembledCandidate } from './assemble'
@@ -318,4 +320,55 @@ describe('resolveQuestion', () => {
     expect(res.verdict).toBe('none')
     expect(res.retrievalMode).toBe('semantic')
   })
+})
+
+// ── Real connect -> live-value round-trip (spawns the synthetic echo MCP) ──────
+// Proves the marquee path is NOT just plumbing: a resource wired through the
+// validated connect seam pulls a real live value through the resolver's
+// app-owned MCP read (a real subprocess), and disconnecting removes it.
+describe('resolveQuestion — real echo-MCP round-trip', () => {
+  const echoConfig = {
+    command: process.execPath,
+    args: [join(__dirname, 'eval', 'echo-mcp-server.mjs')],
+    env: {},
+  }
+  const citeC1: DecideRunner = decideRunnerReturning('{"verdict":"confident","citedCandidateId":"c1"}')
+
+  function wiredEchoResource(): { pid: number; resourceId: number } {
+    const pid = seedProject()
+    upsertMcpServer(pid, 'echo', { label: 'Echo', config: echoConfig })
+    const r = createResource(pid, {
+      title: 'Checkout p99 latency',
+      kind: 'metric_query',
+      service: 'checkout',
+      aliases: ['checkout latency'],
+    })
+    // Wire through the validated seam (same-project + tool/args validation).
+    connectResourceToServer(r.id, 'echo', 'echo', { metric: 'checkout.p99', value: '240ms' })
+    return { pid, resourceId: r.id }
+  }
+
+  it('a wired resource pulls a REAL live value end-to-end', async () => {
+    const { pid, resourceId } = wiredEchoResource()
+    const res = await resolveQuestion(pid, 'checkout latency', {
+      decideRunner: citeC1,
+      mcpRunner: createMcpRunner({ timeoutMs: 15_000 }),
+    })
+    expect(res.verdict).toBe('confident')
+    expect(res.liveValue).toContain('checkout.p99 = 240ms')
+    expect(res.citation?.resourceId).toBe(resourceId)
+    // The app-owned read marked the source verified.
+    expect(getResource(resourceId)?.validationState).toBe('valid')
+  }, 25_000)
+
+  it('after disconnect, the same question returns no live value', async () => {
+    const { pid, resourceId } = wiredEchoResource()
+    disconnectResource(resourceId)
+    const res = await resolveQuestion(pid, 'checkout latency', {
+      decideRunner: citeC1,
+      mcpRunner: createMcpRunner({ timeoutMs: 15_000 }),
+    })
+    expect(res.verdict).toBe('source_available_no_live_value')
+    expect(res.liveValue).toBeNull()
+  }, 25_000)
 })
