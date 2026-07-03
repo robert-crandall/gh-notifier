@@ -59,12 +59,16 @@ function ServerForm({
       const envEntries = envRows.map((r) => ({ key: r.key.trim(), value: r.value })).filter((r) => r.key.length > 0)
       const envSet = Object.fromEntries(envEntries.map((r) => [r.key, r.value]))
       if (isEdit && existing) {
+        // Re-entering a removed key is a REPLACEMENT, not a conflict: drop it from
+        // envDelete so it lands in envSet only (main rejects a key in both).
+        const setKeys = new Set(Object.keys(envSet))
+        const envDelete = removedKeys.filter((k) => !setKeys.has(k))
         await window.electron.ipc.invoke('resources:mcp-update', projectId, existing.id, {
           label: label.trim(),
           command: command.trim(),
           args: parseArgsLines(argsText),
           envSet,
-          envDelete: removedKeys,
+          envDelete,
         })
       } else {
         await window.electron.ipc.invoke('resources:mcp-create', projectId, {

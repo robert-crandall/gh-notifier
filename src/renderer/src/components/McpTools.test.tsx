@@ -105,6 +105,28 @@ describe('McpServersSection', () => {
     )
   })
 
+  it('treats re-entering a removed key as a replacement (no overlap conflict)', async () => {
+    invoke.mockResolvedValue(summary())
+    render(<McpServersSection projectId={1} servers={[summary()]} showUndo={vi.fn()} />)
+    fireEvent.click(screen.getByLabelText('Edit server'))
+    fireEvent.click(screen.getByLabelText('Remove DD_API_KEY'))
+    // Re-enter the same key with a new value.
+    fireEvent.click(screen.getByText('Add variable'))
+    fireEvent.change(screen.getByPlaceholderText('DD_API_KEY'), { target: { value: 'DD_API_KEY' } })
+    fireEvent.change(screen.getByPlaceholderText('value'), { target: { value: 'rotated' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('resources:mcp-update', 1, 'srv-1', {
+        label: 'Datadog prod',
+        command: 'datadog-mcp',
+        args: ['--stdio'],
+        envSet: { DD_API_KEY: 'rotated' },
+        envDelete: [],
+      })
+    )
+  })
+
   it('deletes with an undo that restores the server', async () => {
     const showUndo = vi.fn()
     invoke.mockResolvedValue(undefined)
