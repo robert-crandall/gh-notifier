@@ -14,7 +14,7 @@ import styles from './TodoSessionChip.module.css'
 const LABEL: Record<CopilotAppSessionStatus, string> = {
   in_progress: 'Copilot working on this',
   waiting: 'Copilot idle',
-  completed: 'Copilot finished',
+  completed: 'Copilot session',
   unknown: 'Copilot session',
 }
 

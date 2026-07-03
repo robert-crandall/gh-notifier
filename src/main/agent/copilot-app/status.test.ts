@@ -75,4 +75,18 @@ describe('refreshTodoAppSessionsForProject', () => {
     expect(pairs[0]?.session.status).toBe('in_progress') // unchanged
     expect(getAppSession('app-1')?.status).toBe('in_progress')
   })
+
+  it('does not touch updated_at when the status is unchanged (avoids poll churn)', async () => {
+    const pid = makeProject('P')
+    const todoId = makeTodo(pid, 'do it')
+    insertAppSession({ id: 'app-1', projectId: pid, cwd: '/x', title: 'do it', repoOwner: null, repoName: null })
+    linkTodoSession(todoId, 'app-1') // status 'in_progress'
+    db.prepare("UPDATE copilot_app_sessions SET updated_at = '2000-01-01 00:00:00' WHERE id = 'app-1'").run()
+
+    // Reader reports the SAME status → no write, updated_at preserved.
+    const reader = vi.fn(async (): Promise<AppStatusRead> => ({ ok: true, statuses: new Map([['app-1', 'in_progress']]) }))
+    await refreshTodoAppSessionsForProject(pid, reader)
+    const row = db.prepare("SELECT updated_at FROM copilot_app_sessions WHERE id = 'app-1'").get() as { updated_at: string }
+    expect(row.updated_at).toBe('2000-01-01 00:00:00')
+  })
 })

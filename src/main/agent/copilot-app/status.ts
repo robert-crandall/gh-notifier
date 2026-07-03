@@ -110,10 +110,17 @@ export async function refreshTodoAppSessionsForProject(
   const links = getTodoAppSessionsForProject(projectId)
   const ids = [...new Set(links.map((l) => l.session.id))]
   const read = await reader(ids)
-  if (read.ok) {
-    for (const [id, status] of read.statuses) updateAppSessionStatus(id, status)
-    // Re-read so the returned rows carry the freshly-written status.
-    return getTodoAppSessionsForProject(projectId)
+  if (!read.ok) return links // transient failure -> last-known
+
+  // Only write when the status actually changed, so 20s polling doesn't bump
+  // updated_at (and reorder sessions) on every refresh.
+  const current = new Map(links.map((l) => [l.session.id, l.session.status]))
+  let changed = false
+  for (const [id, status] of read.statuses) {
+    if (current.get(id) !== status) {
+      updateAppSessionStatus(id, status)
+      changed = true
+    }
   }
-  return links // transient failure -> last-known
+  return changed ? getTodoAppSessionsForProject(projectId) : links
 }
