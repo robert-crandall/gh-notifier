@@ -176,16 +176,19 @@ export function sanitizeMcpText(message: string, env: Record<string, string>): s
   return out.length > 300 ? `${out.slice(0, 299)}…` : out
 }
 
-/** Recursively scrubs configured secret values from every string leaf of a JSON
- * value (e.g. a tool inputSchema, whose description/default/examples are
- * server-controlled). Depth-capped so a pathological schema can't blow the stack. */
+/** Recursively scrubs configured secret values from every string leaf AND object
+ * KEY of a JSON value (e.g. a tool inputSchema, whose property names, description,
+ * default, examples are all server-controlled). Depth-capped so a pathological
+ * schema can't blow the stack. */
 export function sanitizeMcpJson(value: unknown, env: Record<string, string>, depth = 0): unknown {
   if (depth > 24) return undefined
   if (typeof value === 'string') return sanitizeMcpText(value, env)
   if (Array.isArray(value)) return value.map((v) => sanitizeMcpJson(v, env, depth + 1))
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = sanitizeMcpJson(v, env, depth + 1)
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[sanitizeMcpText(k, env)] = sanitizeMcpJson(v, env, depth + 1)
+    }
     return out
   }
   return value
