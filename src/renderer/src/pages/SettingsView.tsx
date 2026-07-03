@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { Icon } from '../components/Icon'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -23,6 +23,7 @@ import styles from './SettingsView.module.css'
 interface SettingsViewProps {
   theme: UseThemeResult
   onClose: () => void
+  onOpenRules: () => void
 }
 
 function Segmented<T extends string>({
@@ -51,7 +52,7 @@ function Segmented<T extends string>({
   )
 }
 
-export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element {
+export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps): JSX.Element {
   const auth = useAuth()
   const [token, setToken] = useState('')
   const [syncInterval, setSyncInterval] = useState<SyncIntervalMinutes | null>(null)
@@ -201,6 +202,13 @@ export function SettingsView({ theme, onClose }: SettingsViewProps): JSX.Element
               ))}
             </select>
           </div>
+          <button type="button" className={styles.linkRow} onClick={onOpenRules}>
+            <span className={styles.label}>Notification rules</span>
+            <span className={styles.linkRowValue}>
+              Route &amp; filter
+              <Icon icon={ChevronRight} size={16} />
+            </span>
+          </button>
         </section>
       </div>
     </main>

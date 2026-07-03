@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, Target, Inbox, Settings, Plus } from 'lucide-react'
+import { Search, Target, Inbox, Settings, Plus, SlidersHorizontal } from 'lucide-react'
 import type { Project } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
@@ -12,6 +12,7 @@ interface CommandPaletteProps {
   onSelectProject: (id: number) => void
   onOpenInbox: () => void
   onOpenSettings: () => void
+  onOpenRules: () => void
   onNewProject: () => void
 }
 
@@ -30,6 +31,7 @@ export function CommandPalette({
   onSelectProject,
   onOpenInbox,
   onOpenSettings,
+  onOpenRules,
   onNewProject,
 }: CommandPaletteProps): JSX.Element | null {
   const [query, setQuery] = useState('')
@@ -55,11 +57,12 @@ export function CommandPalette({
     }))
     const actionEntries: Entry[] = [
       { key: 'inbox', label: 'Open Inbox', hint: 'go', icon: Inbox, run: onOpenInbox },
+      { key: 'rules', label: 'Notification rules', hint: 'go', icon: SlidersHorizontal, run: onOpenRules },
       { key: 'settings', label: 'Open Settings', hint: 'go', icon: Settings, run: onOpenSettings },
       { key: 'new', label: 'New project', hint: 'create', icon: Plus, run: onNewProject },
     ]
     return [...projectEntries, ...actionEntries]
-  }, [projects, onSelectProject, onOpenInbox, onOpenSettings, onNewProject])
+  }, [projects, onSelectProject, onOpenInbox, onOpenRules, onOpenSettings, onNewProject])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

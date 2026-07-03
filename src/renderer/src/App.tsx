@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Project } from '@shared/ipc-channels'
+import type { Project, SnoozeMode } from '@shared/ipc-channels'
 import styles from './App.module.css'
 import { Titlebar } from './components/Titlebar'
 import { ProjectRail } from './components/ProjectRail'
@@ -8,6 +8,7 @@ import { UndoToast } from './components/UndoToast'
 import { FocusPage } from './pages/FocusPage'
 import { InboxView } from './pages/InboxView'
 import { SettingsView } from './pages/SettingsView'
+import { RulesView } from './pages/RulesView'
 import { AgentTasksView } from './pages/AgentTasksView'
 import { EmptyFocus } from './pages/EmptyFocus'
 import { useProjects } from './hooks/useProjects'
@@ -16,7 +17,7 @@ import { useFocus } from './hooks/useFocus'
 import { useUndo } from './hooks/useUndo'
 import { parseDbTimestampMs } from '@shared/time'
 
-type View = 'focus' | 'inbox' | 'settings' | 'agent-tasks'
+type View = 'focus' | 'inbox' | 'settings' | 'agent-tasks' | 'rules'
 
 const SNOOZE_DAYS = 7
 
@@ -110,7 +111,7 @@ export function App(): JSX.Element {
       })
   }, [projects, focusedId])
 
-  const snoozeProject = useCallback(async (id: number, mode: 'manual' | 'date') => {
+  const snoozeProject = useCallback(async (id: number, mode: SnoozeMode) => {
     try {
       const until = mode === 'date' ? new Date(Date.now() + SNOOZE_DAYS * 86400000).toISOString() : undefined
       await window.electron.ipc.invoke('projects:snooze', id, mode, until)
@@ -161,6 +162,21 @@ export function App(): JSX.Element {
     void snoozeProject(focusedId, 'manual')
     setFocusedId(nextFocusAfterRemoval(focusedId))
     if (current) showUndo(`Parked ${current.name}`, () => { void unsnooze(current.id); setFocusedId(current.id) })
+  }, [focusedId, projects, snoozeProject, nextFocusAfterRemoval, setFocusedId, showUndo, unsnooze])
+
+  // Notification-triggered snooze: the project drops off the rail and wakes on its own
+  // when the next notification routes/assigns to it. No date, no nag.
+  const onSnoozeCurrentUntilNotification = useCallback(() => {
+    if (focusedId === null) return
+    const current = projects.find((p) => p.id === focusedId)
+    void snoozeProject(focusedId, 'notification')
+    setFocusedId(nextFocusAfterRemoval(focusedId))
+    if (current) {
+      showUndo(`Snoozed ${current.name} until its next notification`, () => {
+        void unsnooze(current.id)
+        setFocusedId(current.id)
+      })
+    }
   }, [focusedId, projects, snoozeProject, nextFocusAfterRemoval, setFocusedId, showUndo, unsnooze])
 
   const onDeleteCurrent = useCallback(() => {
@@ -216,7 +232,12 @@ export function App(): JSX.Element {
         ) : view === 'agent-tasks' ? (
           <AgentTasksView />
         ) : view === 'settings' ? (
-          <SettingsView theme={theme} onClose={() => setView('focus')} />
+          <SettingsView theme={theme} onClose={() => setView('focus')} onOpenRules={() => setView('rules')} />
+        ) : view === 'rules' ? (
+          <RulesView
+            onClose={() => setView('settings')}
+            onRulesChanged={() => { void refreshProjects(); void loadInboxCount() }}
+          />
         ) : focusedId === null ? (
           <EmptyFocus onNewProject={() => void handleNewProject()} />
         ) : (
@@ -231,6 +252,7 @@ export function App(): JSX.Element {
             onSnooze={onSnooze}
             onNotNow={onNotNow}
             onSnoozeCurrent={onSnoozeCurrent}
+            onSnoozeCurrentUntilNotification={onSnoozeCurrentUntilNotification}
             onDeleteCurrent={onDeleteCurrent}
           />
         )}
@@ -243,6 +265,7 @@ export function App(): JSX.Element {
         onSelectProject={selectProject}
         onOpenInbox={() => { setView('inbox'); setPaletteOpen(false) }}
         onOpenSettings={() => { setView('settings'); setPaletteOpen(false) }}
+        onOpenRules={() => { setView('rules'); setPaletteOpen(false) }}
         onNewProject={() => void handleNewProject()}
       />
 
