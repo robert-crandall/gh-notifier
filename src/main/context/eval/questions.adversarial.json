@@ -1,17 +1,20 @@
 {
-  "_comment": "ADVERSARIAL eval: questions deliberately phrased to share as little vocabulary as possible with the target record's title/aliases/description/service. This tests whether lexical+structured retrieval is genuinely sufficient, or whether semantic embeddings are needed to bridge lexically-disjoint phrasing (the exact case Gate 0's embeddings solved). expectedId references corpus.synthetic.json ids.",
+  "_comment": "ADVERSARIAL eval. `semantic` questions are STRICTLY lexically-disjoint: zero tokenized overlap with ALL of the target record's lexically-scored fields (title/aliases/description/service/env/tags) — enforced by the honesty guard test, so only embeddings can bridge them. `structured-disambiguation` questions intentionally name a near-sibling service (authnd/authzd) and are exempt. Synthetic data only (public repo).",
   "questions": [
-    { "q": "are we serving responses out of memory or hitting the datastore every time?", "expectedId": "cache-hit-rate-dash", "category": "fuzzy" },
-    { "q": "why can't people get into their accounts?", "expectedId": "authnd-errors-dash", "category": "fuzzy" },
-    { "q": "are shoppers' purchases getting rejected at the register?", "expectedId": "payments-decline-dash", "category": "fuzzy" },
-    { "q": "how long until an order is ready to hand off to the carrier?", "expectedId": "shipping-delay-dash", "category": "fuzzy" },
-    { "q": "are the standby copies of the database falling behind the leader?", "expectedId": "db-replica-lag-query", "category": "fuzzy" },
-    { "q": "are outbound alerts stuck waiting to go out?", "expectedId": "notifications-queue-dash", "category": "fuzzy" },
-    { "q": "how much reliability headroom is left this month?", "expectedId": "slo-overview-dash", "category": "fuzzy" },
-    { "q": "is the streaming pipeline keeping up with everything coming in?", "expectedId": "ingest-lag-dash", "category": "fuzzy" },
-    { "q": "how long do visitors wait at the entrypoint before a service answers?", "expectedId": "edgeproxy-latency-dash", "category": "fuzzy" },
-    { "q": "what's our monthly bill from the cloud provider?", "expectedId": "cost-explorer-link", "category": "fuzzy" },
-    { "q": "who picks up the phone when something breaks?", "expectedId": "oncall-runbook-doc", "category": "fuzzy" },
-    { "q": "are product pages taking too long to render?", "expectedId": "catalog-latency-dash", "category": "fuzzy" }
+    { "q": "how often do lookups avoid a round trip to disk?", "expectedId": "cache-hit-rate-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "why are users unable to prove who they claim to be?", "expectedId": "authnd-errors-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "are customers unable to complete their purchase at the register?", "expectedId": "payments-decline-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "how long before a parcel is ready to hand to the courier?", "expectedId": "shipping-delay-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "are the follower copies serving outdated rows?", "expectedId": "db-replica-lag-query", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "are alerts piling up unsent?", "expectedId": "notifications-queue-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "am I about to blow my uptime target this month?", "expectedId": "slo-overview-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "is the intake stage choking on the incoming firehose?", "expectedId": "ingest-lag-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "how long do visitors wait at the gateway before a service answers?", "expectedId": "edgeproxy-latency-dash", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "what's our monthly invoice from the hosting provider?", "expectedId": "cost-explorer-link", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "if something breaks overnight, how do I find the person to notify?", "expectedId": "oncall-runbook-doc", "category": "fuzzy", "bucket": "semantic" },
+    { "q": "why do item listings take forever to appear?", "expectedId": "catalog-latency-dash", "category": "fuzzy", "bucket": "semantic" },
+
+    { "q": "errors on the authnd service", "expectedId": "authnd-errors-dash", "category": "fuzzy", "bucket": "structured-disambiguation" },
+    { "q": "errors on the authzd service", "expectedId": "authzd-errors-dash", "category": "fuzzy", "bucket": "structured-disambiguation" }
   ]
 }

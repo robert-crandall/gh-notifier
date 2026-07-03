@@ -83,6 +83,16 @@ function AnswerCard({ result, onDismiss }: { result: ResolveResult; onDismiss: (
       {result.verdict === 'none' && (
         <div className={`${styles.answerText} ${styles.muted}`}>{result.answer}</div>
       )}
+
+      {result.retrievalMode === 'lexical-fallback' && (
+        <div
+          className={styles.fallbackNote}
+          title="The local semantic model wasn't available, so this used keyword-only matching. Results may be less relevant."
+        >
+          <span className={styles.fallbackDot} />
+          Keyword-only matching (semantic model unavailable)
+        </div>
+      )}
     </div>
   )
 }
@@ -208,6 +218,10 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
         clarifyQuestion: null,
         candidates: [],
         failureClass: 'connector_down',
+        // The IPC call itself failed, so no retrieval ran; report the configured
+        // (semantic) path rather than 'lexical', which would imply a lexical
+        // retriever was wired and mislead logs/telemetry.
+        retrievalMode: 'semantic',
       })
     } finally {
       setResolving(false)

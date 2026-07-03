@@ -56,11 +56,13 @@ describe('resolver retrieval eval (offline, synthetic)', () => {
 })
 
 describe('Retriever interface is async', () => {
-  it('lexicalRetriever.retrieve returns a Promise', async () => {
+  it('lexicalRetriever.retrieve returns a Promise of an outcome', async () => {
     const { resources } = toResourceFixtures(loadCorpus())
     const result = lexicalRetriever.retrieve('checkout latency', resources, 3)
     expect(result).toBeInstanceOf(Promise)
-    const candidates: ScoredCandidate[] = await result
+    const outcome = await result
+    const candidates: ScoredCandidate[] = outcome.candidates
     expect(Array.isArray(candidates)).toBe(true)
+    expect(outcome.mode).toBe('lexical')
   })
 })

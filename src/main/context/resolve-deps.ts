@@ -3,7 +3,7 @@ import { join } from 'path'
 import { createCopilotDecideRunner } from './copilot-run'
 import { createMcpRunner } from './mcp-client'
 import { createDefaultRetriever } from './retrieve'
-import { createLocalEmbedder } from './embed'
+import { createLocalEmbedder, type Embedder } from './embed'
 import type { ResolveDeps } from './resolve'
 
 /**
@@ -25,16 +25,23 @@ export function ensureIsolatedCopilotHome(baseDir: string): string {
   return home
 }
 
-export function createResolveDeps(baseDir: string, model?: string): ResolveDeps {
+/**
+ * Builds the resolver's runtime dependencies.
+ *
+ * `embedder` is injectable ONLY so the composition-root guard test can prove the
+ * wiring performs real semantic retrieval on a non-empty corpus with a
+ * deterministic fake. Production always uses the local MiniLM embedder.
+ */
+export function createResolveDeps(baseDir: string, model?: string, embedder?: Embedder): ResolveDeps {
   const home = ensureIsolatedCopilotHome(baseDir)
   const cacheDir = join(baseDir, 'model-cache')
   // Ensure the model cache dir exists — otherwise the embedder can fail to load
   // and silently fall back to lexical retrieval in production.
   mkdirSync(cacheDir, { recursive: true })
-  const embedder = createLocalEmbedder({ cacheDir })
+  const resolvedEmbedder = embedder ?? createLocalEmbedder({ cacheDir })
   return {
     decideRunner: createCopilotDecideRunner({ isolatedHome: home, cwd: home, model }),
     mcpRunner: createMcpRunner(),
-    assembleOptions: { retriever: createDefaultRetriever(embedder) },
+    assembleOptions: { retriever: createDefaultRetriever(resolvedEmbedder) },
   }
 }

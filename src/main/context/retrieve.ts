@@ -1,4 +1,4 @@
-import type { Resource } from '../../shared/ipc-channels'
+import type { Resource, RetrievalMode } from '../../shared/ipc-channels'
 import type { Embedder } from './embed'
 
 /**
@@ -22,9 +22,15 @@ export interface ScoredCandidate {
   score: number
 }
 
+/** The outcome of a retrieval: the ranked candidates + which path produced them. */
+export interface RetrievalOutcome {
+  candidates: ScoredCandidate[]
+  mode: RetrievalMode
+}
+
 export interface Retriever {
-  /** Returns up to `limit` candidates ranked by descending relevance. Ties broken by id (stable). */
-  retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]>
+  /** Returns up to `limit` candidates (best-first, ties by id) + the retrieval mode. */
+  retrieve(question: string, corpus: Resource[], limit: number): Promise<RetrievalOutcome>
 }
 
 // ── Tokenization ──────────────────────────────────────────────────────────────
@@ -243,15 +249,27 @@ export function rankLexical(question: string, corpus: Resource[], limit: number)
 // ── The lexical retriever ─────────────────────────────────────────────────────
 
 export const lexicalRetriever: Retriever = {
-  retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
-    return Promise.resolve(rankLexical(question, corpus, limit))
+  retrieve(question: string, corpus: Resource[], limit: number): Promise<RetrievalOutcome> {
+    return Promise.resolve({ candidates: rankLexical(question, corpus, limit), mode: 'lexical' })
   },
 }
 
 // ── Embedding retriever (semantic recall for lexically-disjoint phrasing) ──────
 
-/** The text embedded per resource: everything a question might semantically match. */
-export function resourceDocument(resource: Resource): string {
+/**
+ * Bumped whenever `buildEmbedText`/`buildQueryText` change shape. Golden vectors
+ * are keyed to this: the golden-drift test fails CI if the committed version
+ * doesn't match, forcing a `--update-golden` regen (which re-runs the real model
+ * and refuses to bless a regression).
+ */
+export const EMBED_TEXT_VERSION = 'v1'
+
+/**
+ * The single shared embed-text path. Runtime retrieval, the eval harness, and
+ * golden-vector generation ALL build the embedded string here so they can never
+ * drift (a golden vector is only valid for the exact string this produces).
+ */
+export function buildEmbedText(resource: Resource): string {
   // Sort tags by key so the embedded text (and thus the cache key) is stable
   // regardless of JSON round-trip key ordering.
   const tagValues = Object.entries(resource.tags)
@@ -261,6 +279,16 @@ export function resourceDocument(resource: Resource): string {
   return [resource.title, resource.aliases.join(' '), resource.description, resource.service, resource.env, tagValues]
     .filter((p) => p.trim().length > 0)
     .join('. ')
+}
+
+/**
+ * The text embedded for a query. Centralized so golden + runtime match exactly.
+ * Trims so incidental leading/trailing whitespace from a call site (some trim,
+ * some pass the raw question) can't produce a second embed-text/golden key that
+ * differs only by whitespace.
+ */
+export function buildQueryText(question: string): string {
+  return question.trim()
 }
 
 function dot(a: number[], b: number[]): number {
@@ -276,15 +304,18 @@ function dot(a: number[], b: number[]): number {
 }
 
 /**
- * Minimum COMBINED score (cosine + structured bonus) for a candidate to survive.
- * It's deliberately low — the two-stage design relies on the LLM (not this
- * floor) to reject candidates and answer "none". Set from the adversarial eval:
- * a correct-but-weak match (authnd) scored ~0.16 cosine, so a higher floor
- * wrongly filtered it. Note it applies to the combined score, so an exact
- * structured match can (intentionally) rescue a resource the user named
- * explicitly even when its cosine is modest.
+ * Minimum RAW COSINE (semantic similarity, BEFORE the structured boost) for a
+ * candidate to survive. Applying the floor to raw cosine — not the combined
+ * score — makes the negative gate deterministic and app-owned: a common tag
+ * boost (e.g. `prod`/`auth`) can't lift a semantically-unrelated record past it.
+ * The structured boost then only re-orders records that already cleared the
+ * semantic gate. Kept low (a correct-but-weak match scored ~0.16 cosine) — the
+ * LLM decides "none" over what survives.
  */
-const EMBED_MIN_SCORE = 0.1
+const EMBED_MIN_COSINE = 0.1
+
+/** Exposed so the golden eval can assert each target clears the raw-cosine floor. */
+export const EMBED_MIN_COSINE_FLOOR = EMBED_MIN_COSINE
 
 /**
  * How much a single structured exact-match nudges the (cosine-based) score.
@@ -307,7 +338,7 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
   const MAX_CACHE = 5000
 
   async function embedCorpus(corpus: Resource[]): Promise<Map<number, number[]>> {
-    const docs = corpus.map((r) => resourceDocument(r))
+    const docs = corpus.map((r) => buildEmbedText(r))
     const missingIdx: number[] = []
     docs.forEach((doc, i) => {
       if (!cache.has(doc)) missingIdx.push(i)
@@ -342,9 +373,9 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
   }
 
   return {
-    async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
-      if (corpus.length === 0 || limit <= 0) return [] // no embedding work for no-op calls
-      const queryVecs = await embedder.embed([question])
+    async retrieve(question: string, corpus: Resource[], limit: number): Promise<RetrievalOutcome> {
+      if (corpus.length === 0 || limit <= 0) return { candidates: [], mode: 'semantic' }
+      const queryVecs = await embedder.embed([buildQueryText(question)])
       // Assert exactly one vector for the single-text request so a buggy embedder
       // fails fast (to the lexical fallback) instead of masking a contract break.
       if (queryVecs.length !== 1) {
@@ -353,19 +384,20 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
       const queryVec = queryVecs[0]
       const corpusVecs = await embedCorpus(corpus)
 
-      const scored = corpus
-        .map((resource) => {
-          const vec = corpusVecs.get(resource.id)
-          if (vec === undefined) return { resource, score: 0 }
-          const cosine = dot(queryVec, vec)
-          const bonus = hasStructuredMatch(question, resource) ? EMBED_STRUCT_BONUS : 0
-          return { resource, score: cosine + bonus }
-        })
-        // Drop only genuine noise; the LLM decides "none" over what survives.
-        .filter((c) => c.score >= EMBED_MIN_SCORE)
+      const scored: ScoredCandidate[] = []
+      for (const resource of corpus) {
+        const vec = corpusVecs.get(resource.id)
+        if (vec === undefined) continue
+        const cosine = dot(queryVec, vec)
+        // Raw-cosine negative gate BEFORE the structured boost, so a tag match
+        // can't rescue a semantically-unrelated record.
+        if (cosine < EMBED_MIN_COSINE) continue
+        const bonus = hasStructuredMatch(question, resource) ? EMBED_STRUCT_BONUS : 0
+        scored.push({ resource, score: cosine + bonus })
+      }
 
       scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
-      return scored.slice(0, Math.max(0, limit))
+      return { candidates: scored.slice(0, Math.max(0, limit)), mode: 'semantic' }
     },
   }
 }
@@ -383,7 +415,7 @@ export function createDefaultRetriever(embedder: Embedder): Retriever {
   const embedding = createEmbeddingRetriever(embedder)
   let warnedFailure = false
   return {
-    async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
+    async retrieve(question: string, corpus: Resource[], limit: number): Promise<RetrievalOutcome> {
       try {
         return await embedding.retrieve(question, corpus, limit)
       } catch (err) {
@@ -393,7 +425,8 @@ export function createDefaultRetriever(embedder: Embedder): Retriever {
           warnedFailure = true
           console.error('[retrieve] embedding retriever failed; falling back to lexical:', err)
         }
-        return rankLexical(question, corpus, limit)
+        // Report the degraded mode so a fallback answer is observable end-to-end.
+        return { candidates: rankLexical(question, corpus, limit), mode: 'lexical-fallback' }
       }
     },
   }

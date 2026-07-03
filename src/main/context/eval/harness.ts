@@ -28,11 +28,21 @@ export interface EvalRecord {
 
 export type QuestionCategory = 'fuzzy' | 'negative' | 'ambiguous'
 
+/**
+ * Adversarial-set buckets:
+ * - `semantic`: wording shares ZERO lexical tokens with the target's fields
+ *   (the honest test — only embeddings can bridge it). Enforced by a guard test.
+ * - `structured-disambiguation`: intentionally names a near-sibling service
+ *   (authnd/authzd), so it's EXEMPT from the zero-overlap rule.
+ */
+export type QuestionBucket = 'semantic' | 'structured-disambiguation'
+
 export interface EvalQuestion {
   q: string
   expectedId: string | null
   category: QuestionCategory
   acceptableIds?: string[]
+  bucket?: QuestionBucket
 }
 
 interface CorpusFile {
@@ -125,8 +135,8 @@ export async function runRetrievalEval(
   const misses: RetrievalReport['misses'] = []
 
   for (const question of questions) {
-    const results = await retriever.retrieve(question.q, resources, Math.max(k, 5))
-    const rankedIds = results.map((r) => stringIdByNumericId.get(r.resource.id) ?? '')
+    const { candidates } = await retriever.retrieve(question.q, resources, Math.max(k, 5))
+    const rankedIds = candidates.map((r) => stringIdByNumericId.get(r.resource.id) ?? '')
 
     if (question.category === 'fuzzy' && question.expectedId !== null) {
       fuzzyTotal++

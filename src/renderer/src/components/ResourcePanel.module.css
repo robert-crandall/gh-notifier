@@ -96,6 +96,23 @@
   color: var(--text-3);
 }
 
+.fallbackNote {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.fallbackDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--attention-fg, #d29922);
+  flex-shrink: 0;
+}
+
 .clarifyRow {
   display: flex;
   align-items: flex-start;
