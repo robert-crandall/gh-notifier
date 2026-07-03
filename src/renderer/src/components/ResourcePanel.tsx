@@ -137,9 +137,16 @@ function ResourceRow({
   onOpen: (r: Resource) => void
   onDelete: (r: Resource) => void
 }): JSX.Element {
+  const hasLink = resource.url !== null
   return (
     <div className={styles.browseRow}>
-      <button type="button" className={styles.browseMain} onClick={() => onOpen(resource)}>
+      <button
+        type="button"
+        className={styles.browseMain}
+        onClick={() => onOpen(resource)}
+        disabled={!hasLink}
+        title={hasLink ? resource.url ?? undefined : 'Live query source — no link to open'}
+      >
         <Icon icon={Database} size={14} className={styles.browseIcon} />
         <span className={styles.browseTitle}>{resource.title}</span>
         {resource.suspect && (

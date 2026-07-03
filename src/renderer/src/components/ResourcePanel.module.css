@@ -330,6 +330,10 @@
   font-size: 13px;
 }
 
+.browseMain:disabled {
+  cursor: default;
+}
+
 .browseIcon {
   color: var(--text-3);
   flex: none;

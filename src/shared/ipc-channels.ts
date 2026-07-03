@@ -418,7 +418,12 @@ export interface ResolveCitation {
   suspect: boolean
 }
 
-/** The result of asking the resolver a question. Every non-`none` verdict is cited. */
+/**
+ * The result of asking the resolver a question. `confident` and
+ * `source_available_no_live_value` carry a single `citation`; `clarify` carries
+ * its options in `candidates` (and leaves `citation` null); `none` carries
+ * neither.
+ */
 export interface ResolveResult {
   verdict: ResolveVerdict
   /** Natural-language answer (e.g. "p99 240ms" or "no source saved for that"). */
