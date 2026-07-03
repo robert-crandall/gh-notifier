@@ -57,6 +57,11 @@
   color: var(--text-2);
 }
 
+.close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .body {
   display: flex;
   flex-direction: column;

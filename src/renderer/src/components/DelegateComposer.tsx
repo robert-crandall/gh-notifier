@@ -118,12 +118,12 @@ export function DelegateComposer({
   }
 
   return (
-    <div className={styles.backdrop} onClick={onClose}>
+    <div className={styles.backdrop} onClick={() => { if (!busy) onClose() }}>
       <div className={styles.panel} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Delegate to Copilot">
         <div className={styles.header}>
           <Icon icon={Sparkles} size={15} className={styles.headerIcon} />
           <span className={styles.headerTitle}>Delegate to Copilot</span>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+          <button type="button" className={styles.close} onClick={onClose} disabled={busy} aria-label="Close">
             <Icon icon={X} size={15} />
           </button>
         </div>
