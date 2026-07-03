@@ -41,6 +41,7 @@ function renderPalette(overrides: Partial<Parameters<typeof CommandPalette>[0]> 
       onSelectProject={onSelectProject}
       onOpenInbox={vi.fn()}
       onOpenSettings={vi.fn()}
+      onOpenRules={vi.fn()}
       onNewProject={vi.fn()}
       {...overrides}
     />
@@ -87,6 +88,7 @@ describe('CommandPalette', () => {
         onSelectProject={vi.fn()}
         onOpenInbox={vi.fn()}
         onOpenSettings={vi.fn()}
+        onOpenRules={vi.fn()}
         onNewProject={vi.fn()}
       />
     )

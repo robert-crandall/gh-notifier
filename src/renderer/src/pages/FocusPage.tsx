@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { MoreHorizontal, Moon, Trash2, Sun } from 'lucide-react'
+import { MoreHorizontal, Moon, Trash2, Sun, BellRing } from 'lucide-react'
 import type { LaunchTarget, Project, ProjectTodo } from '@shared/ipc-channels'
 import { Icon } from '../components/Icon'
 import { ReentryDigest } from '../components/ReentryDigest'
@@ -22,6 +22,7 @@ interface FocusPageProps {
   onSnooze: (project: Project) => void
   onNotNow: (project: Project) => void
   onSnoozeCurrent: () => void
+  onSnoozeCurrentUntilNotification: () => void
   onDeleteCurrent: () => void
 }
 
@@ -100,6 +101,18 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
                   >
                     <Icon icon={Moon} size={14} />
                     Snooze project
+                  </button>
+                )}
+                {detail.status !== 'snoozed' && (
+                  <button type="button"
+                    className={styles.menuItem}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      props.onSnoozeCurrentUntilNotification()
+                    }}
+                  >
+                    <Icon icon={BellRing} size={14} />
+                    Snooze until a notification
                   </button>
                 )}
                 <button type="button"
