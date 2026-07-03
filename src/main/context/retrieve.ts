@@ -252,7 +252,12 @@ export const lexicalRetriever: Retriever = {
 
 /** The text embedded per resource: everything a question might semantically match. */
 export function resourceDocument(resource: Resource): string {
-  const tagValues = Object.values(resource.tags).join(' ')
+  // Sort tags by key so the embedded text (and thus the cache key) is stable
+  // regardless of JSON round-trip key ordering.
+  const tagValues = Object.entries(resource.tags)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v]) => v)
+    .join(' ')
   return [resource.title, resource.aliases.join(' '), resource.description, resource.service, resource.env, tagValues]
     .filter((p) => p.trim().length > 0)
     .join('. ')
