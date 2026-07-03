@@ -2,7 +2,7 @@
 
 Smallest-first. Each gate ships daily personal value on its own. Two independent tracks converge:
 - **Track 1 (no brain dependency):** MVP A (focus + re-entry) → MVP B (cloud-agent loop). Worth shipping even if the resolver never pans out.
-- **Track 2 (gated on Gate 0):** the resolver proof → MVP C (brain in-app) → the Copilot-app integration (delegate to the installed Copilot app + fast read-only brain recommendation via the installed CLI, cloud fallback).
+- **Track 2 (gated on Gate 0):** the resolver proof → MVP C (brain in-app) → the Copilot-app integration (delegate to the installed Copilot app, with cloud `gh agent-task` as the *delegate* fallback; plus fast read-only brain recommendation via the installed CLI, which has no cloud equivalent).
 
 Order rule: don't build the brain UI (C) on an unproven resolver, and don't build heavy agent machinery before the cheaper value lands. A/B and Gate 0 can proceed in parallel.
 
