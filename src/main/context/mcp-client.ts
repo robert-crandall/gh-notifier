@@ -120,7 +120,6 @@ export function createMcpRunner(options: McpRunnerOptions = {}): McpRunner {
       const transport = new StdioClientTransport({ command: server.command, args: server.args, env })
       const client = new Client({ name: 'gh-projects-resolver', version: '1.0.0' }, { capabilities: {} })
 
-      let timedOut = false
       try {
         const result = await withTimeout(
           (async (): Promise<McpRunResult> => {
@@ -130,7 +129,6 @@ export function createMcpRunner(options: McpRunnerOptions = {}): McpRunner {
           })(),
           timeoutMs,
           (): McpRunResult => {
-            timedOut = true
             return { ok: false, value: null, failure: 'timeout', reason: `MCP read timed out after ${timeoutMs}ms` }
           }
         )
@@ -139,17 +137,17 @@ export function createMcpRunner(options: McpRunnerOptions = {}): McpRunner {
         const reason = err instanceof Error ? err.message : String(err)
         return { ok: false, value: null, failure: 'connector_down', reason }
       } finally {
+        // Always tear down the child MCP server process — on success, failure, and
+        // timeout — so it can never leak. Both closes are best-effort.
         try {
           await client.close()
         } catch {
-          /* best-effort close */
+          /* best-effort */
         }
-        if (timedOut) {
-          try {
-            await transport.close()
-          } catch {
-            /* best-effort */
-          }
+        try {
+          await transport.close()
+        } catch {
+          /* best-effort */
         }
       }
     },

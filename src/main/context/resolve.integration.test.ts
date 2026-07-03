@@ -235,6 +235,26 @@ describe('resolveQuestion', () => {
     expect(res.failureClass).toBe('connector_down')
   })
 
+  it('treats an empty/whitespace mcpServer or toolName as no live source', async () => {
+    const pid = seedProject()
+    // Bad data: whitespace-only wiring should never reach an MCP call.
+    createResource(pid, {
+      title: 'Checkout latency',
+      kind: 'metric_query',
+      service: 'checkout',
+      aliases: ['checkout latency'],
+      mcpServer: '   ',
+      toolName: ' ',
+    })
+    const res = await resolveQuestion(
+      pid,
+      'checkout latency',
+      deps(decideRunnerReturning('{"verdict":"confident","citedCandidateId":"c1"}'), mcpNeverCalled)
+    )
+    expect(res.verdict).toBe('source_available_no_live_value')
+    expect(res.liveValue).toBeNull()
+  })
+
   it('logs every resolution to the audit table', async () => {
     const pid = seedProject()
     liveResource(pid)

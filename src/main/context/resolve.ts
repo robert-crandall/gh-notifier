@@ -196,8 +196,13 @@ async function runCitedSource(
 ): Promise<ResolveResult> {
   const citation = toCitation(resource)
 
+  // Normalize the wiring: empty/whitespace ids or tool names are treated as
+  // "no live source", never passed to an MCP call.
+  const mcpServerId = resource.mcpServer?.trim() ?? ''
+  const toolName = resource.toolName?.trim() ?? ''
+
   // No wired live source -> cite it honestly, no fabricated value.
-  if (resource.mcpServer === null || resource.toolName === null) {
+  if (mcpServerId.length === 0 || toolName.length === 0) {
     markResourceUsed(resource.id, false)
     const result: ResolveResult = {
       verdict: 'source_available_no_live_value',
@@ -220,7 +225,7 @@ async function runCitedSource(
     return result
   }
 
-  const server = getMcpServer(resource.mcpServer)
+  const server = getMcpServer(mcpServerId)
   if (server === null || server.projectId !== projectId) {
     // The wiring is gone or points outside this project (config/boundary issue),
     // not the source itself — do NOT mark suspect.
@@ -246,7 +251,7 @@ async function runCitedSource(
     return result
   }
 
-  const read = await deps.mcpRunner.run(server.config, resource.toolName, resource.toolArgs ?? {})
+  const read = await deps.mcpRunner.run(server.config, toolName, resource.toolArgs ?? {})
 
   if (read.ok && read.value !== null) {
     markResourceUsed(resource.id, true)
