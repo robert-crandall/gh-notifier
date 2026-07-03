@@ -59,6 +59,27 @@ export function assertDecideArgsSafe(args: string[]): void {
   }
 }
 
+/**
+ * Builds the decide subprocess env. Part of the safety contract: the child must
+ * not inherit a parent bypass. We force the isolated Copilot HOME and strip env
+ * vars that could silently grant all tools (`COPILOT_ALLOW_ALL`) or redirect the
+ * config away from the isolated home (`COPILOT_HOME`).
+ */
+export function buildDecideEnv(
+  options: DecideOptions,
+  baseEnv: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...baseEnv }
+  if (options.isolatedHome !== undefined) {
+    env['HOME'] = options.isolatedHome
+    // Don't let a parent COPILOT_HOME override the isolated config location.
+    delete env['COPILOT_HOME']
+  }
+  // Never let a parent env var auto-grant all tools to the decide call.
+  delete env['COPILOT_ALLOW_ALL']
+  return env
+}
+
 /** Resolve the Copilot CLI path, checking common install locations. */
 export function resolveCopilotPath(): string {
   const home = process.env['HOME'] ?? ''
@@ -147,8 +168,7 @@ export function createCopilotDecideRunner(options: DecideOptions = {}): DecideRu
       const args = buildDecideArgs(prompt, options)
       assertDecideArgsSafe(args)
 
-      const env: NodeJS.ProcessEnv = { ...process.env }
-      if (options.isolatedHome !== undefined) env['HOME'] = options.isolatedHome
+      const env = buildDecideEnv(options)
 
       return new Promise<DecideRunResult>((resolve) => {
         const child = spawn(resolveCopilotPath(), args, { env, cwd: options.cwd })

@@ -37,6 +37,14 @@ describe('interpretCallResult', () => {
     const r = interpretCallResult({ content: [{ type: 'text', text: '401 Unauthorized' }], isError: true })
     expect(r.failure).toBe('auth_missing')
   })
+  it('does NOT misclassify a service-name-containing query error as auth (authnd/authzd)', () => {
+    const r = interpretCallResult({ content: [{ type: 'text', text: 'query invalid for authnd: percentile disabled' }], isError: true })
+    expect(r.failure).toBe('query_invalid')
+  })
+  it('treats explicit permission-denied as auth_missing', () => {
+    const r = interpretCallResult({ content: [{ type: 'text', text: 'permission denied' }], isError: true })
+    expect(r.failure).toBe('auth_missing')
+  })
 })
 
 // ── End-to-end against the synthetic echo MCP server ──────────────────────────

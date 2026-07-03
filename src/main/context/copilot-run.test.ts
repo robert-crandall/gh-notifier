@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseAndValidateDecision } from './verdict-contract'
-import { buildDecideArgs, assertDecideArgsSafe, parseDecideOutput } from './copilot-run'
+import { buildDecideArgs, assertDecideArgsSafe, parseDecideOutput, buildDecideEnv } from './copilot-run'
 
 // ── verdict-contract: the safety validator ────────────────────────────────────
 
@@ -117,6 +117,23 @@ describe('buildDecideArgs', () => {
   it('assertDecideArgsSafe throws if a forbidden flag is present', () => {
     expect(() => assertDecideArgsSafe(['--allow-all-tools'])).toThrow(/Unsafe decide flag/)
     expect(() => assertDecideArgsSafe(['--additional-mcp-config=@x.json'])).toThrow(/Unsafe decide flag/)
+  })
+})
+
+describe('buildDecideEnv (child env is part of the safety contract)', () => {
+  const base = { HOME: '/orig', PATH: '/bin', COPILOT_ALLOW_ALL: 'true', COPILOT_HOME: '/parent/.copilot', DD_KEY: 'x' }
+
+  it('forces the isolated HOME and strips parent bypasses', () => {
+    const env = buildDecideEnv({ isolatedHome: '/iso' }, base)
+    expect(env.HOME).toBe('/iso')
+    expect(env.COPILOT_ALLOW_ALL).toBeUndefined() // never inherit tool auto-grant
+    expect(env.COPILOT_HOME).toBeUndefined() // don't let config escape the isolated home
+    expect(env.PATH).toBe('/bin') // unrelated env is preserved
+  })
+
+  it('always strips COPILOT_ALLOW_ALL even without an isolated home', () => {
+    const env = buildDecideEnv({}, base)
+    expect(env.COPILOT_ALLOW_ALL).toBeUndefined()
   })
 })
 

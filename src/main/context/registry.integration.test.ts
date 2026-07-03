@@ -176,6 +176,17 @@ describe('markResourceUsed', () => {
     expect(getResource(r.id)?.lastVerified).toBeNull()
     expect(getResource(r.id)?.lastUsed).not.toBeNull()
   })
+
+  it('an UNVERIFIED use does NOT heal a suspect record', () => {
+    const pid = seedProject()
+    const r = createResource(pid, { title: 'Q' })
+    markResourceSuspect(r.id, 'invalid', 'ERR', 'boom')
+    markResourceUsed(r.id, false) // cited but not actually read
+    const after = getResource(r.id)
+    expect(after?.suspect).toBe(true) // still suspect — never silently healed
+    expect(after?.validationState).toBe('invalid')
+    expect(after?.lastUsed).not.toBeNull()
+  })
 })
 
 describe('markResourceSuspect', () => {

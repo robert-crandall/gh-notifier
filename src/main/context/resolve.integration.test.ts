@@ -211,6 +211,30 @@ describe('resolveQuestion', () => {
     expect(res.failureClass).toBe('model_bad_output')
   })
 
+  it('refuses to run an MCP server that belongs to another project', async () => {
+    const projectA = seedProject('A')
+    const projectB = seedProject('B')
+    // Server wired under project B, but a resource in A points at it.
+    upsertMcpServer(projectB, 'b-server', { label: 'B', config: { command: 'x', args: [], env: {} } })
+    createResource(projectA, {
+      title: 'Checkout latency',
+      kind: 'metric_query',
+      service: 'checkout',
+      aliases: ['checkout latency'],
+      mcpServer: 'b-server',
+      toolName: 'query',
+    })
+    const res = await resolveQuestion(
+      projectA,
+      'checkout latency',
+      deps(decideRunnerReturning('{"verdict":"confident","citedCandidateId":"c1"}'), mcpNeverCalled)
+    )
+    // Boundary violation is treated as a config/infra issue, not a live value.
+    expect(res.verdict).toBe('source_available_no_live_value')
+    expect(res.liveValue).toBeNull()
+    expect(res.failureClass).toBe('connector_down')
+  })
+
   it('logs every resolution to the audit table', async () => {
     const pid = seedProject()
     liveResource(pid)

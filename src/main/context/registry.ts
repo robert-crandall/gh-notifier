@@ -315,8 +315,11 @@ function clampConfidence(value: number): number {
 }
 
 /**
- * Records a successful use of a resource: bumps last_used/last_verified,
- * nudges confidence up, clears suspect, and marks the query valid.
+ * Records a use of a resource. When `verified` (an app-owned read actually
+ * succeeded), it bumps last_used/last_verified, nudges confidence up, clears
+ * suspect + errors, and marks the query valid. When NOT verified (e.g. a
+ * doc/link or a source we cited but couldn't read), it updates last_used ONLY —
+ * it must never silently heal a previously-suspect query without a real read.
  */
 export function markResourceUsed(id: number, verified: boolean): void {
   const db = getDb()
@@ -324,21 +327,29 @@ export function markResourceUsed(id: number, verified: boolean): void {
     | { confidence: number }
     | undefined
   if (!current) return
-  const nextConfidence = clampConfidence(current.confidence + 0.1)
   const ts = nowIso()
+
+  if (!verified) {
+    db.prepare(
+      `UPDATE resources SET last_used = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`
+    ).run(ts, id)
+    return
+  }
+
+  const nextConfidence = clampConfidence(current.confidence + 0.1)
   db.prepare(
     `UPDATE resources SET
        last_used = ?,
-       last_verified = CASE WHEN ? = 1 THEN ? ELSE last_verified END,
+       last_verified = ?,
        confidence = ?,
        suspect = 0,
        failure_count = 0,
-       validation_state = CASE WHEN ? = 1 THEN 'valid' ELSE validation_state END,
+       validation_state = 'valid',
        last_error_code = NULL,
        last_error_message = NULL,
        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
      WHERE id = ?`
-  ).run(ts, verified ? 1 : 0, ts, nextConfidence, verified ? 1 : 0, id)
+  ).run(ts, ts, nextConfidence, id)
 }
 
 /**

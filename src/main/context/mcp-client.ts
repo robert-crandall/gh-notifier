@@ -54,7 +54,11 @@ function isToolError(result: unknown): boolean {
 
 /** Maps a bad-tool-result message to a source failure class. */
 function classifyToolError(text: string): Extract<McpFailureClass, 'query_invalid' | 'auth_missing'> {
-  if (/unauthor|forbidden|401|403|auth|permission denied|access denied/i.test(text)) return 'auth_missing'
+  // Specific auth signals only — a bare "auth" substring would wrongly match
+  // service names like "authnd"/"authzd" and misroute a real query error.
+  if (/(\b401\b|\b403\b|unauthori[sz]ed|forbidden|not authenticated|permission denied|access denied)/i.test(text)) {
+    return 'auth_missing'
+  }
   return 'query_invalid'
 }
 

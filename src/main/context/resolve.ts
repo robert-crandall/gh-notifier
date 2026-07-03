@@ -221,8 +221,9 @@ async function runCitedSource(
   }
 
   const server = getMcpServer(resource.mcpServer)
-  if (server === null) {
-    // The wiring is gone (infra/config), not the source itself — do NOT mark suspect.
+  if (server === null || server.projectId !== projectId) {
+    // The wiring is gone or points outside this project (config/boundary issue),
+    // not the source itself — do NOT mark suspect.
     markResourceUsed(resource.id, false)
     const result: ResolveResult = {
       verdict: 'source_available_no_live_value',
