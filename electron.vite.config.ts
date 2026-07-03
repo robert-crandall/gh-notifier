@@ -10,8 +10,14 @@ export default defineConfig({
         '@shared': resolve('src/shared')
       }
     },
-    // @octokit/* packages are ESM-only — bundle them inline rather than
-    // externalizing as require() calls, which would fail at runtime.
+    // Bundle these into the main output instead of leaving them as runtime
+    // require() calls:
+    //   - @octokit/* are ESM-only, so an externalized require() fails at runtime.
+    //   - ws is pure JS; inlining it means the packaged app never does
+    //     require('ws'), so it can't crash with "Cannot find module 'ws'" when
+    //     electron-builder happens to omit it from app.asar (e.g. stale
+    //     node_modules). See build.rollupOptions.external below for ws's optional
+    //     native addons.
     plugins: [externalizeDepsPlugin({ exclude: [
       '@octokit/auth-token',
       '@octokit/core',
@@ -25,7 +31,16 @@ export default defineConfig({
       '@octokit/request-error',
       '@octokit/rest',
       '@octokit/types',
-    ] })]
+      'ws',
+    ] })],
+    build: {
+      rollupOptions: {
+        // ws lazily requires these optional native addons inside try/catch and
+        // falls back to pure JS when they're absent. Keep them external so the
+        // bundle doesn't try to resolve modules we don't ship.
+        external: ['bufferutil', 'utf-8-validate']
+      }
+    }
   },
   preload: {
     resolve: {
