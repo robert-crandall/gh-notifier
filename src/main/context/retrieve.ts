@@ -236,9 +236,14 @@ export function resourceDocument(resource: Resource): string {
 }
 
 function dot(a: number[], b: number[]): number {
+  // Fail fast on a dimension mismatch (model change / corrupted cache / partial
+  // output) rather than silently scoring on a truncated prefix. The default
+  // retriever catches this and falls back to lexical.
+  if (a.length !== b.length) {
+    throw new Error(`embedding dimension mismatch: ${a.length} vs ${b.length}`)
+  }
   let s = 0
-  const n = Math.min(a.length, b.length)
-  for (let i = 0; i < n; i++) s += a[i] * b[i]
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i]
   return s
 }
 
@@ -279,9 +284,9 @@ export function createEmbeddingRetriever(embedder: Embedder): Retriever {
     })
     if (missingIdx.length > 0) {
       const vecs = await embedder.embed(missingIdx.map((i) => docs[i]))
-      // Bound the cache. If this batch would overflow, drop the OLD entries first
-      // (never mid-batch — that would evict vectors just computed for this corpus
-      // and leave current resources with no vector, wrongly filtering them out).
+      // Bound the cache with a simple whole-cache clear when the incoming batch
+      // would overflow. Done BEFORE inserting (never mid-batch) so it can't evict
+      // vectors just computed for the current corpus and wrongly filter them out.
       if (cache.size + missingIdx.length > MAX_CACHE) cache.clear()
       missingIdx.forEach((i, j) => cache.set(docs[i], vecs[j]))
     }
