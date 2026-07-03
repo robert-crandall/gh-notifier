@@ -35,7 +35,7 @@ function makeDeps(overrides: Partial<DelegateDeps> = {}): DelegateDeps {
   return {
     appEnabled: () => true,
     discover: () => ({ port: 1, token: 't' }),
-    resolveCwd: () => ({ ok: true, cwd: '/repos/foo' }),
+    resolveCwd: async () => ({ ok: true, cwd: '/repos/foo' }),
     wsDelegate: async (): Promise<DelegateOverWsResult> => ({ sessionId: 'app-1', sendOk: true }),
     persistAppSession: () => appSession,
     cloudDelegate: async () => cloudSession,
@@ -74,7 +74,7 @@ describe('delegateTask — cloud fallback (pre-create only)', () => {
   })
 
   it('falls back to cloud when no trusted local checkout resolves', async () => {
-    const res = await delegateTask(payload, makeDeps({ resolveCwd: () => ({ ok: false, reason: 'no_local_cwd' }) }))
+    const res = await delegateTask(payload, makeDeps({ resolveCwd: async () => ({ ok: false, reason: 'no_local_cwd' }) }))
     expect(res.kind).toBe('cloud')
   })
 
@@ -121,17 +121,17 @@ describe('delegateTask — idempotency boundary (never double-delegate)', () => 
 })
 
 describe('appDelegateAvailability', () => {
-  it('reports the specific skip reason', () => {
-    expect(appDelegateAvailability('me', 'foo', 1, makeDeps({ appEnabled: () => false }))).toEqual({
+  it('reports the specific skip reason', async () => {
+    expect(await appDelegateAvailability('me', 'foo', 1, makeDeps({ appEnabled: () => false }))).toEqual({
       appAvailable: false, reason: 'flag_disabled',
     })
-    expect(appDelegateAvailability('me', 'foo', 1, makeDeps({ discover: () => null }))).toEqual({
+    expect(await appDelegateAvailability('me', 'foo', 1, makeDeps({ discover: () => null }))).toEqual({
       appAvailable: false, reason: 'app_not_running',
     })
     expect(
-      appDelegateAvailability('me', 'foo', 1, makeDeps({ resolveCwd: () => ({ ok: false, reason: 'no_local_cwd' }) }))
+      await appDelegateAvailability('me', 'foo', 1, makeDeps({ resolveCwd: async () => ({ ok: false, reason: 'no_local_cwd' }) }))
     ).toEqual({ appAvailable: false, reason: 'no_local_cwd' })
-    expect(appDelegateAvailability('me', 'foo', 1, makeDeps())).toEqual({ appAvailable: true })
+    expect(await appDelegateAvailability('me', 'foo', 1, makeDeps())).toEqual({ appAvailable: true })
   })
 })
 

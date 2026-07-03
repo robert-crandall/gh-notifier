@@ -15,10 +15,13 @@
  * metadata and never use the app's own cwd.
  */
 
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
 
 export const DEFAULT_REPOS_ROOT = '~/repos'
 
@@ -87,7 +90,7 @@ export interface GitInspection {
 }
 
 /** Inspect a directory's git state. Returns insideWorkTree=false when not a repo. */
-export type GitInspector = (dirPath: string) => GitInspection
+export type GitInspector = (dirPath: string) => Promise<GitInspection>
 
 /** True when the path exists and is a directory. */
 export type DirProbe = (dirPath: string) => boolean
@@ -100,23 +103,25 @@ const defaultDirProbe: DirProbe = (dirPath) => {
   }
 }
 
-const defaultGitInspector: GitInspector = (dirPath) => {
-  const run = (args: string[]): string | null => {
+/**
+ * Real git inspection. Runs git ASYNC (promisified execFile) so it never blocks
+ * the Electron main-process event loop — matching the rest of the codebase's
+ * async subprocess pattern. A hung git can't freeze IPC (5s timeout per call).
+ */
+const defaultGitInspector: GitInspector = async (dirPath) => {
+  const run = async (args: string[]): Promise<string | null> => {
     try {
-      return execFileSync('git', ['-C', dirPath, ...args], {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-        timeout: 5000,
-      })
+      const { stdout } = await execFileAsync('git', ['-C', dirPath, ...args], { timeout: 5000 })
+      return stdout
     } catch {
       return null
     }
   }
-  const inside = run(['rev-parse', '--is-inside-work-tree'])
+  const inside = await run(['rev-parse', '--is-inside-work-tree'])
   const insideWorkTree = inside !== null && inside.trim() === 'true'
   if (!insideWorkTree) return { insideWorkTree: false, remoteUrls: [] }
 
-  const remotes = run(['remote', '-v'])
+  const remotes = await run(['remote', '-v'])
   const remoteUrls: string[] = []
   if (remotes !== null) {
     for (const line of remotes.split(/\r?\n/)) {
@@ -141,9 +146,14 @@ export type CwdResolution = { ok: true; cwd: string } | { ok: false; reason: 'no
 
 /**
  * Resolve a trusted local checkout for `owner/repo`, or report that none is
- * available. See the module doc for the strict-validation contract.
+ * available. See the module doc for the strict-validation contract. Async: the
+ * git inspection runs off the main-thread event loop.
  */
-export function resolveLocalCwd(owner: string, repo: string, options: ResolveCwdOptions = {}): CwdResolution {
+export async function resolveLocalCwd(
+  owner: string,
+  repo: string,
+  options: ResolveCwdOptions = {}
+): Promise<CwdResolution> {
   const dirProbe = options.dirProbe ?? defaultDirProbe
   const gitInspector = options.gitInspector ?? defaultGitInspector
 
@@ -156,7 +166,7 @@ export function resolveLocalCwd(owner: string, repo: string, options: ResolveCwd
   // Must be an absolute directory that exists.
   if (!isAbsolute(candidate) || !dirProbe(candidate)) return { ok: false, reason: 'no_local_cwd' }
 
-  const git = gitInspector(candidate)
+  const git = await gitInspector(candidate)
   if (!git.insideWorkTree) return { ok: false, reason: 'no_local_cwd' }
   if (!remotesMatchRepo(git.remoteUrls, owner, repo)) return { ok: false, reason: 'no_local_cwd' }
 

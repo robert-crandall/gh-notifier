@@ -68,49 +68,49 @@ describe('expandHome', () => {
 describe('resolveLocalCwd', () => {
   const matchingGit: GitInspection = { insideWorkTree: true, remoteUrls: ['git@github.com:me/foo.git'] }
 
-  it('resolves <repos-root>/<repo> when it exists, is a worktree, and the remote matches', () => {
-    const res = resolveLocalCwd('me', 'foo', {
+  it('resolves <repos-root>/<repo> when it exists, is a worktree, and the remote matches', async () => {
+    const res = await resolveLocalCwd('me', 'foo', {
       reposRoot: '/repos',
       dirProbe: (p) => p === '/repos/foo',
-      gitInspector: () => matchingGit,
+      gitInspector: async () => matchingGit,
     })
     expect(res).toEqual({ ok: true, cwd: '/repos/foo' })
   })
 
-  it('rejects when the path is not a directory', () => {
-    const res = resolveLocalCwd('me', 'foo', {
+  it('rejects when the path is not a directory', async () => {
+    const res = await resolveLocalCwd('me', 'foo', {
       reposRoot: '/repos',
       dirProbe: () => false,
-      gitInspector: () => matchingGit,
+      gitInspector: async () => matchingGit,
     })
     expect(res).toEqual({ ok: false, reason: 'no_local_cwd' })
   })
 
-  it('rejects when the directory is not a git worktree', () => {
-    const res = resolveLocalCwd('me', 'foo', {
+  it('rejects when the directory is not a git worktree', async () => {
+    const res = await resolveLocalCwd('me', 'foo', {
       reposRoot: '/repos',
       dirProbe: () => true,
-      gitInspector: () => ({ insideWorkTree: false, remoteUrls: [] }),
+      gitInspector: async () => ({ insideWorkTree: false, remoteUrls: [] }),
     })
     expect(res).toEqual({ ok: false, reason: 'no_local_cwd' })
   })
 
-  it('rejects when the remote points at a different owner (owner collision)', () => {
-    const res = resolveLocalCwd('me', 'foo', {
+  it('rejects when the remote points at a different owner (owner collision)', async () => {
+    const res = await resolveLocalCwd('me', 'foo', {
       reposRoot: '/repos',
       dirProbe: () => true,
-      gitInspector: () => ({ insideWorkTree: true, remoteUrls: ['git@github.com:someoneelse/foo.git'] }),
+      gitInspector: async () => ({ insideWorkTree: true, remoteUrls: ['git@github.com:someoneelse/foo.git'] }),
     })
     expect(res).toEqual({ ok: false, reason: 'no_local_cwd' })
   })
 
-  it('uses an explicit override path over the convention', () => {
+  it('uses an explicit override path over the convention', async () => {
     const seen: string[] = []
-    const res = resolveLocalCwd('me', 'foo', {
+    const res = await resolveLocalCwd('me', 'foo', {
       reposRoot: '/repos',
       overridePath: '/custom/checkout',
       dirProbe: (p) => { seen.push(p); return p === '/custom/checkout' },
-      gitInspector: () => matchingGit,
+      gitInspector: async () => matchingGit,
     })
     expect(res).toEqual({ ok: true, cwd: '/custom/checkout' })
     expect(seen).toContain('/custom/checkout')

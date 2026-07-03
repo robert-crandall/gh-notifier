@@ -30,7 +30,7 @@ import { insertLaunchedSession } from '../../copilot/db'
 export interface DelegateDeps {
   appEnabled: () => boolean
   discover: () => WsEndpoint | null
-  resolveCwd: (owner: string, repo: string, projectId: number | null) => CwdResolution
+  resolveCwd: (owner: string, repo: string, projectId: number | null) => Promise<CwdResolution>
   wsDelegate: (endpoint: WsEndpoint, cwd: string, prompt: string, model?: string) => Promise<DelegateOverWsResult>
   persistAppSession: (input: InsertAppSessionInput) => CopilotAppSession
   cloudDelegate: (payload: DelegatePayload) => Promise<CopilotSession>
@@ -91,7 +91,7 @@ async function tryAppDelegate(
   if (payload.baseBranch !== undefined && payload.baseBranch.trim().length > 0) return 'skip'
   const endpoint = deps.discover()
   if (endpoint === null) return 'skip' // app not running
-  const cwd = deps.resolveCwd(payload.repoOwner.trim(), payload.repoName.trim(), payload.projectId)
+  const cwd = await deps.resolveCwd(payload.repoOwner.trim(), payload.repoName.trim(), payload.projectId)
   if (!cwd.ok) return 'skip' // no trusted local checkout → cloud
 
   let ws: DelegateOverWsResult
@@ -134,15 +134,16 @@ export async function delegateTask(payload: DelegatePayload, deps: DelegateDeps)
 }
 
 /** Diagnose whether the app path would be taken for a repo (for a UI hint). */
-export function appDelegateAvailability(
+export async function appDelegateAvailability(
   owner: string,
   repo: string,
   projectId: number | null,
   deps: DelegateDeps
-): { appAvailable: true } | { appAvailable: false; reason: AppDelegateSkipReason } {
+): Promise<{ appAvailable: true } | { appAvailable: false; reason: AppDelegateSkipReason }> {
   if (!deps.appEnabled()) return { appAvailable: false, reason: 'flag_disabled' }
   if (deps.discover() === null) return { appAvailable: false, reason: 'app_not_running' }
-  if (!deps.resolveCwd(owner.trim(), repo.trim(), projectId).ok) {
+  const cwd = await deps.resolveCwd(owner.trim(), repo.trim(), projectId)
+  if (!cwd.ok) {
     return { appAvailable: false, reason: 'no_local_cwd' }
   }
   return { appAvailable: true }
