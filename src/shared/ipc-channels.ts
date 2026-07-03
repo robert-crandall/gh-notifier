@@ -538,8 +538,9 @@ export type IpcChannels = {
 
   /**
    * Launches a cloud `gh agent-task` off the render thread and returns the
-   * optimistically-inserted session row (status 'in_progress'). Throws a typed
-   * error string ('GH_NOT_AUTHENTICATED' | 'LAUNCH_FAILED') on failure.
+   * optimistically-inserted session row (status 'in_progress'). On failure it
+   * rejects with an `Error` whose `message` is `'GH_NOT_AUTHENTICATED'` or
+   * starts with `'LAUNCH_FAILED: '` — renderer callers should read `err.message`.
    */
   'copilot:launch': {
     args: [payload: LaunchAgentTaskPayload]
