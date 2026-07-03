@@ -30,9 +30,9 @@ export function Titlebar({ onOpenPalette, colorMode, onToggleColorMode, onOpenSe
         <button type="button"
           className={styles.iconButton}
           onClick={onToggleColorMode}
-          aria-label={colorMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={colorMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
         >
-          <Icon icon={colorMode === 'dark' ? Sun : Moon} size={15} />
+          <Icon icon={colorMode === 'light' ? Moon : Sun} size={15} />
         </button>
         <button type="button" className={styles.iconButton} onClick={onOpenSettings} aria-label="Settings">
           <Icon icon={Settings} size={15} />

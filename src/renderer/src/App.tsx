@@ -209,7 +209,7 @@ export function App(): JSX.Element {
       <Titlebar
         onOpenPalette={() => setPaletteOpen(true)}
         colorMode={theme.resolvedColorMode}
-        onToggleColorMode={() => theme.setColorMode(theme.resolvedColorMode === 'dark' ? 'light' : 'dark')}
+        onToggleColorMode={() => theme.setColorMode(theme.resolvedColorMode === 'light' ? 'dark' : 'light')}
         onOpenSettings={() => setView('settings')}
       />
 

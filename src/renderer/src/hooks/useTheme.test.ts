@@ -75,6 +75,27 @@ describe('useTheme', () => {
     expect(document.documentElement.getAttribute('data-color-mode')).toBe('light')
   })
 
+  it.each(['dim', 'high-contrast'] as const)(
+    'treats %s as an explicit resolved mode (not system-resolved)',
+    (mode) => {
+      stubMatchMedia(false) // system would resolve to light; explicit mode must win
+      const { result } = renderHook(() => useTheme())
+      act(() => result.current.setColorMode(mode))
+      expect(result.current.colorMode).toBe(mode)
+      expect(result.current.resolvedColorMode).toBe(mode)
+      expect(localStorage.getItem('focus-color-mode')).toBe(mode)
+      expect(document.documentElement.getAttribute('data-color-mode')).toBe(mode)
+    },
+  )
+
+  it('reads a stored dim mode on mount', () => {
+    localStorage.setItem('focus-color-mode', 'dim')
+    const { result } = renderHook(() => useTheme())
+    expect(result.current.colorMode).toBe('dim')
+    expect(result.current.resolvedColorMode).toBe('dim')
+    expect(document.documentElement.getAttribute('data-color-mode')).toBe('dim')
+  })
+
   it('setAccent persists and updates the data-accent attribute', () => {
     const { result } = renderHook(() => useTheme())
     act(() => result.current.setAccent('blue'))

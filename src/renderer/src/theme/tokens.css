@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Focus design tokens — a lightweight, Primer-inspired system.
    Monochrome neutral ramp + one accent. Theming via data-attributes on <html>:
-     data-color-mode = "dark" | "light"   (resolved by useTheme; system-aware)
+     data-color-mode = "dark" | "light" | "dim" | "high-contrast"  (resolved by useTheme; system-aware)
      data-accent     = "slate" | "blue" | "green" | "violet"
      data-density    = "compact" | "comfortable"
    ───────────────────────────────────────────────────────────────────────────── */
@@ -32,6 +32,8 @@
 /* ── Dark palette (default) ──────────────────────────────────────────────────── */
 :root,
 [data-color-mode='dark'] {
+  color-scheme: dark;
+
   --bg-desktop: #05070a;
   --bg-window: #0d1117;
   --bg-rail: #0a0e13;
@@ -64,7 +66,8 @@
   --accent-text: #adbac7;
 }
 
-[data-color-mode='dark'][data-accent='blue'] {
+[data-color-mode='dark'][data-accent='blue'],
+[data-color-mode='dim'][data-accent='blue'] {
   --accent: #1f6feb;
   --accent-hover: #388bfd;
   --accent-fg: #fff;
@@ -73,7 +76,8 @@
   --accent-text: #58a6ff;
 }
 
-[data-color-mode='dark'][data-accent='green'] {
+[data-color-mode='dark'][data-accent='green'],
+[data-color-mode='dim'][data-accent='green'] {
   --accent: #238636;
   --accent-hover: #2ea043;
   --accent-fg: #fff;
@@ -82,7 +86,8 @@
   --accent-text: #3fb950;
 }
 
-[data-color-mode='dark'][data-accent='violet'] {
+[data-color-mode='dark'][data-accent='violet'],
+[data-color-mode='dim'][data-accent='violet'] {
   --accent: #8957e5;
   --accent-hover: #a371f7;
   --accent-fg: #fff;
@@ -93,6 +98,8 @@
 
 /* ── Light palette ───────────────────────────────────────────────────────────── */
 [data-color-mode='light'] {
+  color-scheme: light;
+
   --bg-desktop: #eaeef2;
   --bg-window: #ffffff;
   --bg-rail: #f6f8fa;
@@ -150,4 +157,108 @@
   --accent-subtle: rgba(130, 80, 223, 0.1);
   --accent-border: rgba(130, 80, 223, 0.4);
   --accent-text: #8250df;
+}
+
+/* ── Dim palette ─────────────────────────────────────────────────────────────────
+   A softer dark: lifted, desaturated backgrounds and gentler text so long sessions
+   are easier on the eyes. Accents are inherited from the dark family (selectors
+   above match [data-color-mode='dim'] too); only the neutral ramp changes here. */
+[data-color-mode='dim'] {
+  color-scheme: dark;
+
+  --bg-desktop: #1c2128;
+  --bg-window: #22272e;
+  --bg-rail: #1c2128;
+  --bg-subtle: #2d333b;
+  --bg-inset: #1c2128;
+  --bg-elevated: #323942;
+
+  --border: #444c56;
+  --border-muted: #373e47;
+  --border-subtle: rgba(205, 217, 229, 0.08);
+
+  --text: #cdd9e5;
+  --text-2: #909dab;
+  --text-3: #838f9c;
+
+  --success: #57ab5a;
+  --attention: #c69026;
+  --danger: #e5534b;
+  --info: #6cb6ff;
+  --violet: #b083f0;
+
+  --scrollbar-thumb: #454c56;
+
+  /* Accent — slate (default); blue/green/violet come from the dark accent rules. */
+  --accent: #616b78;
+  --accent-hover: #6f7a88;
+  --accent-fg: #f2f5f9;
+  --accent-subtle: rgba(124, 138, 158, 0.16);
+  --accent-border: rgba(124, 138, 158, 0.5);
+  --accent-text: #adbac7;
+}
+
+/* ── High-contrast palette ───────────────────────────────────────────────────────
+   Maximum legibility: near-black surfaces, near-white text, solid opaque borders,
+   and brighter accents. Targets WCAG AAA contrast for body text on the base surface. */
+[data-color-mode='high-contrast'] {
+  color-scheme: dark;
+
+  --bg-desktop: #000000;
+  --bg-window: #010409;
+  --bg-rail: #000000;
+  --bg-subtle: #0a0c10;
+  --bg-inset: #000000;
+  --bg-elevated: #151b23;
+
+  --border: #7a828e;
+  --border-muted: #525960;
+  --border-subtle: rgba(255, 255, 255, 0.2);
+
+  --text: #ffffff;
+  --text-2: #f0f3f6;
+  --text-3: #bdc4cc;
+
+  --success: #26cd4d;
+  --attention: #f0b72f;
+  --danger: #ff6a69;
+  --info: #71b7ff;
+  --violet: #cb9eff;
+
+  --scrollbar-thumb: #7a828e;
+
+  /* Accent — slate (default). High-contrast accents are defined per-accent below. */
+  --accent: #8f99a6;
+  --accent-hover: #adb6c2;
+  --accent-fg: #000000;
+  --accent-subtle: rgba(174, 185, 199, 0.24);
+  --accent-border: #adb6c2;
+  --accent-text: #f0f3f6;
+}
+
+[data-color-mode='high-contrast'][data-accent='blue'] {
+  --accent: #71b7ff;
+  --accent-hover: #91c9ff;
+  --accent-fg: #000000;
+  --accent-subtle: rgba(113, 183, 255, 0.24);
+  --accent-border: #91c9ff;
+  --accent-text: #91c9ff;
+}
+
+[data-color-mode='high-contrast'][data-accent='green'] {
+  --accent: #26cd4d;
+  --accent-hover: #4ae168;
+  --accent-fg: #000000;
+  --accent-subtle: rgba(38, 205, 77, 0.24);
+  --accent-border: #4ae168;
+  --accent-text: #4ae168;
+}
+
+[data-color-mode='high-contrast'][data-accent='violet'] {
+  --accent: #cb9eff;
+  --accent-hover: #dcbdff;
+  --accent-fg: #000000;
+  --accent-subtle: rgba(203, 158, 255, 0.24);
+  --accent-border: #dcbdff;
+  --accent-text: #dcbdff;
 }
