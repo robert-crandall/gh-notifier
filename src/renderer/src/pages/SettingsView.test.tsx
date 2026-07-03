@@ -84,4 +84,13 @@ describe('SettingsView appearance', () => {
     fireEvent.click(screen.getByText('Save'))
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('settings:set-repos-root', '~/code'))
   })
+
+  it('normalizes a cleared repos root to the default and reflects it in the input', async () => {
+    render(<SettingsView theme={theme()} onClose={vi.fn()} onOpenRules={vi.fn()} />)
+    const input = (await screen.findByPlaceholderText('~/repos')) as HTMLInputElement
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.click(screen.getByText('Save'))
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('settings:set-repos-root', '~/repos'))
+    expect(input.value).toBe('~/repos')
+  })
 })

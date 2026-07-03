@@ -136,6 +136,9 @@ export type AppDelegateSkipReason =
   | 'app_not_running' // WS discovery files (ws.port/ws.token) absent — no connection is attempted
   | 'no_local_cwd'    // no trusted local checkout resolved for the repo
 
+/** Default "repos root" used to resolve local checkouts (`~` expanded in main). */
+export const DEFAULT_REPOS_ROOT = '~/repos'
+
 
 export interface Project {
   id: number

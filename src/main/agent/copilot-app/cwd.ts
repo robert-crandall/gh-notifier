@@ -20,10 +20,11 @@ import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
+import { DEFAULT_REPOS_ROOT } from '../../../shared/ipc-channels'
+
+export { DEFAULT_REPOS_ROOT }
 
 const execFileAsync = promisify(execFile)
-
-export const DEFAULT_REPOS_ROOT = '~/repos'
 
 /** Expand a leading `~` / `~/…` to the user's home directory. Pure-ish (reads homedir). */
 export function expandHome(p: string): string {

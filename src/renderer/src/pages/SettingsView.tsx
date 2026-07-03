@@ -15,6 +15,7 @@ import {
 import {
   SYNC_INTERVAL_OPTIONS,
   MAX_SYNC_DAYS_OPTIONS,
+  DEFAULT_REPOS_ROOT,
   type SyncIntervalMinutes,
   type MaxSyncDays,
 } from '@shared/ipc-channels'
@@ -99,7 +100,11 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
   }
   const saveReposRoot = (): void => {
     if (reposRoot === null) return
-    fire(window.electron.ipc.invoke('settings:set-repos-root', reposRoot), 'settings:set-repos-root')
+    // Mirror main's normalization (blank → default) so the input reflects what
+    // was actually stored instead of looking like the save was lost.
+    const normalized = reposRoot.trim().length > 0 ? reposRoot.trim() : DEFAULT_REPOS_ROOT
+    setReposRoot(normalized)
+    fire(window.electron.ipc.invoke('settings:set-repos-root', normalized), 'settings:set-repos-root')
   }
 
   return (
