@@ -63,7 +63,7 @@ export function createDefaultDelegateDeps(): DelegateDeps {
   }
 }
 
-function validatePayload(payload: DelegatePayload): { prompt: string; owner: string; name: string } {
+function validatePayload(payload: DelegatePayload): { prompt: string } {
   const prompt = payload.prompt.trim()
   if (prompt.length === 0) throw new Error('DELEGATE_FAILED: a prompt is required')
   const owner = payload.repoOwner.trim()
@@ -71,7 +71,7 @@ function validatePayload(payload: DelegatePayload): { prompt: string; owner: str
   if (owner.length === 0 || name.length === 0) {
     throw new Error('DELEGATE_FAILED: a target repository is required')
   }
-  return { prompt, owner, name }
+  return { prompt }
 }
 
 /**

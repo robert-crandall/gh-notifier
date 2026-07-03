@@ -178,7 +178,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
                   : 'Copilot is on it in the desktop app.'
               props.showUndo(
                 message,
-                () => { fire(window.electron.ipc.invoke('copilot:open-app-session', result.session.id)) },
+                () => { fire(window.electron.ipc.invoke('copilot:open-app-session', result.session.id), 'copilot:open-app-session') },
                 'Open'
               )
             }
