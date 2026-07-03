@@ -340,7 +340,7 @@ export function ConnectResourceDialog({
           <>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Server</span>
-              <select className={styles.input} value={serverId} onChange={(e) => { setServerId(e.target.value); setTools(null) }}>
+              <select className={styles.input} aria-label="Server" value={serverId} onChange={(e) => { setServerId(e.target.value); setTools(null); setError(null) }}>
                 {servers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label}
