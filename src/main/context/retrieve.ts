@@ -276,11 +276,13 @@ function dot(a: number[], b: number[]): number {
 }
 
 /**
- * Cosine floor: drop only genuine noise so weak-but-real matches still reach the
- * decider. It must stay low — the two-stage design relies on the LLM (not this
+ * Minimum COMBINED score (cosine + structured bonus) for a candidate to survive.
+ * It's deliberately low — the two-stage design relies on the LLM (not this
  * floor) to reject candidates and answer "none". Set from the adversarial eval:
- * a correct-but-weak match (authnd) scored ~0.16, so a 0.2 floor wrongly
- * filtered it. The LLM rejects genuine negatives (verified in the live eval).
+ * a correct-but-weak match (authnd) scored ~0.16 cosine, so a higher floor
+ * wrongly filtered it. Note it applies to the combined score, so an exact
+ * structured match can (intentionally) rescue a resource the user named
+ * explicitly even when its cosine is modest.
  */
 const EMBED_MIN_SCORE = 0.1
 
