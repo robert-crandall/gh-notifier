@@ -253,7 +253,7 @@ const EMBED_STRUCT_BONUS = 0.15
 /**
  * Creates a hybrid embedding retriever: semantic cosine similarity + the
  * structured exact-match bonus. Corpus embeddings are cached in-memory keyed by
- * resource id + updatedAt, so only new/changed records are re-embedded.
+ * the embedded document text, so only new/changed content is re-embedded.
  */
 export function createEmbeddingRetriever(embedder: Embedder): Retriever {
   // Cache keyed by the embedded DOCUMENT text, so health/usage bumps (which move

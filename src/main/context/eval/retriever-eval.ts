@@ -6,7 +6,7 @@
  *
  * Run: bun --bun run src/main/context/eval/retriever-eval.ts
  */
-import { runRetrievalEval, loadQuestions, loadAdversarialQuestions } from './harness'
+import { runRetrievalEval, loadQuestions, loadAdversarialQuestions, loadCorpus, toResourceFixtures } from './harness'
 import { lexicalRetriever, createDefaultRetriever } from '../retrieve'
 import { createLocalEmbedder } from '../embed'
 
@@ -19,7 +19,10 @@ async function main(): Promise<void> {
 
   console.log('Loading embedding model (downloads once)...')
   const t0 = Date.now()
-  await embedding.retrieve('warmup', [], 1)
+  // Warm up against a non-empty corpus so the model actually loads now (an empty
+  // corpus short-circuits before embedding), making the timing meaningful.
+  const { resources } = toResourceFixtures(loadCorpus())
+  await embedding.retrieve('warmup', resources.slice(0, 1), 1)
   console.log(`model ready in ${((Date.now() - t0) / 1000).toFixed(1)}s\n`)
 
   console.log('=== RETRIEVER EVAL (synthetic) ===')
