@@ -171,7 +171,12 @@
   opacity: 0;
 }
 
-.ruleRow:hover .deleteButton {
+.ruleRow:hover .deleteButton,
+.ruleRow:focus-within .deleteButton {
+  opacity: 1;
+}
+
+.deleteButton:focus-visible {
   opacity: 1;
 }
 
