@@ -11,6 +11,7 @@
     "lint": "eslint src",
     "test": "bun run typecheck && bun run lint && vitest run",
     "test:watch": "vitest",
+    "eval:live": "bun --bun run src/main/context/eval/live-eval.ts",
     "dist": "bun run build && electron-builder --mac",
     "dist:dir": "bun run build && electron-builder --dir --mac",
     "db:copy-prod": "bash scripts/copy-prod-db.sh",
@@ -22,12 +23,14 @@
   "author": "robert-crandall",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/rest": "^22.0.1",
     "better-sqlite3": "^12.9.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^1.23.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",

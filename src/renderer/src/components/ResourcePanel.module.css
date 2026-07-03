@@ -1,0 +1,377 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Ask box — the primary surface */
+.askRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.askRow:focus-within {
+  border-color: var(--accent-border);
+}
+
+.askIcon {
+  color: var(--text-3);
+  flex: none;
+}
+
+.askInput {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.askInput::placeholder {
+  color: var(--text-3);
+}
+
+.resolving {
+  font-size: 12px;
+  color: var(--text-3);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Answer card */
+.answerCard {
+  position: relative;
+  padding: 14px 16px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.answerClose {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+}
+
+.answerClose:hover {
+  color: var(--text);
+}
+
+.liveValue {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  padding-right: 20px;
+}
+
+.answerText {
+  font-size: 13px;
+  color: var(--text);
+  padding-right: 20px;
+  line-height: 1.5;
+}
+
+.muted {
+  color: var(--text-3);
+}
+
+.clarifyRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.clarifyIcon {
+  color: var(--attention);
+  margin-top: 1px;
+  flex: none;
+}
+
+.candidateChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Citation chip */
+.citation {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 9px;
+  background: var(--bg-window);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--accent-text);
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.citation:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.citation:disabled {
+  color: var(--text-2);
+  cursor: default;
+}
+
+.citationTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suspectDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--attention);
+  flex: none;
+}
+
+/* Capture */
+.captureRow {
+  display: flex;
+  gap: 6px;
+}
+
+.captureInput {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.captureInput:focus {
+  border-color: var(--accent-border);
+}
+
+.captureBtn {
+  width: 34px;
+  flex: none;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.captureBtn:hover {
+  background: var(--bg-elevated);
+}
+
+/* Proposal card */
+.proposalCard {
+  padding: 12px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.proposalHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  border-radius: 4px;
+}
+
+.badgeMuted {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  border-radius: 4px;
+}
+
+.proposalTitle {
+  height: 32px;
+  padding: 0 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.proposalTitle:focus {
+  border-color: var(--accent-border);
+}
+
+.proposalActions {
+  display: flex;
+  gap: 8px;
+}
+
+.acceptBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  background: var(--accent);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  color: var(--accent-fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.acceptBtn:hover {
+  background: var(--accent-hover);
+}
+
+.cancelBtn {
+  height: 30px;
+  padding: 0 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.cancelBtn:hover {
+  color: var(--text);
+}
+
+/* Browse */
+.browse {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.groupLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  padding: 0 6px 4px;
+}
+
+.browseRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--row);
+  padding: 0 6px;
+  border-radius: var(--radius);
+}
+
+.browseRow:hover {
+  background: var(--bg-subtle);
+}
+
+.browseMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.browseIcon {
+  color: var(--text-3);
+  flex: none;
+}
+
+.browseTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suspectBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--attention);
+  flex: none;
+}
+
+.rowAction {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  opacity: 0;
+  display: flex;
+  padding: 2px;
+  transition: opacity var(--transition);
+}
+
+.browseRow:hover .rowAction {
+  opacity: 1;
+}
+
+.rowAction:hover {
+  color: var(--danger);
+}
+
+.empty {
+  color: var(--text-3);
+  font-size: 13px;
+  padding: 4px 2px;
+  line-height: 1.5;
+}
