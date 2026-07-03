@@ -69,4 +69,16 @@ describe('groupResources', () => {
   it('returns an empty array for no resources', () => {
     expect(groupResources([])).toEqual([])
   })
+
+  it('normalizes source case/whitespace when grouping', () => {
+    const groups = groupResources([
+      res({ title: 'A', source: '  datadog  ' }),
+      res({ title: 'B', source: 'Datadog' }),
+      res({ title: 'C', source: 'Generic', service: 'checkout' }),
+    ])
+    // Both datadog variants collapse into one group; "Generic" falls back to service.
+    const dd = groups.find((g) => g.key === 'source:datadog')
+    expect(dd?.resources.map((r) => r.title)).toEqual(['A', 'B'])
+    expect(groups.some((g) => g.label === 'Checkout')).toBe(true)
+  })
 })

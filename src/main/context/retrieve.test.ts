@@ -49,6 +49,13 @@ describe('tokenize', () => {
     expect(tokenize('latencies')).toEqual(['latency'])
   })
 
+  it('drops contraction fragments left by splitting', () => {
+    // "what's" -> what (stopword) + s (fragment); both dropped. "checkout" stays.
+    expect(tokenize("what's checkout doing?")).toEqual(['checkout', 'doing'])
+    // The trailing "t" fragment of "don't" is dropped (the "don" stem remains).
+    expect(tokenize("don't")).toEqual(['don'])
+  })
+
   it('splits on punctuation and symbols', () => {
     // 'to' is a stopword, so it's dropped.
     expect(tokenize('p99:end_to_end.latency')).toEqual(['p99', 'end', 'end', 'latency'])

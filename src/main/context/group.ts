@@ -8,15 +8,18 @@ import type { Resource, ResourceGroup } from '../../shared/ipc-channels'
  */
 
 function groupKeyFor(resource: Resource): { key: string; label: string } {
-  if (resource.pinnedGroup !== null && resource.pinnedGroup.trim().length > 0) {
-    const label = resource.pinnedGroup.trim()
-    return { key: `pin:${label.toLowerCase()}`, label }
+  const pinned = resource.pinnedGroup?.trim() ?? ''
+  if (pinned.length > 0) {
+    return { key: `pin:${pinned.toLowerCase()}`, label: pinned }
   }
-  if (resource.source && resource.source !== 'generic') {
-    return { key: `source:${resource.source.toLowerCase()}`, label: titleCase(resource.source) }
+  // Normalize (trim + case-insensitive) so "Generic"/" datadog " group correctly.
+  const source = resource.source.trim()
+  if (source.length > 0 && source.toLowerCase() !== 'generic') {
+    return { key: `source:${source.toLowerCase()}`, label: titleCase(source) }
   }
-  if (resource.service) {
-    return { key: `service:${resource.service.toLowerCase()}`, label: titleCase(resource.service) }
+  const service = resource.service.trim()
+  if (service.length > 0) {
+    return { key: `service:${service.toLowerCase()}`, label: titleCase(service) }
   }
   return { key: 'other', label: 'Other' }
 }

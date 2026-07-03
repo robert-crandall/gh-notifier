@@ -35,6 +35,8 @@ const STOPWORDS = new Set([
   'and', 'or', 'my', 'our', 'me', 'i', 'how', 'whats', 'what', 'show', 'get', 'find',
   'right', 'now', 'currently', 'please', 'about', 'this', 'that', 'it', 'do', 'does',
   'with', 'at', 'by', 'from', 'looking', 'look', 'check', 'wheres', 'where',
+  // Contraction fragments left behind after splitting (what's -> what + s, don't -> don + t).
+  's', 't', 're', 've', 'll', 'm', 'd',
 ])
 
 /** Lowercases, splits on non-alphanumerics, drops stopwords, light singularization. */
