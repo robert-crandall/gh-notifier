@@ -24,10 +24,12 @@ import { listRoutingRules, createRoutingRule, deleteRoutingRule, applyRoutingRul
 import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync, getMaxSyncDays, setMaxSyncDays } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
 import { syncCopilotSessions } from './copilot/sync'
-import { getSessionsForProject, getAllStatuses } from './copilot/db'
+import { getSessionsForProject, getAllStatuses, insertLaunchedSession, getUnassignedSessions, getUnassignedActiveCount, assignSession } from './copilot/db'
+import { launchAgentTask } from './copilot/launch'
+import { getLaunchTargets } from './copilot/launch-targets'
 import { getDigest, markProjectFocused, markDigestSeen, dismissResurface } from './digest'
 import { getDb } from './db'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload } from '../shared/ipc-channels'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
 /** Broadcasts a push event to all renderer windows. */
@@ -264,6 +266,35 @@ app.whenReady().then(async () => {
   ipcMain.handle('copilot:sync', async () => {
     await syncCopilotSessions()
   })
+
+  // Launch a cloud agent task off the render thread, optimistically track it,
+  // then reconcile the real title/status from GitHub in the background.
+  ipcMain.handle('copilot:launch', async (_event, payload: LaunchAgentTaskPayload) => {
+    const parsed = await launchAgentTask(payload)
+    const session = insertLaunchedSession({
+      id: parsed.sessionId,
+      title: payload.prompt.trim(),
+      repoOwner: payload.repoOwner.trim(),
+      repoName: payload.repoName.trim(),
+      htmlUrl: parsed.prUrl ?? parsed.sessionUrl,
+      linkedPrUrl: parsed.prUrl,
+      projectId: payload.projectId,
+    })
+    broadcast('copilot:updated')
+    void syncCopilotSessions().catch((err: unknown) => {
+      console.error('[copilot] Post-launch reconcile sync failed:', err)
+    })
+    return session
+  })
+
+  ipcMain.handle('copilot:unassigned', () => getUnassignedSessions())
+  ipcMain.handle('copilot:unassigned-count', () => getUnassignedActiveCount())
+  ipcMain.handle('copilot:assign', (_event, sessionId: string, projectId: number) => {
+    assignSession(sessionId, projectId)
+    broadcast('copilot:updated')
+    broadcast('projects:updated')
+  })
+  ipcMain.handle('copilot:launch-targets', (_event, projectId: number) => getLaunchTargets(projectId))
 
   // Focus: re-entry digest + drift handlers
   ipcMain.handle('digest:get', (_event, projectId: number) => getDigest(projectId))

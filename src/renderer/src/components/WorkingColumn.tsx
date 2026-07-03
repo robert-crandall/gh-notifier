@@ -15,8 +15,9 @@ import {
   CircleAlert,
   ExternalLink,
   Trash2,
+  Sparkles,
 } from 'lucide-react'
-import type { NotificationThread, NotificationType, ProjectDetail, ProjectLink, ProjectTodo } from '@shared/ipc-channels'
+import type { NotificationThread, NotificationType, ProjectDetail, ProjectLink, ProjectTodo, LaunchTarget } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
 import { fire, openExternal } from '../ipc'
@@ -32,6 +33,8 @@ interface WorkingColumnProps {
   onSaveNotes: (notes: string) => void
   onCreateLink: (label: string, url: string) => void
   onDeleteLink: (link: ProjectLink) => void
+  /** Hand a todo or notification to a cloud Copilot agent task. */
+  onDelegate: (prompt: string, fixedRepo?: LaunchTarget) => void
 }
 
 function relativeTime(iso: string): string {
@@ -49,7 +52,8 @@ function TodosPanel({
   onCreateTodo,
   onToggleTodo,
   onDeleteTodo,
-}: Pick<WorkingColumnProps, 'detail' | 'onCreateTodo' | 'onToggleTodo' | 'onDeleteTodo'>): JSX.Element {
+  onDelegate,
+}: Pick<WorkingColumnProps, 'detail' | 'onCreateTodo' | 'onToggleTodo' | 'onDeleteTodo' | 'onDelegate'>): JSX.Element {
   const [text, setText] = useState('')
   const active = detail.todos.filter((t) => !t.done)
   const done = detail.todos.filter((t) => t.done)
@@ -77,6 +81,9 @@ function TodosPanel({
         <div key={t.id} className={styles.todoRow}>
           <button type="button" className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
           <span className={styles.todoText}>{t.text}</span>
+          <button type="button" className={styles.rowAction} onClick={() => onDelegate(t.text)} aria-label="Delegate to Copilot" title="Delegate to Copilot">
+            <Icon icon={Sparkles} size={13} />
+          </button>
           <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
             <Icon icon={Trash2} size={13} />
           </button>
@@ -179,7 +186,7 @@ const NOTIF_ICON: Record<NotificationType, LucideIcon> = {
   CheckSuite: CircleAlert,
 }
 
-function NotificationsPanel({ projectId }: { projectId: number }): JSX.Element {
+function NotificationsPanel({ projectId, onDelegate }: { projectId: number; onDelegate: WorkingColumnProps['onDelegate'] }): JSX.Element {
   const [threads, setThreads] = useState<NotificationThread[]>([])
 
   useEffect(() => {
@@ -212,16 +219,27 @@ function NotificationsPanel({ projectId }: { projectId: number }): JSX.Element {
   return (
     <div className={styles.notifs}>
       {threads.map((t) => (
-        <button type="button" key={t.id} className={styles.notifRow} onClick={() => open(t)}>
-          <Icon icon={NOTIF_ICON[t.type] ?? Bell} size={16} className={styles.notifIcon} />
-          <div className={styles.notifBody}>
-            <div className={styles.notifTitle}>{t.title}</div>
-            <div className={styles.notifMeta}>
-              {t.repoOwner}/{t.repoName} · {relativeTime(t.updatedAt)}
+        <div key={t.id} className={styles.notifRow}>
+          <button type="button" className={styles.notifContent} onClick={() => open(t)}>
+            <Icon icon={NOTIF_ICON[t.type] ?? Bell} size={16} className={styles.notifIcon} />
+            <div className={styles.notifBody}>
+              <div className={styles.notifTitle}>{t.title}</div>
+              <div className={styles.notifMeta}>
+                {t.repoOwner}/{t.repoName} · {relativeTime(t.updatedAt)}
+              </div>
             </div>
-          </div>
+          </button>
+          <button
+            type="button"
+            className={`${styles.rowAction} ${styles.delegate}`}
+            onClick={() => onDelegate(t.title, { repoOwner: t.repoOwner, repoName: t.repoName })}
+            aria-label="Delegate to Copilot"
+            title="Delegate to Copilot"
+          >
+            <Icon icon={Sparkles} size={13} />
+          </button>
           {t.unread && <span className={styles.unreadDot} aria-hidden />}
-        </button>
+        </div>
       ))}
     </div>
   )
@@ -266,13 +284,14 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
             onCreateTodo={props.onCreateTodo}
             onToggleTodo={props.onToggleTodo}
             onDeleteTodo={props.onDeleteTodo}
+            onDelegate={props.onDelegate}
           />
         )}
         {tab === 'notes' && <NotesPanel detail={props.detail} onSaveNotes={props.onSaveNotes} />}
         {tab === 'resources' && (
           <ResourcesPanel detail={props.detail} onCreateLink={props.onCreateLink} onDeleteLink={props.onDeleteLink} />
         )}
-        {tab === 'notifications' && <NotificationsPanel projectId={props.detail.id} />}
+        {tab === 'notifications' && <NotificationsPanel projectId={props.detail.id} onDelegate={props.onDelegate} />}
       </div>
     </div>
   )

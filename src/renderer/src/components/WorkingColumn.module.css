@@ -147,12 +147,17 @@
 }
 
 .todoRow:hover .rowAction,
-.resourceRow:hover .rowAction {
+.resourceRow:hover .rowAction,
+.notifRow:hover .rowAction {
   opacity: 1;
 }
 
 .rowAction:hover {
   color: var(--danger);
+}
+
+.rowAction.delegate:hover {
+  color: var(--accent-text);
 }
 
 .divider {
@@ -268,17 +273,25 @@
   gap: 11px;
   padding: 9px 6px;
   border-bottom: 1px solid var(--border-muted);
-  background: none;
-  border-left: none;
-  border-right: none;
-  border-top: none;
-  cursor: pointer;
-  text-align: left;
   width: 100%;
 }
 
 .notifRow:hover {
   background: var(--bg-subtle);
+}
+
+.notifContent {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
 .notifIcon {
