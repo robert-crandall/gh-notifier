@@ -150,6 +150,7 @@ export function DelegateComposer({
                     className={styles.input}
                     value={customOwner}
                     placeholder="owner"
+                    aria-label="Repository owner"
                     onChange={(e) => setCustomOwner(e.target.value)}
                   />
                   <span className={styles.slash}>/</span>
@@ -157,6 +158,7 @@ export function DelegateComposer({
                     className={styles.input}
                     value={customName}
                     placeholder="repo"
+                    aria-label="Repository name"
                     onChange={(e) => setCustomName(e.target.value)}
                   />
                 </div>
