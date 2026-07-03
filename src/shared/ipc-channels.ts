@@ -133,7 +133,7 @@ export type DelegateResult =
 /** Why the desktop-app path wasn't taken for a delegate (diagnostic, non-fatal). */
 export type AppDelegateSkipReason =
   | 'flag_disabled'   // the app-delegate feature flag is off
-  | 'app_not_running' // no WS discovery / connection refused
+  | 'app_not_running' // WS discovery files (ws.port/ws.token) absent — no connection is attempted
   | 'no_local_cwd'    // no trusted local checkout resolved for the repo
 
 
@@ -909,9 +909,11 @@ export type IpcChannels = {
   }
 
   /**
-   * Whether the desktop-app delegate path is currently available for a repo
-   * (flag on + app running + a trusted local checkout resolves). Lets the UI
-   * hint where a delegate will land. Never throws; returns a skip reason.
+   * Best-effort hint for where a delegate will land for a repo: flag on + WS
+   * discovery files present (app appears to be running) + a trusted local
+   * checkout resolves. It does NOT open the WS or handshake, so a real delegate
+   * can still fall back to cloud (e.g. a stale token). Never throws; returns a
+   * skip reason when the app path wouldn't be taken.
    */
   'copilot:delegate-availability': {
     args: [repoOwner: string, repoName: string]

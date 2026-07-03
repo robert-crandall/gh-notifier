@@ -16,7 +16,7 @@ interface AppSessionRow {
   project_id: number | null
   cwd: string
   title: string
-  status: string
+  status: CopilotAppSessionStatus
   repo_owner: string | null
   repo_name: string | null
   created_at: string
@@ -29,7 +29,7 @@ function toSession(row: AppSessionRow): CopilotAppSession {
     projectId: row.project_id,
     cwd: row.cwd,
     title: row.title,
-    status: row.status as CopilotAppSessionStatus,
+    status: row.status,
     repoOwner: row.repo_owner,
     repoName: row.repo_name,
     createdAt: row.created_at,

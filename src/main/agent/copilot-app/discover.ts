@@ -52,7 +52,9 @@ export function discoverWsEndpoint(runDir: string = copilotRunDir()): WsEndpoint
   const token = firstLine(join(runDir, 'ws.token'))
   if (portRaw === null || token === null) return null
 
-  const port = Number(portRaw)
+  // Digits-only: reject hex/exponent/other Number() quirks (ws.port is decimal).
+  if (!/^\d+$/.test(portRaw)) return null
+  const port = Number.parseInt(portRaw, 10)
   if (!Number.isInteger(port) || port <= 0 || port > 65535) return null
   if (token.length === 0) return null
 
