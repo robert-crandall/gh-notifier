@@ -17,6 +17,9 @@ export interface Embedder {
 
 const MODEL_ID = 'Xenova/all-MiniLM-L6-v2'
 
+/** The model id used for embeddings (also stamped into golden vectors). */
+export const EMBEDDING_MODEL_ID = MODEL_ID
+
 export interface EmbedderOptions {
   /** Writable dir for the downloaded model cache (required in a packaged app). */
   cacheDir?: string

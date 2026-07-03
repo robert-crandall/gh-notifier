@@ -14,7 +14,8 @@ import { resolveQuestion, buildDecidePrompt, type ResolveDeps } from './resolve'
 import type { DecideRunner, DecideRunResult } from './copilot-run'
 import type { McpRunner, McpRunResult } from './mcp-client'
 import type { AssembledCandidate } from './assemble'
-import type { ProjectCard, Resource } from '../../shared/ipc-channels'
+import type { Retriever, RetrievalOutcome } from './retrieve'
+import type { ProjectCard, Resource, RetrievalMode } from '../../shared/ipc-channels'
 
 let db: BunDb
 
@@ -276,5 +277,42 @@ describe('resolveQuestion', () => {
     // c1 is the real resource (no wired MCP) -> source_available_no_live_value.
     expect(res.verdict).toBe('source_available_no_live_value')
     expect(res.citation?.title).toBe('Checkout latency')
+  })
+
+  // ── Retrieval-mode metadata (item #4): a degraded fallback must be observable
+  //    end-to-end, so a lexical-fallback answer is distinguishable from a real
+  //    semantic one on the ResolveResult itself. ──────────────────────────────
+  function retrieverWithMode(mode: RetrievalMode): Retriever {
+    return {
+      async retrieve(_q: string, corpus: Resource[], limit: number): Promise<RetrievalOutcome> {
+        const candidates = corpus.slice(0, Math.max(0, limit)).map((resource) => ({ resource, score: 1 }))
+        return { candidates, mode }
+      },
+    }
+  }
+
+  it('threads the retrieval mode onto a confident result (degraded fallback observable)', async () => {
+    const pid = seedProject()
+    const r = liveResource(pid)
+    const res = await resolveQuestion(pid, 'checkout latency', {
+      decideRunner: decideRunnerReturning('{"verdict":"confident","citedCandidateId":"c1"}'),
+      mcpRunner: mcpRunnerReturning({ ok: true, value: 'p99 240ms', failure: null, reason: null }),
+      assembleOptions: { retriever: retrieverWithMode('lexical-fallback') },
+    })
+    expect(res.verdict).toBe('confident')
+    expect(res.citation?.resourceId).toBe(r.id)
+    expect(res.retrievalMode).toBe('lexical-fallback')
+  })
+
+  it('threads the retrieval mode onto a none result too', async () => {
+    const pid = seedProject()
+    createResource(pid, { title: 'Kafka lag', service: 'ingest' })
+    const res = await resolveQuestion(pid, 'unrelated question', {
+      decideRunner: decideRunnerReturning('{"verdict":"none"}'),
+      mcpRunner: mcpNeverCalled,
+      assembleOptions: { retriever: retrieverWithMode('semantic') },
+    })
+    expect(res.verdict).toBe('none')
+    expect(res.retrievalMode).toBe('semantic')
   })
 })

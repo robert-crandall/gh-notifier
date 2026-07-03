@@ -102,8 +102,8 @@ describe('lexicalRetriever', () => {
       makeResource({ title: 'Kafka consumer lag', service: 'ingest' }),
       makeResource({ title: 'Postgres connections', service: 'db' }),
     ]
-    const [top] = await lexicalRetriever.retrieve('how is the service mesh latency?', corpus, 3)
-    expect(top.resource.title).toBe('Service mesh p99 dashboard')
+    const { candidates } = await lexicalRetriever.retrieve('how is the service mesh latency?', corpus, 3)
+    expect(candidates[0].resource.title).toBe('Service mesh p99 dashboard')
   })
 
   it('disambiguates near-name siblings via structured service match (Gate 0 note #3)', async () => {
@@ -113,10 +113,10 @@ describe('lexicalRetriever', () => {
     const corpus = [authnd, authzd]
 
     const forAuthzd = await lexicalRetriever.retrieve('errors for authzd', corpus, 2)
-    expect(forAuthzd[0].resource.service).toBe('authzd')
+    expect(forAuthzd.candidates[0].resource.service).toBe('authzd')
 
     const forAuthnd = await lexicalRetriever.retrieve('errors for authnd', corpus, 2)
-    expect(forAuthnd[0].resource.service).toBe('authnd')
+    expect(forAuthnd.candidates[0].resource.service).toBe('authnd')
   })
 
   it('tolerates a typo via edit distance without beating an exact sibling', async () => {
@@ -126,12 +126,12 @@ describe('lexicalRetriever', () => {
     // "authznd" is edit distance 1 from authzd's title token but the question also
     // structurally names authzd — exact structured match must dominate.
     const res = await lexicalRetriever.retrieve('authzd errors', corpus, 2)
-    expect(res[0].resource.service).toBe('authzd')
+    expect(res.candidates[0].resource.service).toBe('authzd')
   })
 
   it('returns nothing for a question with no overlap (feeds negative handling)', async () => {
     const corpus = [makeResource({ title: 'Mesh latency', service: 'mesh' })]
-    expect(await lexicalRetriever.retrieve('quarterly revenue forecast', corpus, 5)).toEqual([])
+    expect((await lexicalRetriever.retrieve('quarterly revenue forecast', corpus, 5)).candidates).toEqual([])
   })
 
   it('respects the limit and is deterministic on ties', async () => {
@@ -140,10 +140,16 @@ describe('lexicalRetriever', () => {
       makeResource({ title: 'latency two', service: 'svc' }),
       makeResource({ title: 'latency three', service: 'svc' }),
     ]
-    const res = await lexicalRetriever.retrieve('latency', corpus, 2)
-    expect(res).toHaveLength(2)
+    const { candidates } = await lexicalRetriever.retrieve('latency', corpus, 2)
+    expect(candidates).toHaveLength(2)
     // stable tie-break by id
-    expect(res[0].resource.id).toBeLessThan(res[1].resource.id)
+    expect(candidates[0].resource.id).toBeLessThan(candidates[1].resource.id)
+  })
+
+  it('reports lexical mode', async () => {
+    const corpus = [makeResource({ title: 'mesh latency', service: 'mesh' })]
+    const { mode } = await lexicalRetriever.retrieve('mesh latency', corpus, 3)
+    expect(mode).toBe('lexical')
   })
 
   it('does not apply a health penalty (relevance is pure)', () => {

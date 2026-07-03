@@ -48,7 +48,11 @@ function toCitation(resource: Resource): ResolveCitation {
   }
 }
 
-function noneResult(answer: string, failureClass: ResolveResult['failureClass'] = null): ResolveResult {
+function noneResult(
+  answer: string,
+  failureClass: ResolveResult['failureClass'] = null,
+  retrievalMode: ResolveResult['retrievalMode'] = 'lexical'
+): ResolveResult {
   return {
     verdict: 'none',
     answer,
@@ -57,6 +61,7 @@ function noneResult(answer: string, failureClass: ResolveResult['failureClass'] 
     clarifyQuestion: null,
     candidates: [],
     failureClass,
+    retrievalMode,
   }
 }
 
@@ -72,11 +77,11 @@ export async function resolveQuestion(
 
   const card = getProjectCard(projectId)
   const corpus = listResources(projectId)
-  const { candidates } = await assemble(trimmed, card, corpus, deps.assembleOptions)
+  const { candidates, retrievalMode } = await assemble(trimmed, card, corpus, deps.assembleOptions)
 
   // No candidates at all -> honestly, no source saved.
   if (candidates.length === 0) {
-    const result = noneResult('No source saved for that.')
+    const result = noneResult('No source saved for that.', null, retrievalMode)
     recordResolution({
       projectId,
       resourceId: null,
@@ -96,7 +101,7 @@ export async function resolveQuestion(
   if (!run.ok || run.content === null) {
     // Infra/model failure of the decide call — fail closed, mark NO resource suspect.
     const failureClass = run.failure === 'timeout' ? 'timeout' : run.failure === 'model_bad_output' ? 'model_bad_output' : 'connector_down'
-    const result = noneResult("I couldn't complete that lookup just now — try again in a moment.", failureClass)
+    const result = noneResult("I couldn't complete that lookup just now — try again in a moment.", failureClass, retrievalMode)
     recordResolution({
       projectId,
       resourceId: null,
@@ -112,7 +117,7 @@ export async function resolveQuestion(
   const validated = parseAndValidateDecision(run.content, opaqueIds)
   if (!validated.ok) {
     // The model produced something we can't trust — fail closed to none.
-    const result = noneResult("I couldn't resolve that reliably.", 'model_bad_output')
+    const result = noneResult("I couldn't resolve that reliably.", 'model_bad_output', retrievalMode)
     recordResolution({
       projectId,
       resourceId: null,
@@ -128,7 +133,7 @@ export async function resolveQuestion(
   const decision = validated.decision
 
   if (decision.verdict === 'none') {
-    const result = noneResult('No source saved for that.')
+    const result = noneResult('No source saved for that.', null, retrievalMode)
     recordResolution({
       projectId,
       resourceId: null,
@@ -154,6 +159,7 @@ export async function resolveQuestion(
       clarifyQuestion: decision.clarifyQuestion,
       candidates: candidateCitations,
       failureClass: null,
+      retrievalMode,
     }
     recordResolution({
       projectId,
@@ -171,7 +177,7 @@ export async function resolveQuestion(
   const cited = decision.citedCandidateId !== null ? candidateByOpaqueId.get(decision.citedCandidateId) : undefined
   if (cited === undefined) {
     // Should be impossible after validation, but fail closed.
-    const result = noneResult("I couldn't resolve that reliably.", 'model_bad_output')
+    const result = noneResult("I couldn't resolve that reliably.", 'model_bad_output', retrievalMode)
     recordResolution({
       projectId,
       resourceId: null,
@@ -184,7 +190,7 @@ export async function resolveQuestion(
     return result
   }
 
-  return runCitedSource(projectId, trimmed, cited.resource, deps)
+  return runCitedSource(projectId, trimmed, cited.resource, deps, retrievalMode)
 }
 
 /** Stage 3: the app-owned read of the cited source. Never trusts Copilot for a value. */
@@ -192,7 +198,8 @@ async function runCitedSource(
   projectId: number,
   question: string,
   resource: Resource,
-  deps: ResolveDeps
+  deps: ResolveDeps,
+  retrievalMode: ResolveResult['retrievalMode']
 ): Promise<ResolveResult> {
   const citation = toCitation(resource)
   // The UI can only "open" a resource that has a link; tailor copy accordingly.
@@ -214,6 +221,7 @@ async function runCitedSource(
       clarifyQuestion: null,
       candidates: [],
       failureClass: null,
+      retrievalMode,
     }
     recordResolution({
       projectId,
@@ -240,6 +248,7 @@ async function runCitedSource(
       clarifyQuestion: null,
       candidates: [],
       failureClass: 'connector_down',
+      retrievalMode,
     }
     recordResolution({
       projectId,
@@ -265,6 +274,7 @@ async function runCitedSource(
       clarifyQuestion: null,
       candidates: [],
       failureClass: null,
+      retrievalMode,
     }
     recordResolution({
       projectId,
@@ -302,6 +312,7 @@ async function runCitedSource(
     clarifyQuestion: null,
     candidates: [],
     failureClass: failure,
+    retrievalMode,
   }
   recordResolution({
     projectId,

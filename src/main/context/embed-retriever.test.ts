@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Resource } from '../../shared/ipc-channels'
 import type { Embedder } from './embed'
-import { createEmbeddingRetriever, createDefaultRetriever, resourceDocument } from './retrieve'
+import { createEmbeddingRetriever, createDefaultRetriever, buildEmbedText } from './retrieve'
 
 let nextId = 1
 function makeResource(partial: Partial<Resource> & { title: string }): Resource {
@@ -47,9 +47,9 @@ function topicEmbedder(): Embedder {
   return { embed: async (texts) => texts.map(vec) }
 }
 
-describe('resourceDocument', () => {
+describe('buildEmbedText', () => {
   it('includes title, aliases, description, service, env', () => {
-    const doc = resourceDocument(
+    const doc = buildEmbedText(
       makeResource({ title: 'Auth errors', aliases: ['login errors'], description: 'd', service: 'authnd', env: 'prod' })
     )
     expect(doc).toContain('Auth errors')
@@ -65,10 +65,11 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
     const shipping = makeResource({ title: 'Shipping label delay', aliases: ['carrier handoff'], service: 'shipping' })
     const retriever = createEmbeddingRetriever(topicEmbedder())
     // Query shares NO words with the authn record, but is topically "account/login".
-    const res = await retriever.retrieve('why is my account locked?', [authn, shipping], 5)
-    expect(res[0].resource.id).toBe(authn.id)
+    const { candidates, mode } = await retriever.retrieve('why is my account locked?', [authn, shipping], 5)
+    expect(candidates[0].resource.id).toBe(authn.id)
     // The unrelated shipping doc (cosine 0) is filtered out.
-    expect(res.map((r) => r.resource.id)).not.toContain(shipping.id)
+    expect(candidates.map((r) => r.resource.id)).not.toContain(shipping.id)
+    expect(mode).toBe('semantic')
   })
 
   it('uses the structured bonus to break a near-sibling tie', async () => {
@@ -77,7 +78,7 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
     const authzd = makeResource({ title: 'Authz errors', aliases: ['login errors'], service: 'authzd' })
     const retriever = createEmbeddingRetriever(topicEmbedder())
     const res = await retriever.retrieve('login errors for authzd', [authnd, authzd], 2)
-    expect(res[0].resource.service).toBe('authzd')
+    expect(res.candidates[0].resource.service).toBe('authzd')
   })
 
   it('detects a hyphenated structured value typed exactly (orders-db)', async () => {
@@ -87,7 +88,7 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
     const other = makeResource({ title: 'DB two', aliases: ['login'], service: 'billing-db' })
     const retriever = createEmbeddingRetriever(topicEmbedder())
     const res = await retriever.retrieve('login errors on orders-db', [ordersDb, other], 2)
-    expect(res[0].resource.service).toBe('orders-db')
+    expect(res.candidates[0].resource.service).toBe('orders-db')
   })
 
   it('returns nothing when nothing is semantically close (feeds honest none)', async () => {
@@ -95,7 +96,7 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
     const retriever = createEmbeddingRetriever(topicEmbedder())
     // "carrier handoff" is the shipping topic; the only record is auth -> cosine 0.
     const res = await retriever.retrieve('carrier handoff time', [authn], 5)
-    expect(res).toEqual([])
+    expect(res.candidates).toEqual([])
   })
 
   it('re-embeds only changed content (cache keyed by document, not updatedAt)', async () => {
@@ -118,7 +119,7 @@ describe('createEmbeddingRetriever (hybrid, fake embedder)', () => {
 })
 
 describe('createDefaultRetriever (embedding with lexical fallback)', () => {
-  it('falls back to lexical scoring when the embedder throws', async () => {
+  it('falls back to lexical scoring (mode lexical-fallback) when the embedder throws', async () => {
     const throwing: Embedder = {
       embed: async () => {
         throw new Error('no model')
@@ -127,7 +128,8 @@ describe('createDefaultRetriever (embedding with lexical fallback)', () => {
     const mesh = makeResource({ title: 'Service mesh latency', service: 'mesh', aliases: ['mesh latency'] })
     const retriever = createDefaultRetriever(throwing)
     // Lexically overlapping query still resolves via the fallback.
-    const res = await retriever.retrieve('mesh latency', [mesh], 5)
-    expect(res[0]?.resource.id).toBe(mesh.id)
+    const { candidates, mode } = await retriever.retrieve('mesh latency', [mesh], 5)
+    expect(candidates[0]?.resource.id).toBe(mesh.id)
+    expect(mode).toBe('lexical-fallback')
   })
 })

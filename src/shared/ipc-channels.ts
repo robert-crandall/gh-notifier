@@ -419,6 +419,14 @@ export interface ResolveCitation {
 }
 
 /**
+ * Which retrieval path produced a resolve's candidates. Keeps a degraded run
+ * observable end-to-end: `semantic` = embeddings ran; `lexical-fallback` = the
+ * embedding model failed at runtime and the resolver fell back to lexical;
+ * `lexical` = a lexical retriever was configured (e.g. tests).
+ */
+export type RetrievalMode = 'semantic' | 'lexical-fallback' | 'lexical'
+
+/**
  * The result of asking the resolver a question. `confident` and
  * `source_available_no_live_value` carry a single `citation`; `clarify` carries
  * its options in `candidates` (and leaves `citation` null); `none` carries
@@ -438,6 +446,8 @@ export interface ResolveResult {
   candidates: ResolveCitation[]
   /** Set when the resolve failed; classifies bad-source vs bad-infra. */
   failureClass: ResolveFailureClass | null
+  /** Which retrieval path produced the candidates (observability of degraded runs). */
+  retrievalMode: RetrievalMode
 }
 
 /** A computed browse group of resources (by source / service / topic). */

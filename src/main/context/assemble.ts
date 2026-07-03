@@ -1,4 +1,4 @@
-import type { ProjectCard, Resource } from '../../shared/ipc-channels'
+import type { ProjectCard, Resource, RetrievalMode } from '../../shared/ipc-channels'
 import { lexicalRetriever, type Retriever, type ScoredCandidate } from './retrieve'
 
 /**
@@ -25,6 +25,8 @@ export interface AssembledContext {
   card: ProjectCard
   /** The capped candidate set handed to the decision stage, best-first. */
   candidates: AssembledCandidate[]
+  /** Which retrieval path produced the candidates. */
+  retrievalMode: RetrievalMode
 }
 
 export interface AssembleOptions {
@@ -110,7 +112,7 @@ export async function assemble(
   const retriever = options.retriever ?? lexicalRetriever
 
   const pool = await retriever.retrieve(question, corpus, poolSize)
-  const capped = capCandidates(pool, limit, healthyReserve)
+  const capped = capCandidates(pool.candidates, limit, healthyReserve)
 
   return {
     card,
@@ -119,5 +121,6 @@ export async function assemble(
       score: c.score,
       healthy: isHealthy(c.resource),
     })),
+    retrievalMode: pool.mode,
   }
 }
