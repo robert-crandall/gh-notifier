@@ -88,6 +88,10 @@
   cursor: pointer;
 }
 
+.checkbox:disabled {
+  cursor: default;
+}
+
 .segmented {
   display: inline-flex;
   padding: 2px;

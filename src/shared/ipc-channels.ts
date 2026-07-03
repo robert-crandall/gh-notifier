@@ -899,7 +899,9 @@ export type IpcChannels = {
    * (when the feature flag is on, the app is running, and a trusted local
    * checkout resolves for the repo), else fall back to a cloud `gh agent-task`.
    * Returns a discriminated `DelegateResult`. Rejects with an `Error` whose
-   * `message` is `'GH_NOT_AUTHENTICATED'` or starts with `'DELEGATE_FAILED: '`.
+   * `message` is `'GH_NOT_AUTHENTICATED'`, or starts with `'DELEGATE_FAILED: '`
+   * (app path) or `'LAUNCH_FAILED: '` (cloud fallback path). The renderer strips
+   * both prefixes for display.
    */
   'copilot:delegate': {
     args: [payload: DelegatePayload]
