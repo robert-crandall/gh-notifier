@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { McpStdioConfig } from '../../shared/ipc-channels'
+import type { McpStdioConfig, McpToolInfo, McpToolsResult } from '../../shared/ipc-channels'
 
 /**
  * The app-owned MCP read (two-stage resolver, stage three: RUN). After the
@@ -151,5 +151,99 @@ export function createMcpRunner(options: McpRunnerOptions = {}): McpRunner {
         }
       }
     },
+  }
+}
+
+/**
+ * Best-effort scrub of any configured secret VALUE from an MCP-server-controlled
+ * string (a startup error, a tool description) before it crosses to the renderer,
+ * plus a length cap. This is defense-in-depth, not a hard boundary: it can't
+ * catch a secret the server transforms/encodes.
+ *
+ * Trust model: the hard guarantee is that STORED config secret values are never
+ * sent to the renderer via the config surfaces (see McpServerSummary). A wired
+ * server's runtime OUTPUT (live values, tool metadata) is the user's own tool
+ * answering the user — surfaced by design. `liveValue` is intentionally NOT
+ * scrubbed (it is the feature); diagnostic/metadata strings get this scrub as
+ * hygiene. command/args are not secrets per the config contract.
+ */
+export function sanitizeMcpText(message: string, env: Record<string, string>): string {
+  let out = message
+  for (const value of Object.values(env)) {
+    // Only redact non-trivial values to avoid mangling the message on short envs.
+    if (value.length >= 4) out = out.split(value).join('[redacted]')
+  }
+  return out.length > 300 ? `${out.slice(0, 299)}…` : out
+}
+
+/** Recursively scrubs configured secret values from every string leaf AND object
+ * KEY of a JSON value (e.g. a tool inputSchema, whose property names, description,
+ * default, examples are all server-controlled). Depth-capped so a pathological
+ * schema can't blow the stack. */
+export function sanitizeMcpJson(value: unknown, env: Record<string, string>, depth = 0): unknown {
+  if (depth > 24) return undefined
+  if (typeof value === 'string') return sanitizeMcpText(value, env)
+  if (Array.isArray(value)) return value.map((v) => sanitizeMcpJson(v, env, depth + 1))
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[sanitizeMcpText(k, env)] = sanitizeMcpJson(v, env, depth + 1)
+    }
+    return out
+  }
+  return value
+}
+
+/**
+ * Honest connection probe: starts the (user/app-approved) stdio server and lists
+ * its tools. A success proves the server process starts and answers a listTools
+ * handshake — NOT that a real read (or its auth) will succeed. No tool is run.
+ */
+export async function listMcpTools(
+  server: McpStdioConfig,
+  options: McpRunnerOptions = {}
+): Promise<McpToolsResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_MCP_TIMEOUT_MS
+  const env: Record<string, string> = {}
+  if (typeof process.env.PATH === 'string') env.PATH = process.env.PATH
+  for (const [k, v] of Object.entries(server.env)) env[k] = v
+
+  const transport = new StdioClientTransport({ command: server.command, args: server.args, env })
+  const client = new Client({ name: 'gh-projects-resolver', version: '1.0.0' }, { capabilities: {} })
+
+  try {
+    return await withTimeout<McpToolsResult>(
+      (async (): Promise<McpToolsResult> => {
+        await client.connect(transport)
+        const res = (await client.listTools()) as { tools?: unknown }
+        const list = Array.isArray(res.tools) ? res.tools : []
+        const tools: McpToolInfo[] = list.map((t): McpToolInfo => {
+          const tool = t as { name?: unknown; description?: unknown; inputSchema?: unknown }
+          return {
+            name: typeof tool.name === 'string' ? tool.name : '',
+            // Scrub configured secrets from the server-controlled description.
+            description: typeof tool.description === 'string' ? sanitizeMcpText(tool.description, server.env) : undefined,
+            inputSchema: tool.inputSchema !== undefined ? sanitizeMcpJson(tool.inputSchema, server.env) : undefined,
+          }
+        })
+        return { ok: true, tools: tools.filter((t) => t.name.length > 0) }
+      })(),
+      timeoutMs,
+      (): McpToolsResult => ({ ok: false, error: `Timed out after ${timeoutMs}ms` })
+    )
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: sanitizeMcpText(raw, server.env) }
+  } finally {
+    try {
+      await client.close()
+    } catch {
+      /* best-effort */
+    }
+    try {
+      await transport.close()
+    } catch {
+      /* best-effort */
+    }
   }
 }

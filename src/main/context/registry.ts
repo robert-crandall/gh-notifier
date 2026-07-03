@@ -1,6 +1,7 @@
 import type {
   McpServerConfig,
   McpServerInput,
+  McpServerSummary,
   McpStdioConfig,
   ProjectCard,
   ProjectCardPatch,
@@ -65,6 +66,7 @@ interface McpServerRow {
   config_json: string
   created_at: string
   updated_at: string
+  deleted_at: string | null
 }
 
 // ── JSON helpers (defensive: a malformed column never crashes a read) ──────────
@@ -202,6 +204,25 @@ export function toMcpServer(row: McpServerRow): McpServerConfig {
     projectId: row.project_id,
     label: row.label,
     config: parseStdioConfig(row.config_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+/**
+ * Redacted view for the RENDERER: env VALUES are stripped, only key names remain.
+ * This is the only MCP-server shape that should ever cross an IPC result to the
+ * renderer. The full config (with secrets) never leaves the main process.
+ */
+export function toMcpServerSummary(row: McpServerRow): McpServerSummary {
+  const config = parseStdioConfig(row.config_json)
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    label: row.label,
+    command: config.command,
+    args: config.args,
+    envKeys: Object.keys(config.env),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -467,19 +488,50 @@ export function upsertProjectCard(projectId: number, patch: ProjectCardPatch): P
   return toProjectCard(row)
 }
 
+/** Redacts a full config into a renderer-safe summary (drops env values). */
+export function mcpConfigToSummary(server: McpServerConfig): McpServerSummary {
+  return {
+    id: server.id,
+    projectId: server.projectId,
+    label: server.label,
+    command: server.config.command,
+    args: server.config.args,
+    envKeys: Object.keys(server.config.env),
+    createdAt: server.createdAt,
+    updatedAt: server.updatedAt,
+  }
+}
+
 // ── Per-project MCP servers ───────────────────────────────────────────────────
 
+/** Full (secret-bearing) configs for LIVE (non-deleted) servers. Main-only. */
 export function listMcpServers(projectId: number): McpServerConfig[] {
   const rows = getDb()
-    .prepare('SELECT * FROM project_mcp_servers WHERE project_id = ? ORDER BY created_at ASC, id ASC')
+    .prepare(
+      'SELECT * FROM project_mcp_servers WHERE project_id = ? AND deleted_at IS NULL ORDER BY created_at ASC, id ASC'
+    )
     .all(projectId) as McpServerRow[]
   return rows.map(toMcpServer)
 }
 
-/** Returns a single MCP server config by id, or null. */
+/** REDACTED summaries for the renderer (no secret values). Live servers only. */
+export function listMcpServerSummaries(projectId: number): McpServerSummary[] {
+  const rows = getDb()
+    .prepare(
+      'SELECT * FROM project_mcp_servers WHERE project_id = ? AND deleted_at IS NULL ORDER BY created_at ASC, id ASC'
+    )
+    .all(projectId) as McpServerRow[]
+  return rows.map(toMcpServerSummary)
+}
+
+/**
+ * Returns a single LIVE MCP server config by id, or null. A soft-deleted server
+ * reads as null so the resolver treats a deleted connection as "no live value"
+ * (never an outage) and re-wiring/undo is clean.
+ */
 export function getMcpServer(id: string): McpServerConfig | null {
   const row = getDb()
-    .prepare('SELECT * FROM project_mcp_servers WHERE id = ?')
+    .prepare('SELECT * FROM project_mcp_servers WHERE id = ? AND deleted_at IS NULL')
     .get(id) as McpServerRow | undefined
   return row ? toMcpServer(row) : null
 }
@@ -512,17 +564,90 @@ export function upsertMcpServer(projectId: number, id: string, input: McpServerI
 }
 
 /**
- * Deletes a wired MCP server, scoped to its project (fail-closed boundary), and
- * clears any resources in that project that referenced it so resolves don't fail
- * as connector_down after an intentional delete.
+ * Applies an explicit edit patch to a LIVE server, merging env one-way: keys in
+ * `envSet` are added/replaced, keys in `envDelete` are removed, and any other
+ * existing env key is preserved. The renderer never has to hold or re-send a
+ * stored secret to keep it. Returns the full (main-only) updated config.
+ */
+export function updateMcpServer(
+  projectId: number,
+  id: string,
+  patch: { label?: string; command?: string; args?: string[]; envSet: Record<string, string>; envDelete: string[] }
+): McpServerConfig {
+  const db = getDb()
+  const current = db
+    .prepare('SELECT * FROM project_mcp_servers WHERE id = ? AND project_id = ? AND deleted_at IS NULL')
+    .get(id, projectId) as McpServerRow | undefined
+  if (!current) throw new Error('MCP server not found')
+
+  const existing = parseStdioConfig(current.config_json)
+  const env: Record<string, string> = { ...existing.env }
+  for (const key of patch.envDelete) delete env[key]
+  for (const [k, v] of Object.entries(patch.envSet)) env[k] = v
+
+  const merged: McpStdioConfig = {
+    command: patch.command ?? existing.command,
+    args: patch.args ?? existing.args,
+    env,
+  }
+  const row = db
+    .prepare(
+      `UPDATE project_mcp_servers SET
+         label = ?, config_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE id = ? AND project_id = ? AND deleted_at IS NULL
+       RETURNING *`
+    )
+    .get(patch.label ?? current.label, JSON.stringify(merged), id, projectId) as McpServerRow
+  return toMcpServer(row)
+}
+
+/**
+ * Soft-deletes a wired MCP server, scoped to its project (fail-closed boundary).
+ * Resource links are PRESERVED (never nulled) so the delete is losslessly
+ * undoable; a resource pointing at a soft-deleted server simply resolves as
+ * "no live value" until the server is restored.
  */
 export function deleteMcpServer(projectId: number, id: string): void {
-  const db = getDb()
-  const run = db.transaction(() => {
-    db.prepare(
-      "UPDATE resources SET mcp_server = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE project_id = ? AND mcp_server = ?"
-    ).run(projectId, id)
-    db.prepare('DELETE FROM project_mcp_servers WHERE id = ? AND project_id = ?').run(id, projectId)
-  })
-  run()
+  getDb()
+    .prepare(
+      "UPDATE project_mcp_servers SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND project_id = ? AND deleted_at IS NULL"
+    )
+    .run(id, projectId)
+}
+
+/** Restores a soft-deleted MCP server (undo). Resource links were preserved. */
+export function restoreMcpServer(projectId: number, id: string): void {
+  getDb()
+    .prepare(
+      "UPDATE project_mcp_servers SET deleted_at = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND project_id = ?"
+    )
+    .run(id, projectId)
+}
+
+/**
+ * Wires a resource to a configured server tool so a resolve can pull a live
+ * value. Validates the whole graph in main: the resource must exist, the server
+ * must exist + be live + belong to the SAME project as the resource.
+ */
+export function connectResourceToServer(
+  resourceId: number,
+  serverId: string,
+  toolName: string,
+  toolArgs: Record<string, unknown>
+): Resource {
+  const resource = getResource(resourceId)
+  if (!resource) throw new Error(`Resource not found: ${resourceId}`)
+  const server = getMcpServer(serverId)
+  if (!server) throw new Error('MCP server not found')
+  if (server.projectId !== resource.projectId) {
+    throw new Error('MCP server belongs to another project')
+  }
+  return updateResource(resourceId, { mcpServer: serverId, toolName, toolArgs })
+}
+
+/** Clears a resource's live wiring (mcpServer/toolName/toolArgs). */
+export function disconnectResource(resourceId: number): Resource {
+  const resource = getResource(resourceId)
+  if (!resource) throw new Error(`Resource not found: ${resourceId}`)
+  return updateResource(resourceId, { mcpServer: null, toolName: null, toolArgs: null })
 }

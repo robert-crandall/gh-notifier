@@ -9,15 +9,19 @@ import {
   CircleCheck,
   Database,
   CircleHelp,
+  Zap,
+  Unplug,
 } from 'lucide-react'
 import type {
   CaptureProposal,
   ResolveResult,
   Resource,
   ResourceGroup,
+  McpServerSummary,
 } from '@shared/ipc-channels'
 import { Icon } from './Icon'
 import { fire, openExternal } from '../ipc'
+import { McpServersSection, ConnectResourceDialog } from './McpTools'
 import styles from './ResourcePanel.module.css'
 
 interface ResourcePanelProps {
@@ -140,14 +144,24 @@ function ProposalCard({
 
 function ResourceRow({
   resource,
+  serverLive,
   onOpen,
   onDelete,
+  onConnect,
+  onDisconnect,
 }: {
   resource: Resource
+  serverLive: boolean
   onOpen: (r: Resource) => void
   onDelete: (r: Resource) => void
+  onConnect: (r: Resource) => void
+  onDisconnect: (r: Resource) => void
 }): JSX.Element {
   const hasLink = resource.url !== null
+  // Match main's wiring semantics (resolve/validateToolName trim): blank or
+  // whitespace-only server/tool is NOT wired.
+  const hasWiring = (resource.mcpServer?.trim().length ?? 0) > 0 && (resource.toolName?.trim().length ?? 0) > 0
+  const live = hasWiring && serverLive
   return (
     <div className={styles.browseRow}>
       <button
@@ -159,12 +173,31 @@ function ResourceRow({
       >
         <Icon icon={Database} size={14} className={styles.browseIcon} />
         <span className={styles.browseTitle}>{resource.title}</span>
+        {live && (
+          <span className={styles.liveBadge} title={`Live via ${resource.toolName}`}>
+            <Icon icon={Zap} size={11} /> {resource.toolName}
+          </span>
+        )}
+        {hasWiring && !serverLive && (
+          <span className={styles.suspectBadge} title="The wired tool is disconnected — reconnect or clear it">
+            <Icon icon={Unplug} size={11} /> connection missing
+          </span>
+        )}
         {resource.suspect && (
           <span className={styles.suspectBadge} title={resource.lastErrorMessage ?? 'Last lookup failed'}>
             <Icon icon={TriangleAlert} size={11} /> suspect
           </span>
         )}
       </button>
+      {hasWiring ? (
+        <button type="button" className={styles.rowAction} onClick={() => onDisconnect(resource)} title="Disconnect live value" aria-label="Disconnect live value">
+          <Icon icon={Unplug} size={13} />
+        </button>
+      ) : (
+        <button type="button" className={styles.rowAction} onClick={() => onConnect(resource)} title="Connect live value" aria-label="Connect live value">
+          <Icon icon={Zap} size={13} />
+        </button>
+      )}
       <button type="button" className={styles.rowAction} onClick={() => onDelete(resource)} aria-label="Delete resource">
         <Icon icon={Trash2} size={13} />
       </button>
@@ -176,20 +209,30 @@ function ResourceRow({
 
 export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.Element {
   const [groups, setGroups] = useState<ResourceGroup[]>([])
+  const [servers, setServers] = useState<McpServerSummary[]>([])
   const [question, setQuestion] = useState('')
   const [resolving, setResolving] = useState(false)
   const [answer, setAnswer] = useState<ResolveResult | null>(null)
   const [captureUrl, setCaptureUrl] = useState('')
   const [proposal, setProposal] = useState<CaptureProposal | null>(null)
+  const [connecting, setConnecting] = useState<Resource | null>(null)
 
   useEffect(() => {
     let active = true
     const load = async (): Promise<void> => {
+      // Load independently so a transient mcp-list failure can't blank the
+      // resources list (and vice versa).
       try {
         const g = await window.electron.ipc.invoke('resources:groups', projectId)
         if (active) setGroups(g)
       } catch (err) {
-        console.error('[Resources] load failed:', err)
+        console.error('[Resources] groups load failed:', err)
+      }
+      try {
+        const s = await window.electron.ipc.invoke('resources:mcp-list', projectId)
+        if (active) setServers(s)
+      } catch (err) {
+        console.error('[Resources] mcp-list load failed:', err)
       }
     }
     void load()
@@ -277,7 +320,30 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
     fire(run(), 'resources:delete')
   }
 
+  const disconnectResource = (r: Resource): void => {
+    const prevServer = r.mcpServer
+    const prevTool = r.toolName
+    const prevArgs = r.toolArgs
+    const run = async (): Promise<void> => {
+      await window.electron.ipc.invoke('resources:mcp-disconnect', r.id)
+      showUndo('Disconnected live value', () => {
+        if (prevServer !== null && prevTool !== null) {
+          fire(
+            window.electron.ipc.invoke('resources:mcp-connect', r.id, {
+              serverId: prevServer,
+              toolName: prevTool,
+              toolArgs: prevArgs ?? {},
+            }),
+            'resources:mcp-connect'
+          )
+        }
+      })
+    }
+    fire(run(), 'resources:mcp-disconnect')
+  }
+
   const hasResources = groups.some((g) => g.resources.length > 0)
+  const liveServerIds = new Set(servers.map((s) => s.id))
 
   return (
     <div className={styles.panel}>
@@ -321,7 +387,15 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
             <div key={group.key} className={styles.group}>
               <div className={styles.groupLabel}>{group.label}</div>
               {group.resources.map((r) => (
-                <ResourceRow key={r.id} resource={r} onOpen={openResource} onDelete={deleteResource} />
+                <ResourceRow
+                  key={r.id}
+                  resource={r}
+                  serverLive={r.mcpServer !== null && liveServerIds.has(r.mcpServer)}
+                  onOpen={openResource}
+                  onDelete={deleteResource}
+                  onConnect={setConnecting}
+                  onDisconnect={disconnectResource}
+                />
               ))}
             </div>
           ))}
@@ -330,6 +404,18 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
         <div className={styles.empty}>
           Nothing saved yet. Ask a question above, or paste a dashboard/query/doc link to capture one.
         </div>
+      )}
+
+      {/* Tool management (per-project MCP servers) */}
+      <McpServersSection projectId={projectId} servers={servers} showUndo={showUndo} />
+
+      {connecting && (
+        <ConnectResourceDialog
+          projectId={projectId}
+          resource={connecting}
+          servers={servers}
+          onClose={() => setConnecting(null)}
+        />
       )}
     </div>
   )
