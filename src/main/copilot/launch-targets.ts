@@ -19,7 +19,8 @@ interface RepoRow {
 export function getLaunchTargets(projectId: number): LaunchTarget[] {
   const rows = getDb()
     .prepare(`
-      SELECT repo_owner, repo_name, MIN(rank) AS rank, MAX(recency) AS recency
+      SELECT MIN(repo_owner) AS repo_owner, MIN(repo_name) AS repo_name,
+             MIN(rank) AS rank, MAX(recency) AS recency
       FROM (
         SELECT repo_owner, repo_name, 0 AS rank, '' AS recency
         FROM repo_rules
