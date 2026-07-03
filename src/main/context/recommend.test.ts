@@ -44,6 +44,17 @@ describe('buildRecommendPrompt', () => {
     expect(b.prompt.toLowerCase()).toContain('untrusted')
     expect(b.prompt).toContain('Question: what should I monitor?')
   })
+
+  it('normalizes newlines / pipe delimiters in interpolated fields so the format holds', () => {
+    const messy = { id: 7, title: 'A | B\nC', service: 'x|y', env: 'prod', kind: 'dashboard', source: 'datadog', aliases: [], description: 'line1\nline2' } as unknown as Resource
+    const b = buildRecommendPrompt('q', card, [{ resource: messy, score: 1, healthy: true }])
+    const line = b.prompt.split('\n').find((l) => l.startsWith('- id: c1'))
+    expect(line).toBeDefined()
+    // Exactly one candidate line; no stray newline or raw pipe from the title.
+    expect(line).toContain('title: A / B C')
+    expect(line).toContain('service: x/y')
+    expect(line).not.toContain('line1\nline2')
+  })
 })
 
 // ── Pure: validator (fails closed) ────────────────────────────────────────────

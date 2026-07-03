@@ -283,9 +283,10 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
 
   const ask = async (): Promise<void> => {
     const q = question.trim()
-    if (q.length === 0 || resolving) return
+    if (q.length === 0 || resolving || recommending) return
     setResolving(true)
     setAnswer(null)
+    setRecommendation(null)
     try {
       const result = await window.electron.ipc.invoke('resources:resolve', projectId, q)
       setAnswer(result)
@@ -311,7 +312,7 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
 
   const recommend = async (): Promise<void> => {
     const q = question.trim()
-    if (q.length === 0 || recommending) return
+    if (q.length === 0 || recommending || resolving) return
     setRecommending(true)
     setRecommendation(null)
     setAnswer(null)
@@ -422,7 +423,7 @@ export function ResourcePanel({ projectId, showUndo }: ResourcePanelProps): JSX.
           type="button"
           className={styles.relevantBtn}
           onClick={() => void recommend()}
-          disabled={question.trim().length === 0 || recommending}
+          disabled={question.trim().length === 0 || recommending || resolving}
           title="Suggest saved sources relevant to this — read-only, from saved metadata"
         >
           <Icon icon={Zap} size={13} />

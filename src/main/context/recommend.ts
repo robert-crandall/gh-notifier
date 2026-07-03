@@ -31,6 +31,16 @@ function opaqueId(index: number): string {
   return `c${index + 1}`
 }
 
+/**
+ * Normalize a saved metadata field for single-line, `|`-delimited interpolation
+ * into the candidate list: collapse newlines/whitespace and neutralize the `|`
+ * delimiter so a pasted title/description can't break the prompt format (which
+ * would degrade ranking). Prompt-only; storage is untouched. Pure.
+ */
+function oneLine(value: string): string {
+  return value.replace(/[|]/g, '/').replace(/\s+/g, ' ').trim()
+}
+
 export interface RecommendPromptBundle {
   prompt: string
   candidateByOpaqueId: Map<string, AssembledCandidate>
@@ -57,13 +67,13 @@ export function buildRecommendPrompt(
     const r = c.resource
     const parts = [
       `id: ${id}`,
-      `title: ${r.title}`,
+      `title: ${oneLine(r.title)}`,
       `kind: ${r.kind}`,
-      `source: ${r.source}`,
-      r.service ? `service: ${r.service}` : '',
-      r.env ? `env: ${r.env}` : '',
-      r.aliases.length > 0 ? `aliases: ${r.aliases.join(', ')}` : '',
-      r.description ? `description: ${r.description}` : '',
+      `source: ${oneLine(r.source)}`,
+      r.service ? `service: ${oneLine(r.service)}` : '',
+      r.env ? `env: ${oneLine(r.env)}` : '',
+      r.aliases.length > 0 ? `aliases: ${oneLine(r.aliases.join(', '))}` : '',
+      r.description ? `description: ${oneLine(r.description)}` : '',
     ].filter((p) => p.length > 0)
     return `- ${parts.join(' | ')}`
   })
