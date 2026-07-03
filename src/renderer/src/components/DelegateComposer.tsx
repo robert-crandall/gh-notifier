@@ -71,6 +71,18 @@ export function DelegateComposer({
     promptRef.current?.focus()
   }, [])
 
+  // Escape closes the dialog (unless a launch is mid-flight), matching CommandPalette.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && !busy) {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, busy])
+
   const repoLocked = fixedRepo !== undefined
   const usingCustom = !repoLocked && selected === OTHER_REPO
 
@@ -107,7 +119,7 @@ export function DelegateComposer({
 
   return (
     <div className={styles.backdrop} onClick={onClose}>
-      <div className={styles.panel} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Delegate to Copilot">
+      <div className={styles.panel} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Delegate to Copilot">
         <div className={styles.header}>
           <Icon icon={Sparkles} size={15} className={styles.headerIcon} />
           <span className={styles.headerTitle}>Delegate to Copilot</span>

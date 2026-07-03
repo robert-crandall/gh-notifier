@@ -63,6 +63,21 @@ describe('DelegateComposer', () => {
     expect(screen.getByText('Launch task').closest('button')?.hasAttribute('disabled')).toBe(true)
   })
 
+  it('closes on Escape', () => {
+    const onClose = vi.fn()
+    render(
+      <DelegateComposer
+        initialPrompt="x"
+        projectId={1}
+        fixedRepo={{ repoOwner: 'o', repoName: 'r' }}
+        onClose={onClose}
+        onLaunched={vi.fn()}
+      />
+    )
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
+  })
+
   it('surfaces a friendly auth error', async () => {
     invoke.mockRejectedValue(new Error('GH_NOT_AUTHENTICATED'))
     render(
