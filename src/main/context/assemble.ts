@@ -28,9 +28,9 @@ export interface AssembledContext {
 }
 
 export interface AssembleOptions {
-  /** How many candidates to retrieve before capping. Default 10. */
+  /** How many candidates to retrieve before capping. Default 15. */
   poolSize?: number
-  /** Hard cap on candidates injected into the decision stage. Default 5. */
+  /** Hard cap on candidates injected into the decision stage. Default 8. */
   limit?: number
   /** Minimum healthy candidates to guarantee in the final set when available. Default 2. */
   healthyReserve?: number
@@ -38,8 +38,11 @@ export interface AssembleOptions {
   retriever?: Retriever
 }
 
-const DEFAULT_POOL_SIZE = 10
-const DEFAULT_LIMIT = 5
+const DEFAULT_POOL_SIZE = 15
+// The decider sees up to this many candidates. Kept generous (not 5) so a
+// correct-but-lower-ranked semantic match still reaches the LLM — the
+// adversarial eval had a right answer at rank 7 that a cap of 5 hid.
+const DEFAULT_LIMIT = 8
 const DEFAULT_HEALTHY_RESERVE = 2
 
 function isHealthy(resource: Resource): boolean {
@@ -93,20 +96,20 @@ export function capCandidates(
 /**
  * Assembles the two-layer context for a question. Pure over its inputs — the DB
  * reads (card + corpus) happen in the caller (resolve.ts) so this stays testable
- * offline.
+ * offline. Async because the retriever may be embedding-backed.
  */
-export function assemble(
+export async function assemble(
   question: string,
   card: ProjectCard,
   corpus: Resource[],
   options: AssembleOptions = {}
-): AssembledContext {
+): Promise<AssembledContext> {
   const poolSize = options.poolSize ?? DEFAULT_POOL_SIZE
   const limit = options.limit ?? DEFAULT_LIMIT
   const healthyReserve = options.healthyReserve ?? DEFAULT_HEALTHY_RESERVE
   const retriever = options.retriever ?? lexicalRetriever
 
-  const pool = retriever.retrieve(question, corpus, poolSize)
+  const pool = await retriever.retrieve(question, corpus, poolSize)
   const capped = capCandidates(pool, limit, healthyReserve)
 
   return {

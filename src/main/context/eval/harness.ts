@@ -95,11 +95,14 @@ export function toResourceFixtures(records: EvalRecord[]): {
 }
 
 export interface RetrievalReport {
+  /** The k used for the recall@k metric (top-k membership). */
+  k: number
   fuzzyTotal: number
   top1Hits: number
-  top3Hits: number
+  topKHits: number
   top1Recall: number
-  top3Recall: number
+  /** Fraction of fuzzy questions whose expected source appears in the top `k`. */
+  topKRecall: number
   ambiguousTotal: number
   ambiguousSurfaced: number
   /** Per-question detail for debugging failures. */
@@ -107,26 +110,29 @@ export interface RetrievalReport {
 }
 
 /** Runs the retrieval-stage eval and returns recall metrics. */
-export function runRetrievalEval(retriever: Retriever = lexicalRetriever, k = 3): RetrievalReport {
+export async function runRetrievalEval(
+  retriever: Retriever = lexicalRetriever,
+  k = 3,
+  questions: EvalQuestion[] = loadQuestions()
+): Promise<RetrievalReport> {
   const { resources, stringIdByNumericId } = toResourceFixtures(loadCorpus())
-  const questions = loadQuestions()
 
   let fuzzyTotal = 0
   let top1Hits = 0
-  let top3Hits = 0
+  let topKHits = 0
   let ambiguousTotal = 0
   let ambiguousSurfaced = 0
   const misses: RetrievalReport['misses'] = []
 
   for (const question of questions) {
-    const results = retriever.retrieve(question.q, resources, Math.max(k, 5))
+    const results = await retriever.retrieve(question.q, resources, Math.max(k, 5))
     const rankedIds = results.map((r) => stringIdByNumericId.get(r.resource.id) ?? '')
 
     if (question.category === 'fuzzy' && question.expectedId !== null) {
       fuzzyTotal++
       if (rankedIds[0] === question.expectedId) top1Hits++
       if (rankedIds.slice(0, k).includes(question.expectedId)) {
-        top3Hits++
+        topKHits++
       } else {
         misses.push({ q: question.q, expectedId: question.expectedId, got: rankedIds.slice(0, k) })
       }
@@ -139,13 +145,20 @@ export function runRetrievalEval(retriever: Retriever = lexicalRetriever, k = 3)
   }
 
   return {
+    k,
     fuzzyTotal,
     top1Hits,
-    top3Hits,
+    topKHits,
     top1Recall: fuzzyTotal === 0 ? 0 : top1Hits / fuzzyTotal,
-    top3Recall: fuzzyTotal === 0 ? 0 : top3Hits / fuzzyTotal,
+    topKRecall: fuzzyTotal === 0 ? 0 : topKHits / fuzzyTotal,
     ambiguousTotal,
     ambiguousSurfaced,
     misses,
   }
+}
+
+/** Loads the adversarial (lexically-disjoint) question set. */
+export function loadAdversarialQuestions(): EvalQuestion[] {
+  const raw = readFileSync(join(__dirname, 'questions.adversarial.json'), 'utf8')
+  return (JSON.parse(raw) as QuestionsFile).questions
 }

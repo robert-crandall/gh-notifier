@@ -72,7 +72,7 @@ export async function resolveQuestion(
 
   const card = getProjectCard(projectId)
   const corpus = listResources(projectId)
-  const { candidates } = assemble(trimmed, card, corpus, deps.assembleOptions)
+  const { candidates } = await assemble(trimmed, card, corpus, deps.assembleOptions)
 
   // No candidates at all -> honestly, no source saved.
   if (candidates.length === 0) {

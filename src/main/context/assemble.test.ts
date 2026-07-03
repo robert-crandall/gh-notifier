@@ -103,35 +103,35 @@ describe('capCandidates', () => {
 // ── assemble ──────────────────────────────────────────────────────────────────
 
 describe('assemble', () => {
-  it('always returns the card plus a capped candidate set', () => {
+  it('always returns the card plus a capped candidate set', async () => {
     const corpus = [
       makeResource({ title: 'mesh latency', service: 'mesh', aliases: ['service mesh latency'] }),
       makeResource({ title: 'kafka lag', service: 'ingest' }),
     ]
-    const ctx = assemble('how is mesh latency?', emptyCard, corpus, { limit: 5 })
+    const ctx = await assemble('how is mesh latency?', emptyCard, corpus, { limit: 5 })
     expect(ctx.card).toBe(emptyCard)
     expect(ctx.candidates.length).toBeGreaterThanOrEqual(1)
     expect(ctx.candidates[0].resource.title).toBe('mesh latency')
     expect(ctx.candidates[0].healthy).toBe(true)
   })
 
-  it('never exceeds the hard cap even with a large corpus', () => {
+  it('never exceeds the hard cap even with a large corpus', async () => {
     const corpus = Array.from({ length: 30 }, (_, i) =>
       makeResource({ title: `latency dashboard ${i}`, service: 'svc' })
     )
-    const ctx = assemble('latency', emptyCard, corpus, { limit: 5, poolSize: 10 })
+    const ctx = await assemble('latency', emptyCard, corpus, { limit: 5, poolSize: 10 })
     expect(ctx.candidates.length).toBeLessThanOrEqual(5)
   })
 
-  it('marks suspect candidates as not healthy', () => {
+  it('marks suspect candidates as not healthy', async () => {
     const corpus = [makeResource({ title: 'mesh latency', service: 'mesh', suspect: true })]
-    const ctx = assemble('mesh latency', emptyCard, corpus, {})
+    const ctx = await assemble('mesh latency', emptyCard, corpus, {})
     expect(ctx.candidates[0].healthy).toBe(false)
   })
 
-  it('returns no candidates for an unmatched question (feeds negative handling)', () => {
+  it('returns no candidates for an unmatched question (feeds negative handling)', async () => {
     const corpus = [makeResource({ title: 'mesh latency', service: 'mesh' })]
-    const ctx = assemble('quarterly revenue', emptyCard, corpus, {})
+    const ctx = await assemble('quarterly revenue', emptyCard, corpus, {})
     expect(ctx.candidates).toEqual([])
   })
 })

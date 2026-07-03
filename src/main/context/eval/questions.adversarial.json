@@ -1,0 +1,17 @@
+{
+  "_comment": "ADVERSARIAL eval: questions deliberately phrased to share as little vocabulary as possible with the target record's title/aliases/description/service. This tests whether lexical+structured retrieval is genuinely sufficient, or whether semantic embeddings are needed to bridge lexically-disjoint phrasing (the exact case Gate 0's embeddings solved). expectedId references corpus.synthetic.json ids.",
+  "questions": [
+    { "q": "are we serving responses out of memory or hitting the datastore every time?", "expectedId": "cache-hit-rate-dash", "category": "fuzzy" },
+    { "q": "why can't people get into their accounts?", "expectedId": "authnd-errors-dash", "category": "fuzzy" },
+    { "q": "are shoppers' purchases getting rejected at the register?", "expectedId": "payments-decline-dash", "category": "fuzzy" },
+    { "q": "how long until an order is ready to hand off to the carrier?", "expectedId": "shipping-delay-dash", "category": "fuzzy" },
+    { "q": "are the standby copies of the database falling behind the leader?", "expectedId": "db-replica-lag-query", "category": "fuzzy" },
+    { "q": "are outbound alerts stuck waiting to go out?", "expectedId": "notifications-queue-dash", "category": "fuzzy" },
+    { "q": "how much reliability headroom is left this month?", "expectedId": "slo-overview-dash", "category": "fuzzy" },
+    { "q": "is the streaming pipeline keeping up with everything coming in?", "expectedId": "ingest-lag-dash", "category": "fuzzy" },
+    { "q": "how long do visitors wait at the entrypoint before a service answers?", "expectedId": "edgeproxy-latency-dash", "category": "fuzzy" },
+    { "q": "what's our monthly bill from the cloud provider?", "expectedId": "cost-explorer-link", "category": "fuzzy" },
+    { "q": "who picks up the phone when something breaks?", "expectedId": "oncall-runbook-doc", "category": "fuzzy" },
+    { "q": "are product pages taking too long to render?", "expectedId": "catalog-latency-dash", "category": "fuzzy" }
+  ]
+}

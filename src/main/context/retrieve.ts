@@ -1,4 +1,5 @@
 import type { Resource } from '../../shared/ipc-channels'
+import type { Embedder } from './embed'
 
 /**
  * Two-stage resolver, stage one: retrieval. This produces a *pure relevance*
@@ -23,7 +24,7 @@ export interface ScoredCandidate {
 
 export interface Retriever {
   /** Returns up to `limit` candidates ranked by descending relevance. Ties broken by id (stable). */
-  retrieve(question: string, corpus: Resource[], limit: number): ScoredCandidate[]
+  retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]>
 }
 
 // ── Tokenization ──────────────────────────────────────────────────────────────
@@ -116,14 +117,18 @@ interface FieldTokens {
   structValues: Set<string>
 }
 
-/** Precompute a resource's tokenized fields. Pure; exported for tests. */
-export function resourceTokens(resource: Resource): FieldTokens {
-  const tagValues = Object.values(resource.tags)
-  const structValues = new Set<string>(
-    [resource.service, resource.env, ...tagValues]
+/** The lowercased structured values (service/env/tag) for exact-match matching. Cheap. */
+export function resourceStructValues(resource: Resource): Set<string> {
+  return new Set<string>(
+    [resource.service, resource.env, ...Object.values(resource.tags)]
       .map((v) => v.toLowerCase().trim())
       .filter((v) => v.length > 0)
   )
+}
+
+/** Precompute a resource's tokenized fields. Pure; exported for tests. */
+export function resourceTokens(resource: Resource): FieldTokens {
+  const tagValues = Object.values(resource.tags)
   return {
     title: tokenize(resource.title),
     aliases: resource.aliases.flatMap(tokenize),
@@ -132,7 +137,7 @@ export function resourceTokens(resource: Resource): FieldTokens {
     tags: tagValues.flatMap(tokenize),
     description: tokenize(resource.description),
     source: tokenize(resource.source),
-    structValues,
+    structValues: resourceStructValues(resource),
   }
 }
 
@@ -159,6 +164,51 @@ function fieldHits(questionTokens: string[], fieldTokens: string[]): number {
   return score
 }
 
+/** Adds the exact-match bonus for question tokens that hit a precomputed struct-value set. */
+function bonusFromStructValues(questionTokens: string[], structValues: Set<string>): number {
+  let bonus = 0
+  for (const qt of questionTokens) {
+    if (structValues.has(qt)) bonus += EXACT_STRUCT_BONUS
+  }
+  return bonus
+}
+
+/** True for a lowercased ASCII alphanumeric char (used for word boundaries). */
+function isAlnum(ch: string): boolean {
+  if (ch.length === 0) return false
+  const c = ch.charCodeAt(0)
+  return (c >= 48 && c <= 57) || (c >= 97 && c <= 122)
+}
+
+/** Whole-token containment (alnum boundaries) without RegExp compilation. */
+function containsToken(haystack: string, token: string): boolean {
+  let from = 0
+  for (;;) {
+    const idx = haystack.indexOf(token, from)
+    if (idx === -1) return false
+    const before = idx === 0 ? '' : haystack[idx - 1]
+    const after = idx + token.length >= haystack.length ? '' : haystack[idx + token.length]
+    if (!isAlnum(before) && !isAlnum(after)) return true
+    from = idx + 1
+  }
+}
+
+/**
+ * Boolean structured hit-check (Gate 0 note #3: authnd vs authzd). True when a
+ * structured value (service/env/tag) appears as a whole token in the raw
+ * question — matched against the raw string, NOT tokenize(), so hyphenated
+ * values like "orders-db" or "us-east" are detected when typed exactly.
+ * Decoupled from the lexical weight constant so the embedding retriever's
+ * tie-break is unaffected if EXACT_STRUCT_BONUS is ever re-tuned. Pure.
+ */
+export function hasStructuredMatch(question: string, resource: Resource): boolean {
+  const q = question.toLowerCase()
+  for (const value of resourceStructValues(resource)) {
+    if (containsToken(q, value)) return true
+  }
+  return false
+}
+
 /** Pure relevance score of a resource for a set of question tokens. No health penalty. */
 export function scoreResource(questionTokens: string[], resource: Resource): number {
   if (questionTokens.length === 0) return 0
@@ -173,25 +223,178 @@ export function scoreResource(questionTokens: string[], resource: Resource): num
     fieldHits(questionTokens, ft.description) * WEIGHTS.description +
     fieldHits(questionTokens, ft.source) * WEIGHTS.source
 
-  // Structured exact-match dominance: a question token that IS a structured
-  // value (service/env/tag) decisively boosts this record over near siblings.
-  for (const qt of questionTokens) {
-    if (ft.structValues.has(qt)) score += EXACT_STRUCT_BONUS
-  }
+  // Structured exact-match dominance, reusing the already-computed struct values.
+  score += bonusFromStructValues(questionTokens, ft.structValues)
 
   return score
+}
+
+/** Synchronous lexical ranking (shared internals; the async retriever wraps this). */
+export function rankLexical(question: string, corpus: Resource[], limit: number): ScoredCandidate[] {
+  const questionTokens = tokenize(question)
+  const scored = corpus
+    .map((resource) => ({ resource, score: scoreResource(questionTokens, resource) }))
+    .filter((c) => c.score > 0)
+  // Descending score; stable tie-break by id so results are deterministic.
+  scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
+  return scored.slice(0, Math.max(0, limit))
 }
 
 // ── The lexical retriever ─────────────────────────────────────────────────────
 
 export const lexicalRetriever: Retriever = {
-  retrieve(question: string, corpus: Resource[], limit: number): ScoredCandidate[] {
-    const questionTokens = tokenize(question)
-    const scored = corpus
-      .map((resource) => ({ resource, score: scoreResource(questionTokens, resource) }))
-      .filter((c) => c.score > 0)
-    // Descending score; stable tie-break by id so results are deterministic.
-    scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
-    return scored.slice(0, Math.max(0, limit))
+  retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
+    return Promise.resolve(rankLexical(question, corpus, limit))
   },
+}
+
+// ── Embedding retriever (semantic recall for lexically-disjoint phrasing) ──────
+
+/** The text embedded per resource: everything a question might semantically match. */
+export function resourceDocument(resource: Resource): string {
+  // Sort tags by key so the embedded text (and thus the cache key) is stable
+  // regardless of JSON round-trip key ordering.
+  const tagValues = Object.entries(resource.tags)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v]) => v)
+    .join(' ')
+  return [resource.title, resource.aliases.join(' '), resource.description, resource.service, resource.env, tagValues]
+    .filter((p) => p.trim().length > 0)
+    .join('. ')
+}
+
+function dot(a: number[], b: number[]): number {
+  // Fail fast on a dimension mismatch (model change / corrupted cache / partial
+  // output) rather than silently scoring on a truncated prefix. The default
+  // retriever catches this and falls back to lexical.
+  if (a.length !== b.length) {
+    throw new Error(`embedding dimension mismatch: ${a.length} vs ${b.length}`)
+  }
+  let s = 0
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i]
+  return s
+}
+
+/**
+ * Minimum COMBINED score (cosine + structured bonus) for a candidate to survive.
+ * It's deliberately low — the two-stage design relies on the LLM (not this
+ * floor) to reject candidates and answer "none". Set from the adversarial eval:
+ * a correct-but-weak match (authnd) scored ~0.16 cosine, so a higher floor
+ * wrongly filtered it. Note it applies to the combined score, so an exact
+ * structured match can (intentionally) rescue a resource the user named
+ * explicitly even when its cosine is modest.
+ */
+const EMBED_MIN_SCORE = 0.1
+
+/**
+ * How much a single structured exact-match nudges the (cosine-based) score.
+ * Cosine is roughly [-1, 1]; this keeps embeddings primary while letting an
+ * exact service/env/tag match break near-name-sibling ties (authnd vs authzd),
+ * which pure embeddings alone confuse (Gate 0 note #3).
+ */
+const EMBED_STRUCT_BONUS = 0.15
+
+/**
+ * Creates a hybrid embedding retriever: semantic cosine similarity + the
+ * structured exact-match bonus. Corpus embeddings are cached in-memory keyed by
+ * the embedded document text, so only new/changed content is re-embedded.
+ */
+export function createEmbeddingRetriever(embedder: Embedder): Retriever {
+  // Cache keyed by the embedded DOCUMENT text, so health/usage bumps (which move
+  // updatedAt but not content) don't force re-embedding, and identical content
+  // dedups. Bounded so it can't grow without limit.
+  const cache = new Map<string, number[]>()
+  const MAX_CACHE = 5000
+
+  async function embedCorpus(corpus: Resource[]): Promise<Map<number, number[]>> {
+    const docs = corpus.map((r) => resourceDocument(r))
+    const missingIdx: number[] = []
+    docs.forEach((doc, i) => {
+      if (!cache.has(doc)) missingIdx.push(i)
+    })
+    // Vectors for docs embedded this call but not persisted (oversized batch).
+    const fresh = new Map<string, number[]>()
+    if (missingIdx.length > 0) {
+      const vecs = await embedder.embed(missingIdx.map((i) => docs[i]))
+      // Fail fast if the embedder didn't return exactly one vector per document —
+      // otherwise a short/misordered result would silently cache invalid vectors
+      // (score 0 -> wrongly filtered). createDefaultRetriever falls back to lexical.
+      if (vecs.length !== missingIdx.length) {
+        throw new Error(`embedder returned ${vecs.length} vectors for ${missingIdx.length} documents`)
+      }
+      // Only persist to the bounded cache when the batch itself fits; a batch
+      // larger than MAX_CACHE is used transiently for this query and not cached,
+      // so the persistent cache stays strictly bounded. Clear old entries first
+      // (never mid-batch) when a fitting batch would overflow.
+      const persist = missingIdx.length <= MAX_CACHE
+      if (persist && cache.size + missingIdx.length > MAX_CACHE) cache.clear()
+      missingIdx.forEach((i, j) => {
+        if (persist) cache.set(docs[i], vecs[j])
+        else fresh.set(docs[i], vecs[j])
+      })
+    }
+    const byId = new Map<number, number[]>()
+    corpus.forEach((r, i) => {
+      const v = cache.get(docs[i]) ?? fresh.get(docs[i])
+      if (v) byId.set(r.id, v)
+    })
+    return byId
+  }
+
+  return {
+    async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
+      if (corpus.length === 0 || limit <= 0) return [] // no embedding work for no-op calls
+      const queryVecs = await embedder.embed([question])
+      // Assert exactly one vector for the single-text request so a buggy embedder
+      // fails fast (to the lexical fallback) instead of masking a contract break.
+      if (queryVecs.length !== 1) {
+        throw new Error(`embedder returned ${queryVecs.length} vectors for a single query`)
+      }
+      const queryVec = queryVecs[0]
+      const corpusVecs = await embedCorpus(corpus)
+
+      const scored = corpus
+        .map((resource) => {
+          const vec = corpusVecs.get(resource.id)
+          if (vec === undefined) return { resource, score: 0 }
+          const cosine = dot(queryVec, vec)
+          const bonus = hasStructuredMatch(question, resource) ? EMBED_STRUCT_BONUS : 0
+          return { resource, score: cosine + bonus }
+        })
+        // Drop only genuine noise; the LLM decides "none" over what survives.
+        .filter((c) => c.score >= EMBED_MIN_SCORE)
+
+      scored.sort((a, b) => b.score - a.score || a.resource.id - b.resource.id)
+      return scored.slice(0, Math.max(0, limit))
+    },
+  }
+}
+
+/**
+ * The production retriever: the hybrid embedding retriever (semantic cosine +
+ * structured tie-break) with a transparent lexical fallback if the embedding
+ * model can't load or an embed fails (offline, missing runtime). Pure lexical
+ * ranking is deliberately NOT fused in — on lexically-disjoint questions its
+ * coincidental token matches add noise that drags the right semantic result
+ * down (measured: fusion scored lower on the adversarial eval than embeddings
+ * alone). The structured bonus already recovers exact service/env/tag matches.
+ */
+export function createDefaultRetriever(embedder: Embedder): Retriever {
+  const embedding = createEmbeddingRetriever(embedder)
+  let warnedFailure = false
+  return {
+    async retrieve(question: string, corpus: Resource[], limit: number): Promise<ScoredCandidate[]> {
+      try {
+        return await embedding.retrieve(question, corpus, limit)
+      } catch (err) {
+        // Log once per retriever instance so a persistently-unavailable model
+        // (offline first run / missing runtime) doesn't spam on every resolve.
+        if (!warnedFailure) {
+          warnedFailure = true
+          console.error('[retrieve] embedding retriever failed; falling back to lexical:', err)
+        }
+        return rankLexical(question, corpus, limit)
+      }
+    },
+  }
 }

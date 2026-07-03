@@ -16,13 +16,18 @@
     "dist:dir": "bun run build && electron-builder --dir --mac",
     "db:copy-prod": "bash scripts/copy-prod-db.sh",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "setup": "bun install --ignore-scripts && bun run rebuild",
+    "setup": "bun install && bun run rebuild",
     "install-app": "bash scripts/install-app.sh"
   },
   "keywords": [],
   "author": "robert-crandall",
   "license": "MIT",
+  "trustedDependencies": [
+    "onnxruntime-node",
+    "protobufjs"
+  ],
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@octokit/rest": "^22.0.1",
     "better-sqlite3": "^12.9.0",
