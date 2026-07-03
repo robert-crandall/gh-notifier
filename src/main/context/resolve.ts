@@ -195,6 +195,8 @@ async function runCitedSource(
   deps: ResolveDeps
 ): Promise<ResolveResult> {
   const citation = toCitation(resource)
+  // The UI can only "open" a resource that has a link; tailor copy accordingly.
+  const openHint = resource.url !== null ? ' Open it directly.' : ' There is no saved link to open.'
 
   // Normalize the wiring: empty/whitespace ids or tool names are treated as
   // "no live source", never passed to an MCP call.
@@ -206,7 +208,7 @@ async function runCitedSource(
     markResourceUsed(resource.id, false)
     const result: ResolveResult = {
       verdict: 'source_available_no_live_value',
-      answer: `Found the saved source: ${resource.title}. No live source is wired, so open it directly.`,
+      answer: `Found the saved source: ${resource.title}. No live source is wired.${openHint}`,
       citation,
       liveValue: null,
       clarifyQuestion: null,
@@ -232,7 +234,7 @@ async function runCitedSource(
     markResourceUsed(resource.id, false)
     const result: ResolveResult = {
       verdict: 'source_available_no_live_value',
-      answer: `Found ${resource.title}, but its data connection isn't configured. Open it directly.`,
+      answer: `Found ${resource.title}, but its data connection isn't configured.${openHint}`,
       citation,
       liveValue: null,
       clarifyQuestion: null,
@@ -289,7 +291,7 @@ async function runCitedSource(
       ? `Found ${resource.title}, but the query returned no data (flagged for re-verify).`
       : failure === 'query_invalid'
         ? `Found ${resource.title}, but its query looks broken (flagged for re-verify).`
-        : `Found ${resource.title}, but I couldn't read it just now. Open it directly.`
+        : `Found ${resource.title}, but I couldn't read it just now.${openHint}`
 
   const result: ResolveResult = {
     verdict: 'source_available_no_live_value',
