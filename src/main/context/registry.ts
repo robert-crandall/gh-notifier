@@ -476,7 +476,9 @@ export function getProjectCardReadOnly(projectId: number): ProjectCard {
     .prepare('SELECT * FROM project_cards WHERE project_id = ?')
     .get(projectId) as ProjectCardRow | undefined
   if (existing) return toProjectCard(existing)
-  return { projectId, purpose: '', repos: [], services: [], activeGoal: '', glossary: {}, updatedAt: '' }
+  // Match the DB's updated_at default shape (a parseable ISO timestamp) so a
+  // future caller can't trip on an unparseable empty string. Still read-only.
+  return { projectId, purpose: '', repos: [], services: [], activeGoal: '', glossary: {}, updatedAt: new Date().toISOString() }
 }
 
 /** Updates the project card (upsert). Only supplied fields change. */
