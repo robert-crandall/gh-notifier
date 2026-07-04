@@ -10,6 +10,7 @@
 import { Database } from 'bun:sqlite'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { computeDigestItems, type DigestNotificationRow, type DigestSessionRow } from '../src/main/digest/compute'
 import { classifyDrift } from '../src/main/digest/classify'
 
@@ -23,7 +24,7 @@ const db = new Database(':memory:')
 db.exec('PRAGMA foreign_keys = ON')
 
 // Apply migrations from disk (bypasses the electron-dependent runMigrations).
-const migrationsDir = join(import.meta.dir, '..', 'db', 'migrations')
+const migrationsDir = join(fileURLToPath(new URL('..', import.meta.url)), 'db', 'migrations')
 for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()) {
   const sql = readFileSync(join(migrationsDir, file), 'utf8')
   const stripped = sql.replace(/--[^\n]*/g, '').trim()

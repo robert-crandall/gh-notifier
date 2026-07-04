@@ -12,12 +12,14 @@
     "test": "bun run typecheck && bun run lint && vitest run",
     "test:watch": "vitest",
     "eval:live": "bun --bun run src/main/context/eval/live-eval.ts",
+    "provision-model": "bun --bun run scripts/provision-model.ts",
+    "verify-mcp": "bun --bun run scripts/verify-mcp.ts",
     "prepackage": "bun install --frozen-lockfile && bun run rebuild",
-    "dist": "bun run prepackage && bun run build && electron-builder --mac",
-    "dist:dir": "bun run prepackage && bun run build && electron-builder --dir --mac",
+    "dist": "bun run prepackage && bun run provision-model && bun run build && electron-builder --mac",
+    "dist:dir": "bun run prepackage && bun run provision-model && bun run build && electron-builder --dir --mac",
     "db:copy-prod": "bash scripts/copy-prod-db.sh",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "setup": "bun install && bun run rebuild",
+    "setup": "bun install && bun run rebuild && bun --bun run scripts/provision-model.ts --best-effort",
     "install-app": "bash scripts/install-app.sh"
   },
   "keywords": [],
@@ -68,14 +70,24 @@
   "build": {
     "appId": "com.robertcrandall.gh-projects",
     "productName": "GH Projects",
+    "afterPack": "./build/afterpack-verify-model.cjs",
     "mac": {
       "category": "public.app-category.productivity",
       "target": "dmg"
     },
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/sharp/**",
+      "**/node_modules/@img/**"
+    ],
     "extraResources": [
       {
         "from": "db/migrations",
         "to": "db/migrations"
+      },
+      {
+        "from": ".model-cache",
+        "to": "model-cache"
       }
     ],
     "files": [

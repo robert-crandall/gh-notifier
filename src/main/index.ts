@@ -42,6 +42,8 @@ import { listMcpTools } from './context/mcp-client'
 import { resolveQuestion } from './context/resolve'
 import { recommendResources } from './context/recommend'
 import { createResolveDeps } from './context/resolve-deps'
+import { resolveModelProvisioning } from './context/model-path'
+import { runEmbeddingSmoke, EMBEDDING_SMOKE_FLAG } from './context/embedding-smoke'
 import { delegateTask, appDelegateAvailability, buildAppSessionDeepLink, createDefaultDelegateDeps } from './agent/copilot-app/delegate'
 import { linkTodoSession } from './agent/copilot-app/store'
 import { refreshTodoAppSessionsForProject } from './agent/copilot-app/status'
@@ -120,6 +122,15 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  // Headless verifier: `--embedding-smoke` loads the model exactly as production
+  // would and exits, without creating a window or touching the DB. Runs first so
+  // it exercises the packaged runtime cleanly and never starts the real app.
+  if (process.argv.includes(EMBEDDING_SMOKE_FLAG)) {
+    const code = await runEmbeddingSmoke(app)
+    app.exit(code)
+    return
+  }
+
   initDb()
   await initAuth()
 
@@ -394,7 +405,10 @@ app.whenReady().then(async () => {
 
   // Resolver deps: an isolated Copilot home (no user MCP servers, no tools for
   // the decide call) + an app-owned MCP client for the actual read.
-  const resolveDeps = createResolveDeps(app.getPath('userData'))
+  const resolveDeps = createResolveDeps({
+    stateDir: app.getPath('userData'),
+    embedderOptions: resolveModelProvisioning(app),
+  })
 
   ipcMain.handle('resources:list', (_event, projectId: number) => listResources(projectId))
   ipcMain.handle('resources:groups', (_event, projectId: number) => groupResources(listResources(projectId)))

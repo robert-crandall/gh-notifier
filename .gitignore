@@ -55,3 +55,7 @@ Thumbs.db
 dist/
 *.tsbuildinfo
 backups
+
+# Provisioned local embedding model (bundled into the packaged app at build time;
+# never committed — ~90 MB. Run `bun run provision-model` to populate.)
+.model-cache/
