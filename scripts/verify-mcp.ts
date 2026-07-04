@@ -96,7 +96,11 @@ async function main(): Promise<void> {
   )
 
   // ── 2. Real read: the app-owned MCP client pulls a live value ───────────────
-  console.log(`[verify-mcp] calling ${toolName.value}(${JSON.stringify(toolArgs.value)})…`)
+  // Tool args can carry sensitive values (tokens, ids, filters), so log only the
+  // arg key count by default; --full prints the actual args.
+  const argKeys = Object.keys(toolArgs.value)
+  const argsLabel = full ? JSON.stringify(toolArgs.value) : `${argKeys.length} arg(s): ${argKeys.join(', ')}`
+  console.log(`[verify-mcp] calling ${toolName.value}(${argsLabel})…`)
   const result = await createMcpRunner().run(server, toolName.value, toolArgs.value)
 
   console.log('\n[verify-mcp] ── result (app-owned; produced only by createMcpRunner) ──')

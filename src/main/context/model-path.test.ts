@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, dirname } from 'path'
 import { isModelProvisioned, resolveModelProvisioning } from './model-path'
@@ -45,6 +45,17 @@ describe('model-path resolution', () => {
       const dir = tmp('mp-full-')
       provision(dir)
       expect(isModelProvisioned(dir)).toBe(true)
+    })
+
+    it('is false when a required path is a directory, not a file', () => {
+      // A stray directory named like a model file must NOT count as provisioned
+      // (existsSync would say yes; the runtime needs a real file).
+      const dir = tmp('mp-dirfile-')
+      provision(dir)
+      const modelDir = join(dir, MODEL_CACHE_SUBPATH)
+      rmSync(join(modelDir, 'config.json'))
+      mkdirSync(join(modelDir, 'config.json'))
+      expect(isModelProvisioned(dir)).toBe(false)
     })
   })
 

@@ -1,4 +1,4 @@
-import { existsSync } from 'fs'
+import { statSync } from 'fs'
 import { join } from 'path'
 import type { App } from 'electron'
 import { MODEL_CACHE_SUBPATH, REQUIRED_MODEL_FILES } from './embed'
@@ -27,10 +27,22 @@ const PACKAGED_MODEL_DIR = 'model-cache'
 /** Where `provision-model` writes the dev model cache (gitignored, repo root). */
 const DEV_MODEL_DIR = '.model-cache'
 
-/** True when every required model file exists under `<cacheDir>/<subpath>/`. */
+/** True when `p` exists AND is a regular file (not a directory). */
+function isFile(p: string): boolean {
+  try {
+    return statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
+/** True when every required model file exists as a real file under `<cacheDir>/<subpath>/`. */
 export function isModelProvisioned(cacheDir: string): boolean {
   const modelDir = join(cacheDir, MODEL_CACHE_SUBPATH)
-  return REQUIRED_MODEL_FILES.every((f) => existsSync(join(modelDir, f)))
+  // Require actual files — `existsSync` is true for directories too, so a stray
+  // dir named like a model file could otherwise be mistaken for a provisioned
+  // model and wrongly force offline mode.
+  return REQUIRED_MODEL_FILES.every((f) => isFile(join(modelDir, f)))
 }
 
 /**

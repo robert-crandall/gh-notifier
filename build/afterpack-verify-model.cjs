@@ -15,6 +15,16 @@
 const path = require('node:path')
 const fs = require('node:fs')
 
+// True only when `p` exists AND is a regular file (existsSync is also true for
+// directories, which would let a broken bundle pass the gate).
+function isFile(p) {
+  try {
+    return fs.statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
 const MODEL_CACHE_SUBPATH = 'Xenova/all-MiniLM-L6-v2'
 const REQUIRED_MODEL_FILES = [
   'config.json',
@@ -62,7 +72,7 @@ exports.default = async function afterPackVerifyModel(context) {
   }
 
   const modelDir = path.join(modelCacheDir, subpath)
-  const missing = requiredFiles.filter((f) => !fs.existsSync(path.join(modelDir, f)))
+  const missing = requiredFiles.filter((f) => !isFile(path.join(modelDir, f)))
 
   if (missing.length > 0) {
     throw new Error(

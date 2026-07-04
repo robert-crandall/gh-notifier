@@ -18,7 +18,7 @@
  * integrity problems (incomplete files, wrong dims, corrupt cache) so a real
  * provisioning bug is never masked.
  */
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { statSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import {
@@ -35,9 +35,18 @@ const CACHE_DIR = join(REPO_ROOT, '.model-cache')
 /** A local-integrity failure that must fail even in best-effort mode. */
 class IntegrityError extends Error {}
 
+/** True when `p` exists AND is a regular file (existsSync is also true for dirs). */
+function isFile(p: string): boolean {
+  try {
+    return statSync(p).isFile()
+  } catch {
+    return false
+  }
+}
+
 function modelFilesPresent(): boolean {
   const modelDir = join(CACHE_DIR, MODEL_CACHE_SUBPATH)
-  return REQUIRED_MODEL_FILES.every((f) => existsSync(join(modelDir, f)))
+  return REQUIRED_MODEL_FILES.every((f) => isFile(join(modelDir, f)))
 }
 
 /**
