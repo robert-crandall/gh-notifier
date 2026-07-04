@@ -46,6 +46,11 @@ async function main(): Promise<void> {
   } catch (err) {
     die(`could not read/parse ${configPath}: ${err instanceof Error ? err.message : String(err)}`)
   }
+  // Guard the shape before treating it as a config object, so a file containing
+  // null / an array / a primitive gives a clear message instead of a raw TypeError.
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    die(`${configPath} must contain a JSON object with command/args/env (and optional tool/toolArgs)`)
+  }
   const file = raw as Record<string, unknown>
 
   // Reuse the app's REAL config validation so this exercises the same seam the app does.
