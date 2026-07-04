@@ -128,13 +128,24 @@ export interface DelegatePayload {
 export type DelegateResult =
   | { kind: 'app'; session: CopilotAppSession }
   | { kind: 'app-send-failed'; session: CopilotAppSession }
-  | { kind: 'cloud'; session: CopilotSession }
+  | { kind: 'cloud'; session: CopilotSession; appFallbackReason: AppDelegateFallbackReason }
 
 /** Why the desktop-app path wasn't taken for a delegate (diagnostic, non-fatal). */
 export type AppDelegateSkipReason =
   | 'flag_disabled'   // the app-delegate feature flag is off
   | 'app_not_running' // WS discovery files (ws.port/ws.token) absent — no connection is attempted
   | 'no_local_cwd'    // no trusted local checkout resolved for the repo
+
+/**
+ * Why a delegate landed in the cloud instead of the desktop app. A superset of
+ * `AppDelegateSkipReason`: the availability pre-check (`appDelegateAvailability`)
+ * can only report the three static reasons above, but the live delegate can also
+ * bypass the app for a requested base branch or a transient WS failure.
+ */
+export type AppDelegateFallbackReason =
+  | AppDelegateSkipReason
+  | 'base_branch'     // an explicit base branch was requested — the app WS has no branch concept
+  | 'app_unavailable' // pre-create WS handshake/connect failure (transient)
 
 /** Default "repos root" used to resolve local checkouts (`~` expanded in main). */
 export const DEFAULT_REPOS_ROOT = '~/repos'
