@@ -4,6 +4,14 @@
      data-color-mode = "dark" | "light" | "dim" | "high-contrast"  (resolved by useTheme; system-aware)
      data-accent     = "slate" | "blue" | "green" | "violet"
      data-density    = "compact" | "comfortable"
+
+   Neutral/semantic values are the current GitHub palette, copied from
+   @primer/primitives@11.7.1 (github-app commit 94ba5c02f, 2026-06-06). Each mode maps to a
+   Primer theme: dark→dark, light→light, dim→dark_dimmed, high-contrast→dark_high_contrast.
+   Diff against that package version when refreshing. --text-2 and --text-3 both resolve to
+   Primer fgColor-muted (GitHub has one readable muted tier; disabled tone is not used for
+   readable text). Accents (slate/blue/green/violet) are a gh-notifier feature Primer does
+   not model; slate stays the default identity accent.
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
@@ -34,28 +42,28 @@
 [data-color-mode='dark'] {
   color-scheme: dark;
 
-  --bg-desktop: #05070a;
+  --bg-desktop: #010409;
   --bg-window: #0d1117;
-  --bg-rail: #0a0e13;
-  --bg-subtle: #161b22;
+  --bg-rail: #010409;
+  --bg-subtle: #151b23;
   --bg-inset: #010409;
-  --bg-elevated: #1b212a;
+  --bg-elevated: #212830;
 
-  --border: #30363d;
-  --border-muted: #21262d;
+  --border: #3d444d;
+  --border-muted: #3d444db3;
   --border-subtle: rgba(240, 246, 252, 0.08);
 
-  --text: #e6edf3;
-  --text-2: #8b949e;
-  --text-3: #6e7681;
+  --text: #f0f6fc;
+  --text-2: #9198a1;
+  --text-3: #9198a1;
 
   --success: #3fb950;
   --attention: #d29922;
   --danger: #f85149;
-  --info: #58a6ff;
-  --violet: #a371f7;
+  --info: #4493f8;
+  --violet: #ab7df8;
 
-  --scrollbar-thumb: #2b323b;
+  --scrollbar-thumb: #2f3742;
 
   /* Accent — slate (default). */
   --accent: #576273;
@@ -73,7 +81,7 @@
   --accent-fg: #fff;
   --accent-subtle: rgba(56, 139, 253, 0.15);
   --accent-border: rgba(56, 139, 253, 0.45);
-  --accent-text: #58a6ff;
+  --accent-text: #4493f8;
 }
 
 [data-color-mode='dark'][data-accent='green'],
@@ -100,28 +108,28 @@
 [data-color-mode='light'] {
   color-scheme: light;
 
-  --bg-desktop: #eaeef2;
+  --bg-desktop: #f6f8fa;
   --bg-window: #ffffff;
   --bg-rail: #f6f8fa;
   --bg-subtle: #f6f8fa;
-  --bg-inset: #eef1f4;
+  --bg-inset: #f6f8fa;
   --bg-elevated: #ffffff;
 
-  --border: #d0d7de;
-  --border-muted: #e4e8ec;
-  --border-subtle: rgba(1, 4, 9, 0.08);
+  --border: #d1d9e0;
+  --border-muted: #d1d9e0b3;
+  --border-subtle: rgba(31, 35, 40, 0.08);
 
   --text: #1f2328;
   --text-2: #59636e;
-  --text-3: #818b98;
+  --text-3: #59636e;
 
   --success: #1a7f37;
   --attention: #9a6700;
-  --danger: #cf222e;
+  --danger: #d1242f;
   --info: #0969da;
   --violet: #8250df;
 
-  --scrollbar-thumb: #d0d7de;
+  --scrollbar-thumb: #d1d9e0;
 
   /* Accent — slate (default). */
   --accent: #57606a;
@@ -166,28 +174,28 @@
 [data-color-mode='dim'] {
   color-scheme: dark;
 
-  --bg-desktop: #1c2128;
-  --bg-window: #22272e;
-  --bg-rail: #1c2128;
-  --bg-subtle: #2d333b;
-  --bg-inset: #1c2128;
-  --bg-elevated: #323942;
+  --bg-desktop: #151b23;
+  --bg-window: #212830;
+  --bg-rail: #151b23;
+  --bg-subtle: #262c36;
+  --bg-inset: #151b23;
+  --bg-elevated: #2a313c;
 
-  --border: #444c56;
-  --border-muted: #373e47;
-  --border-subtle: rgba(205, 217, 229, 0.08);
+  --border: #3d444d;
+  --border-muted: #3d444db3;
+  --border-subtle: rgba(209, 215, 224, 0.08);
 
-  --text: #cdd9e5;
-  --text-2: #909dab;
-  --text-3: #838f9c;
+  --text: #d1d7e0;
+  --text-2: #9198a1;
+  --text-3: #9198a1;
 
   --success: #57ab5a;
   --attention: #c69026;
   --danger: #e5534b;
-  --info: #6cb6ff;
-  --violet: #b083f0;
+  --info: #478be6;
+  --violet: #986ee2;
 
-  --scrollbar-thumb: #454c56;
+  --scrollbar-thumb: #2f3742;
 
   /* Accent — slate (default); blue/green/violet come from the dark accent rules. */
   --accent: #616b78;
@@ -204,28 +212,28 @@
 [data-color-mode='high-contrast'] {
   color-scheme: dark;
 
-  --bg-desktop: #000000;
+  --bg-desktop: #010409;
   --bg-window: #010409;
-  --bg-rail: #000000;
-  --bg-subtle: #0a0c10;
-  --bg-inset: #000000;
-  --bg-elevated: #151b23;
+  --bg-rail: #010409;
+  --bg-subtle: #151b23;
+  --bg-inset: #010409;
+  --bg-elevated: #212830;
 
-  --border: #7a828e;
-  --border-muted: #525960;
+  --border: #b7bdc8;
+  --border-muted: #b7bdc8;
   --border-subtle: rgba(255, 255, 255, 0.2);
 
   --text: #ffffff;
-  --text-2: #f0f3f6;
-  --text-3: #bdc4cc;
+  --text-2: #b7bdc8;
+  --text-3: #b7bdc8;
 
-  --success: #26cd4d;
+  --success: #2bd853;
   --attention: #f0b72f;
-  --danger: #ff6a69;
-  --info: #71b7ff;
-  --violet: #cb9eff;
+  --danger: #ff9492;
+  --info: #74b9ff;
+  --violet: #d3abff;
 
-  --scrollbar-thumb: #7a828e;
+  --scrollbar-thumb: #656c76;
 
   /* Accent — slate (default). High-contrast accents are defined per-accent below. */
   --accent: #8f99a6;
