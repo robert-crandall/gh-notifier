@@ -12,8 +12,8 @@ export const EMBEDDING_SMOKE_FLAG = '--embedding-smoke'
  * and asserts it produces a real 384-dim embedding. No window is created.
  *
  * This is the ONLY way to exercise the *packaged* node_modules + resourcesPath +
- * main-process runtime without a GUI: run `Focus.app/Contents/MacOS/Focus
- * --embedding-smoke` against a built app. Returns an exit code (0 = ok).
+ * main-process runtime without a GUI: run `"GH Projects.app/Contents/MacOS/GH
+ * Projects" --embedding-smoke` against a built app. Returns an exit code (0 = ok).
  */
 export async function runEmbeddingSmoke(
   app: Pick<App, 'isPackaged' | 'getAppPath'>
