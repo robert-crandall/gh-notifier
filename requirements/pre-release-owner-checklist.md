@@ -1,12 +1,12 @@
 # Pre-release owner checklist (#77 items 4 + 3)
 
 Most of items 4 and 3 are done + verified headlessly (see the PR). This file is the
-short list of steps that genuinely need **you** — your machine, your signing
+short list of steps that genuinely need **you** - your machine, your signing
 identity, and your SSO credentials. Everything else is already proven.
 
 ## What's already verified (no action needed)
 
-- **Item 4 — offline model provisioning:** the MiniLM model is provisioned into
+- **Item 4 - offline model provisioning:** the MiniLM model is provisioned into
   `.model-cache/` at build time and bundled into the packaged app under
   `Resources/model-cache/`. Verified on an **unsigned `--dir` build**:
   - the electron-builder `afterPack` gate confirms the 4 model files are present
@@ -14,13 +14,13 @@ identity, and your SSO credentials. Everything else is already proven.
   - `@huggingface/transformers`, `onnxruntime-node`, `better-sqlite3`, and `sharp`
     all ship in the package (native binaries unpacked from the asar);
   - the packaged app loads the model **fully offline** (`allowRemoteModels=false`)
-    and produces a 384-dim embedding — confirmed by running the packaged binary's
+    and produces a 384-dim embedding - confirmed by running the packaged binary's
     `--embedding-smoke` mode.
-- **Item 3 — app-owned MCP read:** the `verify-mcp` harness drives the app's real
+- **Item 3 - app-owned MCP read:** the `verify-mcp` harness drives the app's real
   `listMcpTools` + `createMcpRunner` and was confirmed end-to-end against the
   synthetic echo MCP server (live value pulled, failure classes correct).
 
-## Owner-only step 1 — confirm offline load on the SIGNED build (item 4)
+## Owner-only step 1 - confirm offline load on the SIGNED build (item 4)
 
 The unsigned build is proven; the only thing I can't do is sign/notarize. After a
 real signed build:
@@ -41,16 +41,16 @@ Expect:
 `packaged=true` + `allowRemoteModels=false` + `OK` means the signed app loads the
 model offline. Treat **"every distributable `.app` passes `--embedding-smoke`"** as
 a required release step. (Optional: launch the app normally, ask the brain a
-question, and confirm the resolve logs `retrievalMode:'semantic'` — not
-`'lexical-fallback'` — on first use with the network off.)
+question, and confirm the resolve logs `retrievalMode:'semantic'` - not
+`'lexical-fallback'` - on first use with the network off.)
 
-## Owner-only step 2 — pull a real SSO-gated MCP value (item 3)
+## Owner-only step 2 - pull a real SSO-gated MCP value (item 3)
 
 This needs your real Datadog/Splunk/Kusto MCP server + SSO credentials, which
 can't live in the sandbox. Two ways, either is fine:
 
 **A. One command (no GUI):** write a local config file (secrets stay on your
-machine — never commit it):
+machine - never commit it):
 
 ```jsonc
 // ~/datadog-mcp.json

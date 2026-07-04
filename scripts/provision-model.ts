@@ -40,10 +40,33 @@ function modelFilesPresent(): boolean {
   return REQUIRED_MODEL_FILES.every((f) => existsSync(join(modelDir, f)))
 }
 
-/** True when ANY required model file already exists (a partial/possibly-corrupt cache). */
-function anyModelFilesPresent(): boolean {
-  const modelDir = join(CACHE_DIR, MODEL_CACHE_SUBPATH)
-  return REQUIRED_MODEL_FILES.some((f) => existsSync(join(modelDir, f)))
+/**
+ * Heuristic: does this error (or anything in its `cause` chain) look like a
+ * connectivity failure, versus a load/inference/integrity problem? Best-effort
+ * mode swallows ONLY connectivity failures — that's the whole contract, so we
+ * classify by cause rather than by which files happen to be on disk (a partial or
+ * empty cache dir is an unreliable proxy, and a fetched-but-broken model would be
+ * masked). An IntegrityError never matches, so it always surfaces.
+ */
+function isLikelyNetworkError(err: unknown): boolean {
+  if (err instanceof IntegrityError) return false
+  const signals = [
+    'fetch failed', 'failed to fetch', 'network', 'enotfound', 'econnrefused',
+    'eai_again', 'etimedout', 'econnreset', 'enetunreach', 'ehostunreach',
+    'getaddrinfo', 'socket hang up', 'und_err', 'request to', 'timed out',
+    'timeout', 'dns', 'offline', 'certificate', 'tls', 'ssl',
+  ]
+  const seen = new Set<unknown>()
+  let cur: unknown = err
+  while (cur !== null && cur !== undefined && !seen.has(cur)) {
+    seen.add(cur)
+    const asErr = cur instanceof Error ? cur : null
+    const code = asErr ? (asErr as { code?: unknown }).code : undefined
+    const hay = `${asErr ? `${asErr.name} ${asErr.message}` : String(cur)} ${code ?? ''}`.toLowerCase()
+    if (signals.some((s) => hay.includes(s))) return true
+    cur = asErr ? (asErr as { cause?: unknown }).cause : undefined
+  }
+  return false
 }
 
 /** Loads the model with the given remote policy and asserts it yields 384 dims. */
@@ -91,28 +114,21 @@ async function main(): Promise<void> {
   }
 
   console.log(`[provision] downloading ${EMBEDDING_MODEL_ID} into ${CACHE_DIR}…`)
-  // A partial cache present here (some but not all required files) is suspect: a
-  // corrupt/interrupted file can make transformers throw on the local copy before
-  // it repairs. Only a truly pristine dir is safe to treat a failure as "just
-  // offline" in best-effort mode; otherwise fail loudly so it gets re-provisioned.
-  const partialCache = anyModelFilesPresent()
   try {
     await assertEmbeds(true)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    if (bestEffort && !partialCache) {
-      // Truly pristine + can't download → offline/network. Dev self-heals later.
+    // Best-effort (used by `setup`) tolerates ONLY a connectivity failure, so a
+    // fresh offline checkout still succeeds — the app self-heals on first use (a
+    // partial/absent cache is treated as unprovisioned at runtime and re-fetched).
+    // Any non-network failure (bad dims, corrupt/incomplete file, inference or
+    // runtime error) is a real breakage and surfaces even in best-effort.
+    if (bestEffort && isLikelyNetworkError(err)) {
       console.warn(
-        `[provision] could not download the model (${msg}). ` +
+        `[provision] could not download the model - looks like a network issue (${msg}). ` +
           'Continuing (best-effort): dev will fetch it on first use. Run `bun run provision-model` when online.'
       )
       return
-    }
-    if (partialCache) {
-      throw new IntegrityError(
-        `partial/corrupt model cache at ${CACHE_DIR} and (re)provisioning failed (${msg}). ` +
-          'Delete .model-cache and rerun `bun run provision-model`.'
-      )
     }
     throw err
   }
