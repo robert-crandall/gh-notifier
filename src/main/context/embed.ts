@@ -79,8 +79,11 @@ export function createLocalEmbedder(options: EmbedderOptions = {}): Embedder {
         // can't leave a later default caller unexpectedly offline (or vice versa).
         env.allowRemoteModels = options.allowRemoteModels ?? true
         // cacheDir only changes WHERE the model is read/written, not the network
-        // policy, so it's set only when provided (default callers use the library
-        // default cache location).
+        // policy, so it's set only when provided. Note `env` is process-global, so
+        // a call that omits cacheDir keeps whatever a prior call set (NOT necessarily
+        // the library default). That's fine in practice: the app always passes a
+        // cacheDir (via resolveModelProvisioning), and the only no-cacheDir callers
+        // (golden/eval scripts) run in their own fresh process.
         if (options.cacheDir !== undefined) env.cacheDir = options.cacheDir
         return pipeline('feature-extraction', MODEL_ID)
       })
