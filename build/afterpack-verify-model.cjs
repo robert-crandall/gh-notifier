@@ -7,8 +7,10 @@
 // if the provisioned model files didn't land under the app's Resources, so such a
 // build can never be produced.
 //
-// The required-files list mirrors REQUIRED_MODEL_FILES / MODEL_CACHE_SUBPATH in
-// src/main/context/embed.ts — keep them in sync.
+// The gate prefers the bundled PROVENANCE.json (written by provision-model.ts) as
+// the source of truth for what should be present. The constants below are only a
+// FALLBACK when provenance is missing/unreadable; they mirror REQUIRED_MODEL_FILES
+// / MODEL_CACHE_SUBPATH in src/main/context/embed.ts.
 
 const path = require('node:path')
 const fs = require('node:fs')
@@ -33,8 +35,27 @@ exports.default = async function afterPackVerifyModel(context) {
     resourcesDir = path.join(appOutDir, 'resources')
   }
 
-  const modelDir = path.join(resourcesDir, 'model-cache', MODEL_CACHE_SUBPATH)
-  const missing = REQUIRED_MODEL_FILES.filter((f) => !fs.existsSync(path.join(modelDir, f)))
+  const modelCacheDir = path.join(resourcesDir, 'model-cache')
+
+  // Prefer the bundled PROVENANCE.json (written by provision-model.ts) as the
+  // single source of truth for what should be present, so this gate can't drift
+  // if the model id / file list changes. Fall back to the mirrored constants.
+  let subpath = MODEL_CACHE_SUBPATH
+  let requiredFiles = REQUIRED_MODEL_FILES
+  try {
+    const provenance = JSON.parse(fs.readFileSync(path.join(modelCacheDir, 'PROVENANCE.json'), 'utf8'))
+    if (typeof provenance.modelId === 'string' && provenance.modelId.length > 0) {
+      subpath = provenance.modelId
+    }
+    if (Array.isArray(provenance.files) && provenance.files.every((f) => typeof f === 'string')) {
+      requiredFiles = provenance.files
+    }
+  } catch {
+    // No/invalid provenance — fall back to the hardcoded list below.
+  }
+
+  const modelDir = path.join(modelCacheDir, subpath)
+  const missing = requiredFiles.filter((f) => !fs.existsSync(path.join(modelDir, f)))
 
   if (missing.length > 0) {
     throw new Error(
@@ -44,5 +65,5 @@ exports.default = async function afterPackVerifyModel(context) {
     )
   }
 
-  console.log(`[afterPack] embedding model present under Resources/model-cache (${REQUIRED_MODEL_FILES.length} files).`)
+  console.log(`[afterPack] embedding model present under Resources/model-cache (${requiredFiles.length} files).`)
 }

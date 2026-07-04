@@ -73,16 +73,15 @@ export function createLocalEmbedder(options: EmbedderOptions = {}): Embedder {
     if (pipelinePromise === null) {
       // Import lazily so merely importing this module doesn't pull the runtime in.
       pipelinePromise = import('@huggingface/transformers').then(({ pipeline, env }) => {
-        // transformers.js `env` is process-global mutable state. Set both fields
-        // explicitly whenever a cacheDir is given so a value left over from an
-        // earlier call (e.g. an online provisioning run) can't leak in and, say,
-        // silently re-enable remote fetches in a load meant to be offline.
-        if (options.cacheDir !== undefined) {
-          env.cacheDir = options.cacheDir
-          env.allowRemoteModels = options.allowRemoteModels ?? true
-        } else if (options.allowRemoteModels !== undefined) {
-          env.allowRemoteModels = options.allowRemoteModels
-        }
+        // transformers.js `env` is process-global mutable state. Set the remote
+        // policy DETERMINISTICALLY every time (defaulting to the library default,
+        // `true`) so a prior configured load — e.g. an offline provisioning run —
+        // can't leave a later default caller unexpectedly offline (or vice versa).
+        env.allowRemoteModels = options.allowRemoteModels ?? true
+        // cacheDir only changes WHERE the model is read/written, not the network
+        // policy, so it's set only when provided (default callers use the library
+        // default cache location).
+        if (options.cacheDir !== undefined) env.cacheDir = options.cacheDir
         return pipeline('feature-extraction', MODEL_ID)
       })
       // Don't cache a transient load failure forever — reset so later calls retry.
