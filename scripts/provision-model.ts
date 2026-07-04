@@ -83,13 +83,17 @@ async function assertEmbeds(allowRemoteModels: boolean): Promise<void> {
 async function writeProvenance(): Promise<void> {
   let sha: string | null = null
   try {
-    const res = await fetch(`https://huggingface.co/api/models/${EMBEDDING_MODEL_ID}/revision/main`)
+    // Short timeout so an offline/SSO-restricted environment can't hang the whole
+    // provisioning step (and therefore `dist` / `setup`) on this best-effort fetch.
+    const res = await fetch(`https://huggingface.co/api/models/${EMBEDDING_MODEL_ID}/revision/main`, {
+      signal: AbortSignal.timeout(5000),
+    })
     if (res.ok) {
       const body = (await res.json()) as { sha?: unknown }
       if (typeof body.sha === 'string') sha = body.sha
     }
   } catch {
-    // Provenance is informational — never fail provisioning over it.
+    // Provenance is informational — never fail (or hang) provisioning over it.
   }
   const provenance = {
     modelId: EMBEDDING_MODEL_ID,

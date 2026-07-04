@@ -44,10 +44,17 @@ exports.default = async function afterPackVerifyModel(context) {
   let requiredFiles = REQUIRED_MODEL_FILES
   try {
     const provenance = JSON.parse(fs.readFileSync(path.join(modelCacheDir, 'PROVENANCE.json'), 'utf8'))
-    if (typeof provenance.modelId === 'string' && provenance.modelId.length > 0) {
-      subpath = provenance.modelId
+    // Only trust provenance that is actually usable. A blank modelId or an empty
+    // files array would otherwise make this gate a no-op and let a model-less
+    // build ship, so fall back to the hardcoded safe defaults in those cases.
+    if (typeof provenance.modelId === 'string' && provenance.modelId.trim().length > 0) {
+      subpath = provenance.modelId.trim()
     }
-    if (Array.isArray(provenance.files) && provenance.files.every((f) => typeof f === 'string')) {
+    if (
+      Array.isArray(provenance.files) &&
+      provenance.files.length > 0 &&
+      provenance.files.every((f) => typeof f === 'string' && f.trim().length > 0)
+    ) {
       requiredFiles = provenance.files
     }
   } catch {
