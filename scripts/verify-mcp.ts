@@ -110,6 +110,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
+  // Exit-code scheme: 0 = live value pulled, 1 = bad input/usage (via die), 2 =
+  // runtime failure (handshake/read). An unexpected throw here is a runtime
+  // failure, not bad input, so it exits 2 - not 1.
   console.error('[verify-mcp] unexpected error:', err instanceof Error ? err.message : err)
-  process.exit(1)
+  process.exit(2)
 })
