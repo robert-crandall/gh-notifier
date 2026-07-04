@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { isModelProvisioned, resolveModelProvisioning } from './model-path'
 import { MODEL_CACHE_SUBPATH, REQUIRED_MODEL_FILES } from './embed'
 
@@ -20,7 +20,7 @@ describe('model-path resolution', () => {
     const modelDir = join(cacheDir, MODEL_CACHE_SUBPATH)
     for (const f of REQUIRED_MODEL_FILES) {
       const full = join(modelDir, f)
-      mkdirSync(join(full, '..'), { recursive: true })
+      mkdirSync(dirname(full), { recursive: true })
       writeFileSync(full, 'x')
     }
   }
