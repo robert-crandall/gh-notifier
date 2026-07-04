@@ -12,7 +12,10 @@
  * — never self-reported — so a green run genuinely proves the server answered.
  *
  * Usage:
- *   bun --bun run scripts/verify-mcp.ts <server-config.json> [toolName] [toolArgsJson]
+ *   bun --bun run scripts/verify-mcp.ts <server-config.json> [toolName] [toolArgsJson] [--full]
+ *
+ * By default the live value is previewed (first 200 chars) so sensitive output
+ * doesn't dump into terminal/CI history; pass --full to print the whole value.
  *
  * <server-config.json> is a JSON object:
  *   {
@@ -35,9 +38,11 @@ function die(message: string): never {
 }
 
 async function main(): Promise<void> {
-  const [configPath, toolArg, toolArgsArg] = process.argv.slice(2)
+  const argv = process.argv.slice(2)
+  const full = argv.includes('--full')
+  const [configPath, toolArg, toolArgsArg] = argv.filter((a) => a !== '--full')
   if (configPath === undefined) {
-    die('usage: bun --bun run scripts/verify-mcp.ts <server-config.json> [toolName] [toolArgsJson]')
+    die('usage: bun --bun run scripts/verify-mcp.ts <server-config.json> [toolName] [toolArgsJson] [--full]')
   }
 
   let raw: unknown
@@ -74,7 +79,9 @@ async function main(): Promise<void> {
   if (!toolArgs.ok) die(`invalid tool args: ${toolArgs.error}`)
 
   // ── 1. Handshake: does the server start + list tools? ───────────────────────
-  console.log(`[verify-mcp] connecting to "${server.command} ${server.args.join(' ')}" and listing tools…`)
+  // Log only the command + arg count — args can carry credentials (e.g. a token),
+  // which shouldn't leak into terminal history / CI logs.
+  console.log(`[verify-mcp] connecting to "${server.command}" (${server.args.length} arg(s)) and listing tools…`)
   const tools = await listMcpTools(server)
   if (!tools.ok) {
     // A handshake failure is an infra/auth/timeout problem, not bad CLI input, so
@@ -96,7 +103,17 @@ async function main(): Promise<void> {
   console.log(`  ok:       ${result.ok}`)
   console.log(`  failure:  ${result.failure ?? '(none)'}`)
   console.log(`  reason:   ${result.reason ?? '(none)'}`)
-  console.log(`  value:    ${result.ok ? JSON.stringify(result.value) : '(no value)'}`)
+  // The tool value can contain sensitive data (logs, account info). Show only a
+  // short preview by default so it doesn't dump into terminal history / CI logs;
+  // pass --full to print the whole value.
+  if (result.ok) {
+    const serialized = JSON.stringify(result.value)
+    const PREVIEW = 200
+    const shown = full || serialized.length <= PREVIEW ? serialized : `${serialized.slice(0, PREVIEW)}… (${serialized.length} chars; pass --full to show all)`
+    console.log(`  value:    ${shown}`)
+  } else {
+    console.log('  value:    (no value)')
+  }
 
   if (result.ok) {
     console.log('\n[verify-mcp] ✅ live value pulled through the app’s real MCP client.')
