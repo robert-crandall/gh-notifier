@@ -8,6 +8,7 @@ import { WorkingColumn } from '../components/WorkingColumn'
 import { DelegateComposer } from '../components/DelegateComposer'
 import { ResurfaceStrip } from '../components/ResurfaceStrip'
 import { fire, openExternal } from '../ipc'
+import { cloudFallbackMessage } from './cloudFallbackMessage'
 import { useProjectDetail } from '../hooks/useProjectDetail'
 import { useDigest } from '../hooks/useDigest'
 import styles from './FocusPage.module.css'
@@ -211,7 +212,7 @@ export function FocusPage(props: FocusPageProps): JSX.Element {
           onLaunched={(result) => {
             if (result.kind === 'cloud') {
               props.showUndo(
-                'Copilot is on it — I’ll fold the result into your digest.',
+                cloudFallbackMessage(result.appFallbackReason, result.session),
                 () => { if (result.session.htmlUrl) openExternal(result.session.htmlUrl) },
                 'Open'
               )

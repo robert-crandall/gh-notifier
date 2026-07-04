@@ -18,7 +18,7 @@ const session: CopilotSession = {
   htmlUrl: 'https://x/pull/1', startedAt: '', updatedAt: '', repoOwner: 'o', repoName: 'r',
   branch: null, linkedPrUrl: 'https://x/pull/1', pinnedProjectId: 1,
 }
-const cloudResult: DelegateResult = { kind: 'cloud', session }
+const cloudResult: DelegateResult = { kind: 'cloud', session, appFallbackReason: 'no_local_cwd' }
 
 describe('DelegateComposer', () => {
   it('pre-fills the prompt and delegates with the fixed repo', async () => {

@@ -63,34 +63,34 @@ describe('delegateTask — app path', () => {
 })
 
 describe('delegateTask — cloud fallback (pre-create only)', () => {
-  it('falls back to cloud when the flag is off', async () => {
+  it('falls back to cloud when the flag is off (reason=flag_disabled)', async () => {
     const res = await delegateTask(payload, makeDeps({ appEnabled: () => false }))
-    expect(res).toEqual({ kind: 'cloud', session: cloudSession })
+    expect(res).toEqual({ kind: 'cloud', session: cloudSession, appFallbackReason: 'flag_disabled' })
   })
 
-  it('falls back to cloud when the app is not running', async () => {
+  it('falls back to cloud when the app is not running (reason=app_not_running)', async () => {
     const res = await delegateTask(payload, makeDeps({ discover: () => null }))
-    expect(res.kind).toBe('cloud')
+    expect(res).toEqual({ kind: 'cloud', session: cloudSession, appFallbackReason: 'app_not_running' })
   })
 
-  it('falls back to cloud when no trusted local checkout resolves', async () => {
+  it('falls back to cloud when no trusted local checkout resolves (reason=no_local_cwd)', async () => {
     const res = await delegateTask(payload, makeDeps({ resolveCwd: async () => ({ ok: false, reason: 'no_local_cwd' }) }))
-    expect(res.kind).toBe('cloud')
+    expect(res).toEqual({ kind: 'cloud', session: cloudSession, appFallbackReason: 'no_local_cwd' })
   })
 
-  it('falls back to cloud when a base branch is requested (app WS has no branch concept)', async () => {
+  it('falls back to cloud when a base branch is requested (reason=base_branch, app WS has no branch concept)', async () => {
     const ws = vi.fn(async () => ({ sessionId: 'x', sendOk: true }))
     const res = await delegateTask({ ...payload, baseBranch: 'main' }, makeDeps({ wsDelegate: ws }))
-    expect(res.kind).toBe('cloud')
+    expect(res).toEqual({ kind: 'cloud', session: cloudSession, appFallbackReason: 'base_branch' })
     expect(ws).not.toHaveBeenCalled()
   })
 
-  it('falls back to cloud on a pre-create AppUnavailableError', async () => {
+  it('falls back to cloud on a pre-create AppUnavailableError (reason=app_unavailable)', async () => {
     const res = await delegateTask(
       payload,
       makeDeps({ wsDelegate: async () => { throw new AppUnavailableError('handshake timeout') } })
     )
-    expect(res.kind).toBe('cloud')
+    expect(res).toEqual({ kind: 'cloud', session: cloudSession, appFallbackReason: 'app_unavailable' })
   })
 })
 

@@ -12,6 +12,7 @@
  */
 
 import type {
+  AppDelegateFallbackReason,
   AppDelegateSkipReason,
   CopilotAppSession,
   CopilotSession,
@@ -75,30 +76,43 @@ function validatePayload(payload: DelegatePayload): { prompt: string } {
 }
 
 /**
- * Attempt the desktop-app path. Returns a `DelegateResult` when the app handled
- * it, `'skip'` when the app path isn't taken (fall back to cloud), or throws a
- * DELEGATE_FAILED error when the create was ambiguous (must NOT fall back).
+ * The outcome of the desktop-app attempt: either an app-path `DelegateResult`
+ * (the app handled it), or a `skip` carrying WHY the app path wasn't taken so
+ * the cloud fallback can report it. `tryAppDelegate` never produces a cloud
+ * result itself — narrowing the type here keeps the reason plumbing airtight.
+ */
+type AppDelegateOutcome =
+  | Extract<DelegateResult, { kind: 'app' | 'app-send-failed' }>
+  | { kind: 'skip'; reason: AppDelegateFallbackReason }
+
+/**
+ * Attempt the desktop-app path. Returns an app-path `DelegateResult` when the
+ * app handled it, `{ kind: 'skip', reason }` when the app path isn't taken (fall
+ * back to cloud), or throws a DELEGATE_FAILED error when the create was ambiguous
+ * (must NOT fall back).
  */
 async function tryAppDelegate(
   payload: DelegatePayload,
   prompt: string,
   deps: DelegateDeps
-): Promise<DelegateResult | 'skip'> {
-  if (!deps.appEnabled()) return 'skip'
+): Promise<AppDelegateOutcome> {
+  if (!deps.appEnabled()) return { kind: 'skip', reason: 'flag_disabled' }
   // A base-branch request can only be honored by the cloud path (`gh agent-task
   // -b`); the desktop app runs in whatever branch the local checkout is on. So
   // an explicit base branch routes to cloud rather than silently ignoring it.
-  if (payload.baseBranch !== undefined && payload.baseBranch.trim().length > 0) return 'skip'
+  if (payload.baseBranch !== undefined && payload.baseBranch.trim().length > 0) {
+    return { kind: 'skip', reason: 'base_branch' }
+  }
   const endpoint = deps.discover()
-  if (endpoint === null) return 'skip' // app not running
+  if (endpoint === null) return { kind: 'skip', reason: 'app_not_running' } // app not running
   const cwd = await deps.resolveCwd(payload.repoOwner.trim(), payload.repoName.trim(), payload.projectId)
-  if (!cwd.ok) return 'skip' // no trusted local checkout → cloud
+  if (!cwd.ok) return { kind: 'skip', reason: 'no_local_cwd' } // no trusted local checkout → cloud
 
   let ws: DelegateOverWsResult
   try {
     ws = await deps.wsDelegate(endpoint, cwd.cwd, prompt, undefined)
   } catch (err) {
-    if (err instanceof AppUnavailableError) return 'skip' // pre-create → cloud is safe
+    if (err instanceof AppUnavailableError) return { kind: 'skip', reason: 'app_unavailable' } // pre-create → cloud is safe
     if (err instanceof CreateAmbiguousError) {
       // The app may have opened a session we can't see. Never start a cloud task
       // too (that would double-delegate); tell the user to check the app.
@@ -127,10 +141,30 @@ export async function delegateTask(payload: DelegatePayload, deps: DelegateDeps)
   const { prompt } = validatePayload(payload)
 
   const appResult = await tryAppDelegate(payload, prompt, deps)
-  if (appResult !== 'skip') return appResult
+  if (appResult.kind !== 'skip') return appResult
 
-  const session = await deps.cloudDelegate(payload)
-  return { kind: 'cloud', session }
+  // Record WHY the desktop app was bypassed BEFORE the cloud call, so a cloud
+  // failure still leaves a trace of the fallback reason for later diagnosis.
+  const owner = payload.repoOwner.trim()
+  const name = payload.repoName.trim()
+  const baseBranchRequested = payload.baseBranch?.trim() ? 'yes' : 'no'
+  console.warn(
+    `[copilot] Desktop-app delegate bypassed (reason=${appResult.reason}); falling back to cloud for ` +
+      `${owner}/${name} (projectId=${payload.projectId ?? 'none'}, baseBranch=${baseBranchRequested})`
+  )
+
+  let session: CopilotSession
+  try {
+    session = await deps.cloudDelegate(payload)
+  } catch (err) {
+    console.error(
+      `[copilot] Cloud fallback failed after desktop-app bypass (reason=${appResult.reason}) for ${owner}/${name}:`,
+      err
+    )
+    throw err
+  }
+  console.warn(`[copilot] Cloud fallback session created id=${session.id} url=${session.htmlUrl ?? 'none'}`)
+  return { kind: 'cloud', session, appFallbackReason: appResult.reason }
 }
 
 /** Diagnose whether the app path would be taken for a repo (for a UI hint). */
