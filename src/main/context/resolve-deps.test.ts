@@ -19,7 +19,7 @@ describe('createResolveDeps (production composition root)', () => {
   }
 
   it('wires a retriever that is NOT the plain lexical retriever, plus decide + MCP runners', () => {
-    const deps = createResolveDeps(tmp('resolve-deps-guard-'))
+    const deps = createResolveDeps({ stateDir: tmp('resolve-deps-guard-') })
     expect(deps.assembleOptions?.retriever).toBeDefined()
     expect(deps.assembleOptions?.retriever).not.toBe(lexicalRetriever)
     expect(deps.decideRunner).toBeDefined()
@@ -53,7 +53,7 @@ describe('createResolveDeps (production composition root)', () => {
       },
     }
 
-    const deps = createResolveDeps(tmp('resolve-deps-sem-'), undefined, fakeEmbedder)
+    const deps = createResolveDeps({ stateDir: tmp('resolve-deps-sem-'), embedder: fakeEmbedder })
     const outcome = await deps.assembleOptions!.retriever!.retrieve(question, resources, 8)
     expect(outcome.mode).toBe('semantic')
     expect(stringIdByNumericId.get(outcome.candidates[0]?.resource.id)).toBe(targetStringId)

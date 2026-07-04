@@ -3,7 +3,7 @@ import { join } from 'path'
 import { createCopilotDecideRunner } from './copilot-run'
 import { createMcpRunner } from './mcp-client'
 import { createDefaultRetriever } from './retrieve'
-import { createLocalEmbedder, type Embedder } from './embed'
+import { createLocalEmbedder, type Embedder, type EmbedderOptions } from './embed'
 import { FAST_RECOMMEND_MODEL, type RecommendDeps } from './recommend'
 import type { ResolveDeps } from './resolve'
 
@@ -26,24 +26,33 @@ export function ensureIsolatedCopilotHome(baseDir: string): string {
   return home
 }
 
+export interface ResolveDepsOptions {
+  /** Writable dir for the resolver's own state (the isolated Copilot home). */
+  stateDir: string
+  /**
+   * How the local embedding model is provisioned for this environment (from
+   * `resolveModelProvisioning`). Passed straight to the embedder. The model dir
+   * is NEVER created here — in a packaged app it lives under a read-only
+   * Resources path; dev provisioning is the `provision-model` script's job.
+   */
+  embedderOptions?: EmbedderOptions
+  /** Optional decide-model override. */
+  model?: string
+  /**
+   * Injectable embedder — ONLY so the composition-root guard test can prove the
+   * wiring performs real semantic retrieval on a non-empty corpus with a
+   * deterministic fake. Production always uses the local MiniLM embedder.
+   */
+  embedder?: Embedder
+}
+
 /**
  * Builds the resolver's runtime dependencies.
- *
- * `embedder` is injectable ONLY so the composition-root guard test can prove the
- * wiring performs real semantic retrieval on a non-empty corpus with a
- * deterministic fake. Production always uses the local MiniLM embedder.
  */
-export function createResolveDeps(
-  baseDir: string,
-  model?: string,
-  embedder?: Embedder
-): ResolveDeps & RecommendDeps {
-  const home = ensureIsolatedCopilotHome(baseDir)
-  const cacheDir = join(baseDir, 'model-cache')
-  // Ensure the model cache dir exists — otherwise the embedder can fail to load
-  // and silently fall back to lexical retrieval in production.
-  mkdirSync(cacheDir, { recursive: true })
-  const resolvedEmbedder = embedder ?? createLocalEmbedder({ cacheDir })
+export function createResolveDeps(options: ResolveDepsOptions): ResolveDeps & RecommendDeps {
+  const { stateDir, embedderOptions, model, embedder } = options
+  const home = ensureIsolatedCopilotHome(stateDir)
+  const resolvedEmbedder = embedder ?? createLocalEmbedder(embedderOptions)
   return {
     decideRunner: createCopilotDecideRunner({ isolatedHome: home, cwd: home, model }),
     // Read-only recommendation ranking uses the SAME tool-less isolated runner
