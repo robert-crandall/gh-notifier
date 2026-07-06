@@ -1,0 +1,19 @@
+/* Inline link rendered as a button, styled to sit inside surrounding text.
+   `font: inherit` makes it match whatever surface it's used in (todo list, next
+   action, resource answer), so the link is the same size as its neighbours. */
+.link {
+  font: inherit;
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.link:hover {
+  text-decoration-thickness: 2px;
+}

@@ -21,6 +21,7 @@ import type {
   McpServerSummary,
 } from '@shared/ipc-channels'
 import { Icon } from './Icon'
+import { LinkifiedText } from './LinkifiedText'
 import { fire, openExternal } from '../ipc'
 import { McpServersSection, ConnectResourceDialog } from './McpTools'
 import styles from './ResourcePanel.module.css'
@@ -57,14 +58,14 @@ function AnswerCard({ result, onDismiss }: { result: ResolveResult; onDismiss: (
 
       {result.verdict === 'confident' && (
         <>
-          <div className={styles.liveValue}>{result.liveValue}</div>
+          <div className={styles.liveValue}><LinkifiedText text={result.liveValue ?? ''} /></div>
           {result.citation && <Citation {...result.citation} />}
         </>
       )}
 
       {result.verdict === 'source_available_no_live_value' && (
         <>
-          <div className={styles.answerText}>{result.answer}</div>
+          <div className={styles.answerText}><LinkifiedText text={result.answer} /></div>
           {result.citation && <Citation {...result.citation} />}
         </>
       )}
@@ -73,7 +74,7 @@ function AnswerCard({ result, onDismiss }: { result: ResolveResult; onDismiss: (
         <>
           <div className={styles.clarifyRow}>
             <Icon icon={CircleHelp} size={14} className={styles.clarifyIcon} />
-            <span className={styles.answerText}>{result.answer}</span>
+            <span className={styles.answerText}><LinkifiedText text={result.answer} /></span>
           </div>
           {result.candidates.length > 0 && (
             <div className={styles.candidateChips}>
@@ -86,7 +87,7 @@ function AnswerCard({ result, onDismiss }: { result: ResolveResult; onDismiss: (
       )}
 
       {result.verdict === 'none' && (
-        <div className={`${styles.answerText} ${styles.muted}`}>{result.answer}</div>
+        <div className={`${styles.answerText} ${styles.muted}`}><LinkifiedText text={result.answer} /></div>
       )}
 
       {result.retrievalMode === 'lexical-fallback' && (
@@ -111,7 +112,7 @@ function RecommendationCard({ result, onDismiss }: { result: RecommendationResul
         <Icon icon={X} size={13} />
       </button>
 
-      <div className={`${styles.answerText} ${result.items.length === 0 ? styles.muted : ''}`}>{result.summary}</div>
+      <div className={`${styles.answerText} ${result.items.length === 0 ? styles.muted : ''}`}><LinkifiedText text={result.summary} /></div>
 
       {result.items.length > 0 && (
         <ul className={styles.recommendList}>
