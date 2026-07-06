@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pencil, Check, Sparkles } from 'lucide-react'
 import { Icon } from './Icon'
+import { LinkifiedText } from './LinkifiedText'
+import { hasLink } from './linkify'
 import styles from './NextAction.module.css'
 
 interface NextActionProps {
@@ -57,12 +59,22 @@ export function NextAction({ value, onSave, onDone, onDelegate }: NextActionProp
         />
       ) : (
         <div className={styles.line}>
-          <button type="button"
-            className={`${styles.text} ${hasValue ? '' : styles.placeholder}`}
-            onClick={() => setEditing(true)}
-          >
-            {hasValue ? value : 'Set your next action…'}
-          </button>
+          {hasLink(value) ? (
+            // When the next action contains a link, the text must not be a
+            // <button> (a link <button> can't nest inside it). Render it as a
+            // static, linkified line; editing stays available via the pencil and
+            // "Edit" buttons.
+            <div className={styles.staticText}>
+              <LinkifiedText text={value} />
+            </div>
+          ) : (
+            <button type="button"
+              className={`${styles.text} ${hasValue ? '' : styles.placeholder}`}
+              onClick={() => setEditing(true)}
+            >
+              {hasValue ? value : 'Set your next action…'}
+            </button>
+          )}
           <button type="button" className={styles.editIcon} onClick={() => setEditing(true)} aria-label="Edit next action">
             <Icon icon={Pencil} size={14} />
           </button>

@@ -21,6 +21,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
 import { ResourcePanel } from './ResourcePanel'
 import { TodoSessionChip } from './TodoSessionChip'
+import { LinkifiedText } from './LinkifiedText'
 import { fire, openExternal } from '../ipc'
 import styles from './WorkingColumn.module.css'
 
@@ -85,7 +86,7 @@ function TodosPanel({
         <div key={t.id} className={styles.todoItem}>
           <div className={styles.todoRow}>
             <button type="button" className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
-            <span className={styles.todoText}>{t.text}</span>
+            <span className={styles.todoText}><LinkifiedText text={t.text} /></span>
             <button type="button" className={styles.rowAction} onClick={() => onDelegate(t.text, undefined, t.id)} aria-label="Delegate to Copilot" title="Delegate to Copilot">
               <Icon icon={Sparkles} size={13} />
             </button>
@@ -104,7 +105,7 @@ function TodosPanel({
           <button type="button" className={`${styles.checkbox} ${styles.checkboxDone}`} onClick={() => onToggleTodo(t)} aria-label="Mark not done">
             <Icon icon={Check} size={11} strokeWidth={3} />
           </button>
-          <span className={`${styles.todoText} ${styles.struck}`}>{t.text}</span>
+          <span className={`${styles.todoText} ${styles.struck}`}><LinkifiedText text={t.text} /></span>
           <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
             <Icon icon={Trash2} size={13} />
           </button>

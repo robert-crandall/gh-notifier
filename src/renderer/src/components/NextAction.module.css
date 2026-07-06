@@ -43,6 +43,17 @@
   font-weight: 400;
 }
 
+/* Static (non-editable) rendering of the next action, used when it contains a
+   link. Same typography as .text but without the click-to-edit affordances. */
+.staticText {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  line-height: 1.35;
+  color: var(--text);
+  min-width: 0;
+}
+
 .editIcon {
   background: none;
   border: none;

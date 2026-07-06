@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
+import { parseSafeExternalUrl } from '../shared/safe-url'
 import { initDb } from './db'
 import { initAuth, getAuthStatus, savePat, logout, getOctokit } from './auth'
 import {
@@ -152,9 +153,22 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('auth:logout', () => { logout() })
 
-  // External URL handler (security: controlled via main process)
-  ipcMain.handle('app:open-external', async (_event, url: string) => {
-    await shell.openExternal(url)
+  // External URL handler (security: controlled via main process). Only open
+  // absolute http/https URLs, and open the parser-normalized href rather than
+  // the raw renderer string. Renderer calls are fire-and-forget, so an unsafe
+  // input is dropped with a warning rather than thrown back.
+  ipcMain.handle('app:open-external', async (_event, url: unknown) => {
+    const safe = parseSafeExternalUrl(url)
+    if (safe === null) {
+      // Avoid logging the full value — it may carry tokens or query secrets.
+      console.warn('[app:open-external] Refused to open non-http(s) or invalid URL')
+      return
+    }
+    try {
+      await shell.openExternal(safe)
+    } catch (err) {
+      console.error('[app:open-external] openExternal failed:', err)
+    }
   })
 
   // Project handlers
