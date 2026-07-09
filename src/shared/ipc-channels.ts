@@ -351,7 +351,7 @@ export interface Resource {
   env: string
   /** Machine-derived structured disambiguation attributes (namespace/cluster/system/team/…). */
   tags: Record<string, string>
-  /** Human link to the source. */
+  /** Human link to the source. Null when the record has no saved link. */
   url: string | null
   description: string
   /** Alias/glossary terms that bridge fuzzy language to this record. */
