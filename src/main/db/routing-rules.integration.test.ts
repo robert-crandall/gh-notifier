@@ -53,6 +53,13 @@ describe('resolveProjectIdForRepo', () => {
     expect(resolveProjectIdForRepo('acme', 'anything')).toBe(p.id)
   })
 
+  it('matches a repo rule case-insensitively (GitHub owner/name are case-insensitive)', () => {
+    const p = createProject('CaseRepo')
+    createRepoRule('Acme', 'Widgets', p.id)
+    expect(resolveProjectIdForRepo('acme', 'widgets')).toBe(p.id)
+    expect(resolveProjectIdForRepo('ACME', 'WIDGETS')).toBe(p.id)
+  })
+
   it('does NOT match a routing rule that also requires a type/reason (a bare repo has neither)', () => {
     const p = createProject('Typed')
     createRoutingRule({ action: 'route', projectId: p.id, matchRepoOwner: 'acme', matchRepoName: 'widgets', matchReason: 'review_requested' })

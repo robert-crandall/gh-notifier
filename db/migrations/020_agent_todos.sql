@@ -46,10 +46,20 @@ INSERT INTO project_todos_new
 DROP TABLE project_todos;
 ALTER TABLE project_todos_new RENAME TO project_todos;
 
--- Restore the high-water mark (max of the new table's own value and the backed-up one).
-UPDATE sqlite_sequence
-  SET seq = MAX(seq, COALESCE((SELECT seq FROM _todo_seq_backup), 0))
-  WHERE name = 'project_todos';
+-- Restore the AUTOINCREMENT high-water mark robustly. The rebuilt table only gets a
+-- sqlite_sequence row if rows were copied, and SQLite drops the old row on DROP TABLE, so a
+-- plain UPDATE would no-op (silently losing the mark) when the table was empty but had a higher
+-- seq from previously-deleted rows. Re-insert the max of the copied rows and the backed-up seq
+-- so ids are never reused.
+DELETE FROM sqlite_sequence WHERE name = 'project_todos';
+INSERT INTO sqlite_sequence (name, seq)
+  VALUES (
+    'project_todos',
+    MAX(
+      COALESCE((SELECT MAX(id) FROM project_todos), 0),
+      COALESCE((SELECT seq FROM _todo_seq_backup), 0)
+    )
+  );
 
 DROP TABLE _todo_seq_backup;
 

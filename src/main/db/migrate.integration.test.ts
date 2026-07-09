@@ -194,4 +194,23 @@ describe('020_agent_todos migration (back-compat)', () => {
     const n = (db.prepare('SELECT COUNT(*) AS n FROM project_todos WHERE idempotency_key IS NULL').get() as { n: number }).n
     expect(n).toBe(2)
   })
+
+  it('does not reuse ids when the table was empty-but-previously-used at migration time', () => {
+    const db = freshDb()
+    applyMigrationsBefore(db, '020_agent_todos.sql')
+    db.prepare("INSERT INTO projects (name) VALUES ('P')").run()
+    // Bump the AUTOINCREMENT high-water to 5, then hard-delete so the table is empty but
+    // sqlite_sequence still holds 5 (simulates a prior cascade/hard delete).
+    db.prepare("INSERT INTO project_todos (id, project_id, text) VALUES (5, 1, 'gone')").run()
+    db.prepare('DELETE FROM project_todos').run()
+    expect((db.prepare("SELECT seq FROM sqlite_sequence WHERE name='project_todos'").get() as { seq: number }).seq).toBe(5)
+
+    apply020(db)
+
+    // The high-water must survive the rebuild, so the next id is 6 (not a reused 1..5).
+    const row = db
+      .prepare("INSERT INTO project_todos (project_id, text) VALUES (1, 'fresh') RETURNING id")
+      .get() as { id: number }
+    expect(row.id).toBe(6)
+  })
 })

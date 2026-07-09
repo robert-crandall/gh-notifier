@@ -538,8 +538,10 @@ function isLiveProject(db: ReturnType<typeof getDb>, projectId: number): boolean
  * `done` and `deleted_at` are always preserved — a re-review never silently un-completes or
  * un-dismisses a human's decision; the returned status reports when a hidden todo was touched.
  *
- * Runs read-then-write in a transaction so the status is accurate and concurrent calls with
- * the same key serialize (the partial unique index is the backstop).
+ * Runs read-then-write in a transaction. better-sqlite3 is synchronous and the app uses a
+ * single DB connection, so this read-then-write block runs to completion before any other JS
+ * (including another add_todo) can begin — there is no interleaving in practice. The partial
+ * unique index on idempotency_key is the backstop if that assumption ever changes.
  */
 export function addAgentTodo(input: AddAgentTodoInput): AddAgentTodoResult {
   const db = getDb()

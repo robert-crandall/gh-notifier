@@ -134,7 +134,11 @@ export function resolveProjectIdForRepo(repoOwner: string, repoName: string): nu
   )
 
   const repoRule = db
-    .prepare('SELECT project_id FROM repo_rules WHERE repo_owner = ? AND repo_name = ?')
+    .prepare(
+      // GitHub owner/name are case-insensitive, and Copilot may send `repo` with different
+      // casing than the stored canonical form, so match case-insensitively.
+      'SELECT project_id FROM repo_rules WHERE lower(repo_owner) = lower(?) AND lower(repo_name) = lower(?) LIMIT 1'
+    )
     .get(repoOwner, repoName) as { project_id: number } | undefined
   if (repoRule != null) {
     // A repo rule claims the repo even when its target is dead — matching upsertThreads,
