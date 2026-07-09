@@ -65,6 +65,9 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [suggestion, setSuggestion] = useState<(RepoRuleSuggestion & { threadId: string }) | null>(null)
   const mountedRef = useRef(true)
+  // Monotonic request id so a slower in-flight inbox-todo fetch can't overwrite a newer one
+  // (e.g. a broad load() racing a todos:updated-triggered refresh).
+  const todosReqRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -74,9 +77,12 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
   }, [])
 
   const loadTodos = useCallback(async () => {
+    const reqId = ++todosReqRef.current
     try {
       const todos = await window.electron.ipc.invoke('todos:inbox')
-      if (mountedRef.current) setInboxTodos(todos.filter((t) => !t.done))
+      if (mountedRef.current && reqId === todosReqRef.current) {
+        setInboxTodos(todos.filter((t) => !t.done))
+      }
     } catch (err) {
       console.error('[Inbox] Failed to load agent todos:', err)
     }
@@ -84,26 +90,26 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
 
   const load = useCallback(async () => {
     try {
-      const [inbox, projectList, authStatus, syncTime, todos] = await Promise.all([
+      const [inbox, projectList, authStatus, syncTime] = await Promise.all([
         window.electron.ipc.invoke('notifications:inbox'),
         window.electron.ipc.invoke('projects:list'),
         window.electron.ipc.invoke('auth:status'),
         window.electron.ipc.invoke('notifications:last-sync-time'),
-        window.electron.ipc.invoke('todos:inbox'),
       ])
       if (!mountedRef.current) return
       setThreads(inbox)
       setProjects(projectList.filter((p) => p.status === 'active'))
       setIsAuthenticated(authStatus.authenticated)
       setLastSyncTime(syncTime)
-      setInboxTodos(todos.filter((t) => !t.done))
     } catch (err) {
       console.error('[Inbox] Failed to load:', err)
       if (mountedRef.current) setSyncError('Could not load the inbox. Try syncing again.')
     } finally {
       if (mountedRef.current) setIsLoading(false)
     }
-  }, [])
+    // Inbox todos always flow through the single guarded loader.
+    void loadTodos()
+  }, [loadTodos])
 
   useEffect(() => {
     void load()

@@ -98,6 +98,16 @@ describe('runAddTodo — resolution', () => {
     expect(r.isError).toBeUndefined()
     expect(listInboxTodos().map((t) => t.title)).toContain('Weird')
   })
+
+  it('tolerates a github.com-prefixed repo (with or without scheme)', () => {
+    const p = createProject('Prefixed')
+    createRepoRule('acme', 'widgets', p.id)
+    runAddTodo({ repo: 'github.com/acme/widgets', title: 'bare host' })
+    runAddTodo({ repo: 'https://github.com/acme/widgets', title: 'full url' })
+    expect(getProject(p.id).todos.map((t) => t.title)).toEqual(
+      expect.arrayContaining(['bare host', 'full url'])
+    )
+  })
 })
 
 describe('runAddTodo — idempotency', () => {

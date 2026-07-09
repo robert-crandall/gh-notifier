@@ -35,9 +35,9 @@ function optionalString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-/** Parse `owner/name` (tolerating a leading `github.com/`). Returns null when unparseable. */
+/** Parse `owner/name` (tolerating a leading `github.com/` or full URL). Returns null when unparseable. */
 function parseRepo(repo: string): { owner: string; name: string } | null {
-  const cleaned = repo.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, '')
+  const cleaned = repo.trim().replace(/^(?:https?:\/\/)?github\.com\//i, '').replace(/\/+$/, '')
   const parts = cleaned.split('/').filter((p) => p.length > 0)
   if (parts.length !== 2) return null
   return { owner: parts[0], name: parts[1] }

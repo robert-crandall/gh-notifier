@@ -44,8 +44,11 @@ export function App(): JSX.Element {
 
   const loadInboxCount = useCallback(async () => {
     try {
-      const threads = await window.electron.ipc.invoke('notifications:inbox')
-      setInboxCount(threads.filter((t) => t.unread).length)
+      const [threads, inboxTodos] = await Promise.all([
+        window.electron.ipc.invoke('notifications:inbox'),
+        window.electron.ipc.invoke('todos:inbox'),
+      ])
+      setInboxCount(threads.filter((t) => t.unread).length + inboxTodos.filter((t) => !t.done).length)
     } catch (err) {
       console.error('[App] Failed to load inbox count:', err)
     }
@@ -53,8 +56,12 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     void loadInboxCount()
-    const unsub = window.electron.onNotificationsUpdated(() => { void loadInboxCount() })
-    return unsub
+    const unsubNotif = window.electron.onNotificationsUpdated(() => { void loadInboxCount() })
+    const unsubTodos = window.electron.onTodosUpdated(() => { void loadInboxCount() })
+    return () => {
+      unsubNotif()
+      unsubTodos()
+    }
   }, [loadInboxCount])
 
   const loadAgentTaskCount = useCallback(async () => {
