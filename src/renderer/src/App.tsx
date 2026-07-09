@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Project, SnoozeMode } from '@shared/ipc-channels'
 import styles from './App.module.css'
 import { Titlebar } from './components/Titlebar'
@@ -31,6 +31,7 @@ export function App(): JSX.Element {
   const [railCollapsed, setRailCollapsed] = useState(false)
   const [inboxCount, setInboxCount] = useState(0)
   const [agentTaskCount, setAgentTaskCount] = useState(0)
+  const inboxCountReqRef = useRef(0)
 
   // Keep focus on a valid project; fall back to the first active one.
   useEffect(() => {
@@ -43,12 +44,17 @@ export function App(): JSX.Element {
   }, [isLoading, projects, focusedId, setFocusedId])
 
   const loadInboxCount = useCallback(async () => {
+    const reqId = ++inboxCountReqRef.current
     try {
       const [threads, inboxTodos] = await Promise.all([
         window.electron.ipc.invoke('notifications:inbox'),
         window.electron.ipc.invoke('todos:inbox'),
       ])
-      setInboxCount(threads.filter((t) => t.unread).length + inboxTodos.filter((t) => !t.done).length)
+      // Only the latest in-flight request may set the count, so a slower stale load
+      // can't overwrite a fresher one.
+      if (reqId === inboxCountReqRef.current) {
+        setInboxCount(threads.filter((t) => t.unread).length + inboxTodos.filter((t) => !t.done).length)
+      }
     } catch (err) {
       console.error('[App] Failed to load inbox count:', err)
     }
