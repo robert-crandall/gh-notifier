@@ -1,14 +1,29 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { request as httpRequest } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { Database as BunDb } from 'bun:sqlite'
+import type BetterSQLite3 from 'better-sqlite3'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { startMcpServer, type McpServerHandle } from './server'
 import { readRunFiles } from './runfiles'
-import { PING_TOOL_NAME } from './tool-manifest'
+import { PING_TOOL_NAME, ADD_TODO_TOOL_NAME } from './tool-manifest'
+
+// The `add_todo` tool's import graph reaches the DB layer (and, through it, electron).
+// Mock electron so `runMigrations` resolves the migrations dir, and mock the DB singleton
+// so the in-process server's tool handler writes to a real in-memory SQLite we control.
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: () => process.cwd() },
+}))
+vi.mock('../db/index', () => ({ getDb: vi.fn() }))
+
+import { getDb } from '../db/index'
+import { runMigrations } from '../db/migrate'
+import { createProject, getProject, listInboxTodos, deleteTodo, restoreTodo } from '../db/projects'
+import { createRepoRule } from '../db/notifications'
 
 /**
  * Stand up the REAL loopback server and drive it with a REAL SDK client over
@@ -20,6 +35,15 @@ const cleanups: Array<() => Promise<void> | void> = []
 
 afterEach(async () => {
   for (const fn of cleanups.splice(0)) await fn()
+})
+
+// A fresh in-memory DB per test, wired into the mocked getDb so the tool handler writes to it.
+beforeEach(() => {
+  const db = new BunDb(':memory:')
+  db.exec('PRAGMA foreign_keys = ON')
+  const betterDb = db as unknown as BetterSQLite3.Database
+  runMigrations(betterDb)
+  vi.mocked(getDb).mockReturnValue(betterDb)
 })
 
 async function startServer(): Promise<{ handle: McpServerHandle; dir: string; token: string }> {
@@ -98,6 +122,79 @@ describe('loopback MCP server (real SDK client)', () => {
     const first = await startServer()
     const second = await startServer()
     expect(first.token).not.toBe(second.token)
+  })
+})
+
+describe('add_todo tool over the real loopback server', () => {
+  function callAddTodo(client: Client, args: Record<string, unknown>): Promise<CallToolResult> {
+    return client.callTool({ name: ADD_TODO_TOOL_NAME, arguments: args }) as Promise<CallToolResult>
+  }
+  function textOf(result: CallToolResult): string {
+    const first = result.content[0]
+    return first.type === 'text' ? first.text : ''
+  }
+
+  it('advertises add_todo in tools/list', async () => {
+    const { handle, token } = await startServer()
+    const client = await connectClient(handle.port, token)
+    const { tools } = await client.listTools()
+    expect(tools.map((t) => t.name)).toContain(ADD_TODO_TOOL_NAME)
+  })
+
+  it('lands a todo on the routed project, is undoable, and dedups a repeat', async () => {
+    const { handle, token } = await startServer()
+    const client = await connectClient(handle.port, token)
+
+    const project = createProject('Widgets')
+    createRepoRule('acme', 'widgets', project.id)
+
+    // 1. Create — lands on the routed project.
+    const created = await callAddTodo(client, {
+      repo: 'acme/widgets',
+      title: 'Approve PR',
+      sourceUrl: 'https://github.com/acme/widgets/pull/9',
+      suggestedAction: { kind: 'pr_comment', url: 'https://github.com/acme/widgets/pull/9', comment: 'well thought out!' },
+    })
+    expect(created.isError).toBeFalsy()
+    expect(textOf(created)).toMatch(/Created/)
+    let todos = getProject(project.id).todos
+    expect(todos).toHaveLength(1)
+    expect(todos[0].origin).toBe('copilot')
+    const todoId = todos[0].id
+
+    // 2. Undo — soft-delete then restore round-trips (the app's undo affordance).
+    deleteTodo(todoId)
+    expect(getProject(project.id).todos).toHaveLength(0)
+    restoreTodo(todoId)
+    expect(getProject(project.id).todos).toHaveLength(1)
+
+    // 3. Re-review the same PR + same action — updates in place, never duplicates.
+    const repeat = await callAddTodo(client, {
+      repo: 'acme/widgets',
+      title: 'Approve PR (rechecked)',
+      sourceUrl: 'https://github.com/acme/widgets/pull/9',
+      suggestedAction: { kind: 'pr_comment', url: 'https://github.com/acme/widgets/pull/9', comment: 'well thought out!' },
+    })
+    expect(textOf(repeat)).toMatch(/Updated/)
+    todos = getProject(project.id).todos
+    expect(todos).toHaveLength(1)
+    expect(todos[0].id).toBe(todoId)
+    expect(todos[0].title).toBe('Approve PR (rechecked)')
+  })
+
+  it('drops an unresolved repo into the Inbox surface', async () => {
+    const { handle, token } = await startServer()
+    const client = await connectClient(handle.port, token)
+    const result = await callAddTodo(client, { repo: 'unknown/repo', title: 'Stray' })
+    expect(textOf(result)).toMatch(/Inbox/)
+    expect(listInboxTodos().map((t) => t.title)).toContain('Stray')
+  })
+
+  it('returns an error result for a missing title', async () => {
+    const { handle, token } = await startServer()
+    const client = await connectClient(handle.port, token)
+    const result = await callAddTodo(client, { repo: 'acme/widgets' })
+    expect(result.isError).toBe(true)
   })
 })
 

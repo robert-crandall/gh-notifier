@@ -32,6 +32,9 @@ export interface ManifestTool {
 /** The `ping` tool: no input, exercises the surface end-to-end. */
 export const PING_TOOL_NAME = 'ping'
 
+/** The `add_todo` tool: Copilot creates a human-gated action-proposal todo in a project. */
+export const ADD_TODO_TOOL_NAME = 'add_todo'
+
 /** The full inbound tool surface. Order is the advertised order. */
 export const TOOL_MANIFEST: readonly ManifestTool[] = [
   {
@@ -40,6 +43,58 @@ export const TOOL_MANIFEST: readonly ManifestTool[] = [
     description:
       "No-op liveness check for the GH Projects inbound MCP server. Returns 'pong'.",
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: ADD_TODO_TOOL_NAME,
+    title: 'Add todo',
+    description:
+      'Create a human-gated todo in a GH Projects project. Use this to PROPOSE an action ' +
+      '(e.g. after reviewing a PR) instead of performing it — this tool NEVER writes to ' +
+      'GitHub, it only files a todo the human can approve. Placement: an explicit `project` ' +
+      '(exact name) wins; otherwise `repo` (owner/name) is routed to a project via the same ' +
+      'rules notifications use; otherwise it lands in the Inbox. Repeated calls that carry the ' +
+      'same `sourceUrl` and `suggestedAction` update the existing todo instead of duplicating.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        project: {
+          type: 'string',
+          description: 'Exact name of the project to file the todo under. Takes precedence over `repo`.',
+        },
+        repo: {
+          type: 'string',
+          description: "Repository as 'owner/name'. Routed to a project via routing rules; falls back to the Inbox.",
+        },
+        title: {
+          type: 'string',
+          description: 'Short, imperative todo title. Required.',
+        },
+        body: {
+          type: 'string',
+          description: 'Optional markdown detail / instructions. Rendered as plain linkified text.',
+        },
+        sourceUrl: {
+          type: 'string',
+          description: 'Optional PR/issue URL (http/https). Shown as a clickable link and used for dedup.',
+        },
+        suggestedAction: {
+          type: 'object',
+          description:
+            'Optional one-tap action hint. Advisory only — the app renders an affordance but never ' +
+            'performs a GitHub write automatically.',
+          properties: {
+            kind: { type: 'string', enum: ['pr_comment', 'delegate', 'open_url'] },
+            url: { type: 'string', description: 'Target URL for pr_comment / open_url (http/https).' },
+            comment: { type: 'string', description: 'Comment body for pr_comment.' },
+            prompt: { type: 'string', description: 'Prompt to hand Copilot for delegate.' },
+          },
+          required: ['kind'],
+          additionalProperties: false,
+        },
+      },
+      required: ['title'],
+      additionalProperties: false,
+    },
   },
 ]
 

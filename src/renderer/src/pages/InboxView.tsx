@@ -11,15 +11,20 @@ import {
   Bell,
   ExternalLink,
   Check,
+  Sparkles,
+  Trash2,
 } from 'lucide-react'
-import type { NotificationThread, NotificationType, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
+import type { NotificationThread, NotificationType, Project, ProjectTodo, RepoRuleSuggestion } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from '../components/Icon'
+import { LinkifiedText } from '../components/LinkifiedText'
 import { openExternal } from '../ipc'
+import { isSafeExternalUrl } from '@shared/safe-url'
 import styles from './InboxView.module.css'
 
 interface InboxViewProps {
   onAssigned: () => void
+  showUndo: (message: string, onUndo: () => void, actionLabel?: string) => void
 }
 
 const NOTIF_ICON: Record<NotificationType, LucideIcon> = {
@@ -40,8 +45,18 @@ function relativeTime(iso: string): string {
   }
 }
 
-export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
+/** The link an agent todo's one-tap "open" affordance should point at, if any. */
+function inboxTodoUrl(todo: ProjectTodo): string | null {
+  const action = todo.suggestedAction
+  if (action && (action.kind === 'pr_comment' || action.kind === 'open_url') && isSafeExternalUrl(action.url)) {
+    return action.url
+  }
+  return isSafeExternalUrl(todo.sourceUrl) ? todo.sourceUrl : null
+}
+
+export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element {
   const [threads, setThreads] = useState<NotificationThread[]>([])
+  const [inboxTodos, setInboxTodos] = useState<ProjectTodo[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
@@ -58,19 +73,30 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
     }
   }, [])
 
+  const loadTodos = useCallback(async () => {
+    try {
+      const todos = await window.electron.ipc.invoke('todos:inbox')
+      if (mountedRef.current) setInboxTodos(todos.filter((t) => !t.done))
+    } catch (err) {
+      console.error('[Inbox] Failed to load agent todos:', err)
+    }
+  }, [])
+
   const load = useCallback(async () => {
     try {
-      const [inbox, projectList, authStatus, syncTime] = await Promise.all([
+      const [inbox, projectList, authStatus, syncTime, todos] = await Promise.all([
         window.electron.ipc.invoke('notifications:inbox'),
         window.electron.ipc.invoke('projects:list'),
         window.electron.ipc.invoke('auth:status'),
         window.electron.ipc.invoke('notifications:last-sync-time'),
+        window.electron.ipc.invoke('todos:inbox'),
       ])
       if (!mountedRef.current) return
       setThreads(inbox)
       setProjects(projectList.filter((p) => p.status === 'active'))
       setIsAuthenticated(authStatus.authenticated)
       setLastSyncTime(syncTime)
+      setInboxTodos(todos.filter((t) => !t.done))
     } catch (err) {
       console.error('[Inbox] Failed to load:', err)
       if (mountedRef.current) setSyncError('Could not load the inbox. Try syncing again.')
@@ -81,9 +107,13 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
 
   useEffect(() => {
     void load()
-    const unsub = window.electron.onNotificationsUpdated(() => { void load() })
-    return unsub
-  }, [load])
+    const unsubNotif = window.electron.onNotificationsUpdated(() => { void load() })
+    const unsubTodos = window.electron.onTodosUpdated(() => { void loadTodos() })
+    return () => {
+      unsubNotif()
+      unsubTodos()
+    }
+  }, [load, loadTodos])
 
   const handleSync = useCallback(async () => {
     if (isSyncing) return
@@ -119,6 +149,30 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
       setThreads((prev) => prev.filter((t) => t.id !== threadId))
     } catch (err) {
       console.error('[Inbox] Mark read failed:', err)
+    }
+  }
+
+  const handleTodoDone = async (todo: ProjectTodo): Promise<void> => {
+    try {
+      await window.electron.ipc.invoke('todos:update', todo.id, { done: true })
+      setInboxTodos((prev) => prev.filter((t) => t.id !== todo.id))
+      showUndo('Marked done', () => {
+        void window.electron.ipc.invoke('todos:update', todo.id, { done: false }).then(() => loadTodos())
+      })
+    } catch (err) {
+      console.error('[Inbox] Mark todo done failed:', err)
+    }
+  }
+
+  const handleTodoDismiss = async (todo: ProjectTodo): Promise<void> => {
+    try {
+      await window.electron.ipc.invoke('todos:delete', todo.id)
+      setInboxTodos((prev) => prev.filter((t) => t.id !== todo.id))
+      showUndo('Todo dismissed', () => {
+        void window.electron.ipc.invoke('todos:restore', todo.id).then(() => loadTodos())
+      })
+    } catch (err) {
+      console.error('[Inbox] Dismiss todo failed:', err)
     }
   }
 
@@ -160,13 +214,52 @@ export function InboxView({ onAssigned }: InboxViewProps): JSX.Element {
       )}
 
       <div className={styles.content}>
+        {inboxTodos.length > 0 && (
+          <>
+            <div className={styles.sectionLabel}>
+              <Icon icon={Sparkles} size={13} />
+              From Copilot
+            </div>
+            {inboxTodos.map((t) => {
+              const url = inboxTodoUrl(t)
+              return (
+                <div key={t.id} className={styles.row}>
+                  <Icon icon={Sparkles} size={16} className={styles.rowIcon} />
+                  <div className={styles.rowBody}>
+                    <div className={styles.rowTitle}>{t.title ?? t.text}</div>
+                    {t.body && <div className={styles.todoBody}><LinkifiedText text={t.body} /></div>}
+                  </div>
+                  {url && (
+                    <button type="button" className={styles.rowAction} onClick={() => openExternal(url)} aria-label="Open link">
+                      <Icon icon={ExternalLink} size={14} />
+                    </button>
+                  )}
+                  <button type="button" className={styles.rowAction} onClick={() => void handleTodoDone(t)} aria-label="Mark done">
+                    <Icon icon={Check} size={14} />
+                  </button>
+                  <button type="button" className={styles.rowAction} onClick={() => void handleTodoDismiss(t)} aria-label="Dismiss todo">
+                    <Icon icon={Trash2} size={14} />
+                  </button>
+                </div>
+              )
+            })}
+          </>
+        )}
+
         {isLoading && <div className={styles.empty}>Loading…</div>}
         {!isLoading && syncError && <div className={styles.error}>{syncError}</div>}
         {!isLoading && isAuthenticated === false && (
           <div className={styles.empty}>Connect a GitHub token in Settings to fetch notifications.</div>
         )}
-        {!isLoading && isAuthenticated && threads.length === 0 && !syncError && (
+        {!isLoading && isAuthenticated && threads.length === 0 && inboxTodos.length === 0 && !syncError && (
           <div className={styles.empty}>Inbox is empty. Nothing needs routing.</div>
+        )}
+
+        {threads.length > 0 && inboxTodos.length > 0 && (
+          <div className={styles.sectionLabel}>
+            <Icon icon={Bell} size={13} />
+            Notifications
+          </div>
         )}
 
         {threads.map((t) => (

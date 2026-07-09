@@ -80,6 +80,16 @@ export function useProjectDetail(
     }
   }, [projectId])
 
+  // Reload when an agent todo is created/updated out-of-band by the `add_todo` MCP tool, so
+  // it appears live. This fires only on real tool-driven todo changes (not the periodic drift
+  // tick), so it can't clobber the user's own in-flight optimistic todo mutations.
+  useEffect(() => {
+    const unsub = window.electron.onTodosUpdated(() => {
+      void reload()
+    })
+    return unsub
+  }, [reload])
+
   const updateProject = useCallback(
     async (patch: ProjectPatch): Promise<void> => {
       const updated = await window.electron.ipc.invoke('projects:update', projectId, patch)

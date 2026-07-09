@@ -228,7 +228,7 @@ export function App(): JSX.Element {
         />
 
         {view === 'inbox' ? (
-          <InboxView onAssigned={() => { void refreshProjects(); void loadInboxCount() }} />
+          <InboxView onAssigned={() => { void refreshProjects(); void loadInboxCount() }} showUndo={showUndo} />
         ) : view === 'agent-tasks' ? (
           <AgentTasksView />
         ) : view === 'settings' ? (
