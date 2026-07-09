@@ -890,6 +890,19 @@ export type IpcChannels = {
     result: void
   }
 
+  /** Reads whether the inbound MCP server is enabled (default true). */
+  'settings:get-mcp-server-enabled': {
+    args: []
+    result: boolean
+  }
+
+  /** Enables/disables the inbound MCP server (starts/stops loopback + mcp.json). */
+  'settings:set-mcp-server-enabled': {
+    args: [enabled: boolean]
+    result: void
+  }
+
+
   // ── Focus: re-entry digest + drift ───────────────────────────────────────────
 
   /** Computes the blame-free "since you were here" digest for a project. */

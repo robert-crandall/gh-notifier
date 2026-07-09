@@ -44,6 +44,8 @@ import { delegateTask, appDelegateAvailability, buildAppSessionDeepLink, createD
 import { linkTodoSession } from './agent/copilot-app/store'
 import { refreshTodoAppSessionsForProject } from './agent/copilot-app/status'
 import { getAppDelegateEnabled, setAppDelegateEnabled, getReposRoot, setReposRoot } from './agent/copilot-app/settings'
+import { enableMcpServer, disableMcpServer, shutdownMcpServer } from './mcp-server/lifecycle'
+import { getMcpServerEnabled, setMcpServerEnabled } from './mcp-server/settings'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, DelegatePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
@@ -376,6 +378,17 @@ app.whenReady().then(async () => {
     setReposRoot(root)
   })
 
+  // Inbound MCP server (loopback + stdio shim). Enabled by default.
+  ipcMain.handle('settings:get-mcp-server-enabled', () => getMcpServerEnabled())
+  ipcMain.handle('settings:set-mcp-server-enabled', async (_event, enabled: boolean) => {
+    setMcpServerEnabled(enabled)
+    if (enabled) {
+      await enableMcpServer()
+    } else {
+      await disableMcpServer()
+    }
+  })
+
   // Focus: re-entry digest + drift handlers
   ipcMain.handle('digest:get', (_event, projectId: number) => getDigest(projectId))
   ipcMain.handle('projects:mark-focused', (_event, projectId: number) => {
@@ -439,6 +452,14 @@ app.whenReady().then(async () => {
   startSnoozeWatcher()
   startDriftWatcher()
 
+  // Inbound MCP server: expose the app as an MCP server the Copilot app can call.
+  // Off the render thread; failures here must not block the window coming up.
+  if (getMcpServerEnabled()) {
+    void enableMcpServer().catch((err: unknown) => {
+      console.error('[mcp] Failed to start inbound MCP server:', err instanceof Error ? err.message : 'error')
+    })
+  }
+
   createWindow()
 
   app.on('activate', () => {
@@ -450,4 +471,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+// Stop the loopback server and remove its run files on quit. We leave the
+// ~/.mcp.json entry in place (quit != disable); the shim degrades gracefully to
+// "app not running" when the run files are gone.
+app.on('will-quit', () => {
+  void shutdownMcpServer().catch((err: unknown) => {
+    console.error('[mcp] Shutdown failed:', err instanceof Error ? err.message : 'error')
+  })
 })

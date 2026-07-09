@@ -2,6 +2,10 @@
 out/
 dist/
 
+# Generated, self-contained stdio-shim bundle (built by `bun run build:shim`,
+# shipped UNPACKED as an extraResource; never committed).
+build/mcp-shim.cjs
+
 # Dependencies
 node_modules/
 .pnp
