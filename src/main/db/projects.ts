@@ -589,14 +589,26 @@ export function addAgentTodo(input: AddAgentTodoInput): AddAgentTodoResult {
       projectId = input.resolvedProjectId
     }
 
+    // If the todo moves to a different bucket, append it (max sort_order + 1 in the
+    // destination) rather than carrying its old sort_order, which would interleave it oddly
+    // in the destination's (sort_order, id) ordering. Otherwise keep its place.
+    const moved = projectId !== existing.project_id
+    let sortOrder = existing.sort_order
+    if (moved) {
+      const { m } = db
+        .prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM project_todos WHERE project_id IS ?')
+        .get(projectId) as { m: number }
+      sortOrder = m + 1
+    }
+
     const row = db
       .prepare(
         `UPDATE project_todos
-           SET title = ?, body = ?, text = ?, source_url = ?, suggested_action = ?, project_id = ?
+           SET title = ?, body = ?, text = ?, source_url = ?, suggested_action = ?, project_id = ?, sort_order = ?
          WHERE id = ?
          RETURNING *`
       )
-      .get(input.title, input.body, input.title, input.sourceUrl, actionJson, projectId, existing.id) as TodoRow
+      .get(input.title, input.body, input.title, input.sourceUrl, actionJson, projectId, sortOrder, existing.id) as TodoRow
 
     const status: AddAgentTodoStatus =
       existing.deleted_at !== null

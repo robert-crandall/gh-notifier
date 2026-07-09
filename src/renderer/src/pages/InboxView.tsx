@@ -101,14 +101,15 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
       setProjects(projectList.filter((p) => p.status === 'active'))
       setIsAuthenticated(authStatus.authenticated)
       setLastSyncTime(syncTime)
+      // Await so isLoading doesn't clear before inbox todos are known, otherwise the
+      // "Inbox is empty" copy can flash while loadTodos() is still in flight.
+      await loadTodos()
     } catch (err) {
       console.error('[Inbox] Failed to load:', err)
       if (mountedRef.current) setSyncError('Could not load the inbox. Try syncing again.')
     } finally {
       if (mountedRef.current) setIsLoading(false)
     }
-    // Inbox todos always flow through the single guarded loader.
-    void loadTodos()
   }, [loadTodos])
 
   useEffect(() => {

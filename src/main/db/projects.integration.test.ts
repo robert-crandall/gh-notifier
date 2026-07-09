@@ -315,6 +315,19 @@ describe('addAgentTodo', () => {
     expect(second.todo.projectId).toBe(a.id) // did not move
   })
 
+  it('appends (recomputes sort_order) when a todo moves buckets', () => {
+    const a = createProject('From')
+    const b = createProject('To')
+    // Fill B with two todos so its max sort_order is 1.
+    createTodo(b.id, 'b0')
+    createTodo(b.id, 'b1')
+    const moved = addAgentTodo(base({ resolvedProjectId: a.id, idempotencyKey: 'k1' }))
+    expect(moved.todo.sortOrder).toBe(0) // first in A
+    const after = addAgentTodo(base({ resolvedProjectId: b.id, explicitPlacement: true, idempotencyKey: 'k1' }))
+    expect(after.todo.projectId).toBe(b.id)
+    expect(after.todo.sortOrder).toBe(2) // appended after B's 0 and 1, not left at 0
+  })
+
   it('moves a todo off a now-soft-deleted project on a non-explicit update', () => {
     const dead = createProject('Dead')
     const first = addAgentTodo(base({ resolvedProjectId: dead.id, idempotencyKey: 'k1' }))
