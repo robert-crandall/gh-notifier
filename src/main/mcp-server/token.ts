@@ -18,9 +18,12 @@ export function generateToken(): string {
 }
 
 /**
- * Constant-time equality for the bearer token. Length-safe (returns false on a
- * length mismatch without leaking timing) and never throws on non-ASCII input.
- * Both arguments are treated as secrets.
+ * Compare the presented bearer token to the expected one. When the lengths match
+ * the comparison is constant-time (`crypto.timingSafeEqual`). A length mismatch
+ * returns early — that path is NOT constant-time, but the token length is not
+ * secret in a way that helps an attacker (a 32-byte base64url token is
+ * fixed-length), so this is an accepted trade-off. Never throws on non-ASCII
+ * input. Both arguments are treated as secrets.
  */
 export function timingSafeEqualToken(a: string, b: string): boolean {
   const bufA = Buffer.from(a, 'utf8')

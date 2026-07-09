@@ -164,4 +164,41 @@ describe('loopback MCP server security gate (raw requests)', () => {
     })
     expect(status).toBe(404)
   })
+
+  it('400s an authorized POST with an empty body', async () => {
+    const { handle, token } = await startServer()
+    const status = await rawPost(
+      handle.port,
+      { host: `127.0.0.1:${handle.port}`, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      ''
+    )
+    expect(status).toBe(400)
+  })
+
+  it('does not hang the server when a client aborts mid-request', async () => {
+    const { handle, token } = await startServer()
+    // Announce a body via Content-Length but destroy the socket before sending it.
+    await new Promise<void>((resolve) => {
+      const req = httpRequest({
+        host: '127.0.0.1',
+        port: handle.port,
+        path: '/mcp',
+        method: 'POST',
+        headers: {
+          host: `127.0.0.1:${handle.port}`,
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/json',
+          'content-length': '100',
+        },
+      })
+      req.on('error', () => resolve()) // destroy → error, which is expected
+      req.write('{"partial":')
+      req.destroy()
+      setTimeout(resolve, 50)
+    })
+    // The server must still answer a fresh, well-formed request.
+    const client = await connectClient(handle.port, token)
+    const result = (await client.callTool({ name: PING_TOOL_NAME })) as CallToolResult
+    expect(result.content).toEqual([{ type: 'text', text: 'pong' }])
+  })
 })

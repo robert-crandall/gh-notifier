@@ -84,8 +84,10 @@ function readBody(
     })
     req.on('end', () => {
       const raw = Buffer.concat(chunks).toString('utf8')
+      // An empty/whitespace body is not a valid JSON-RPC message — reject cleanly
+      // rather than forwarding `undefined` (which the transport surfaces as a 500).
       if (raw.trim().length === 0) {
-        finish({ ok: true, body: undefined })
+        finish({ ok: false, status: 400 })
         return
       }
       try {
@@ -95,6 +97,10 @@ function readBody(
       }
     })
     req.on('error', () => finish({ ok: false, status: 400 }))
+    // If the client aborts/closes before 'end', 'close' fires without 'end' —
+    // resolve so the per-request handler never awaits forever. After a normal
+    // 'end' this is a no-op (finish is idempotent).
+    req.on('close', () => finish({ ok: false, status: 400 }))
   })
 }
 
