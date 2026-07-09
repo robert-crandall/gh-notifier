@@ -117,4 +117,25 @@ describe('add_todo registration', () => {
     )
     expect(onTodoChanged).not.toHaveBeenCalled()
   })
+
+  it('converts a handler exception into an isError result (no transport failure, no onTodoChanged)', async () => {
+    const onTodoChanged = vi.fn()
+    vi.mocked(getDb).mockImplementationOnce(() => {
+      throw new Error('db exploded')
+    })
+    await withServer(
+      { getSecrets: () => [], onTodoChanged },
+      async (client) => {
+        const result = (await client.callTool({
+          name: ADD_TODO_TOOL_NAME,
+          arguments: { title: 'x' }, // valid input, but the DB access throws
+        })) as CallToolResult
+        expect(result.isError).toBe(true)
+        // The generic failure text must not leak the thrown error's message.
+        const text = result.content[0]
+        expect(text.type === 'text' && text.text.includes('exploded')).toBe(false)
+      }
+    )
+    expect(onTodoChanged).not.toHaveBeenCalled()
+  })
 })

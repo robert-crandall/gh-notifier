@@ -68,7 +68,17 @@ export function registerTools(server: Server, deps: ToolDeps): void {
     if (handler === undefined) {
       return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
     }
-    const result = await handler(args)
+    let result: CallToolResult
+    try {
+      result = await handler(args)
+    } catch (err) {
+      // A tool handler that throws (e.g. a DB error) must surface as a clean isError result,
+      // not a transport-level failure. Never echo the error detail — it could carry a secret
+      // or an internal path. (onTodoChanged lives inside the handler and only fires on a
+      // successful result, so a throw here never triggers it.)
+      console.error(`[mcp-server] tool "${name}" threw:`, err instanceof Error ? err.name : 'error')
+      result = { content: [{ type: 'text', text: `Tool "${name}" failed.` }], isError: true }
+    }
     // Defense-in-depth: scrub any known secret that slipped into the output.
     return sanitizeMcpJson(result, deps.getSecrets()) as CallToolResult
   })
