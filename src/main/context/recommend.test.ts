@@ -30,7 +30,7 @@ const card: ProjectCard = {
 }
 function cand(id: number, title: string): AssembledCandidate {
   const resource = { id, title, service: 'checkout', env: 'prod', kind: 'dashboard', source: 'datadog', aliases: [], description: '' } as unknown as Resource
-  return { resource, score: 10, healthy: true }
+  return { resource, score: 10 }
 }
 
 describe('buildRecommendPrompt', () => {
@@ -47,7 +47,7 @@ describe('buildRecommendPrompt', () => {
 
   it('normalizes newlines / pipe delimiters in interpolated fields so the format holds', () => {
     const messy = { id: 7, title: 'A | B\nC', service: 'x|y', env: 'prod', kind: 'dashboard', source: 'datadog', aliases: [], description: 'line1\nline2' } as unknown as Resource
-    const b = buildRecommendPrompt('q', card, [{ resource: messy, score: 1, healthy: true }])
+    const b = buildRecommendPrompt('q', card, [{ resource: messy, score: 1 }])
     const line = b.prompt.split('\n').find((l) => l.startsWith('- id: c1'))
     expect(line).toBeDefined()
     // Exactly one candidate line; no stray newline or raw pipe from the title.

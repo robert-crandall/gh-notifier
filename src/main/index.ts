@@ -33,14 +33,9 @@ import { getDb } from './db'
 import {
   listResources, createResource, updateResource, deleteResource, restoreResource,
   getProjectCard, upsertProjectCard,
-  listMcpServerSummaries, upsertMcpServer, updateMcpServer, deleteMcpServer, restoreMcpServer,
-  getMcpServer, mcpConfigToSummary, connectResourceToServer, disconnectResource,
 } from './context/registry'
 import { groupResources } from './context/group'
 import { proposeFromUrl } from './context/capture'
-import { validateMcpServerInput, validateMcpServerPatch, validateToolName, validateToolArgs, newMcpServerId } from './context/mcp-config'
-import { listMcpTools } from './context/mcp-client'
-import { resolveQuestion } from './context/resolve'
 import { recommendResources } from './context/recommend'
 import { createResolveDeps } from './context/resolve-deps'
 import { resolveModelProvisioning } from './context/model-path'
@@ -49,7 +44,7 @@ import { delegateTask, appDelegateAvailability, buildAppSessionDeepLink, createD
 import { linkTodoSession } from './agent/copilot-app/store'
 import { refreshTodoAppSessionsForProject } from './agent/copilot-app/status'
 import { getAppDelegateEnabled, setAppDelegateEnabled, getReposRoot, setReposRoot } from './agent/copilot-app/settings'
-import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, McpServerInput, McpServerPatch, McpConnectInput, DelegatePayload } from '../shared/ipc-channels'
+import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, DelegatePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
 /** Broadcasts a push event to all renderer windows. */
@@ -57,20 +52,6 @@ function broadcast(channel: 'notifications:updated' | 'copilot:updated' | 'proje
   BrowserWindow.getAllWindows().forEach((win) => {
     win.webContents.send(channel)
   })
-}
-
-/**
- * Strips the live-wiring fields from a generic resource create/update payload.
- * Wiring a resource to an MCP tool must go through the validated
- * resources:mcp-connect seam (same-project + tool/args checks), never the generic
- * resource IPC — so the renderer cannot persist unvalidated wiring.
- */
-function stripMcpWiring<T extends { mcpServer?: unknown; toolName?: unknown; toolArgs?: unknown }>(input: T): T {
-  const clone = { ...input }
-  delete clone.mcpServer
-  delete clone.toolName
-  delete clone.toolArgs
-  return clone
 }
 
 /** Emits projects:updated on a low-frequency tick so drift/cooldown transitions
@@ -417,8 +398,8 @@ app.whenReady().then(async () => {
 
   // ── Resources / project brain (MVP C) ────────────────────────────────────────
 
-  // Resolver deps: an isolated Copilot home (no user MCP servers, no tools for
-  // the decide call) + an app-owned MCP client for the actual read.
+  // Recommendation deps: an isolated Copilot home (no user MCP servers, no tools
+  // for the ranking call) + the hybrid embedding retriever.
   const resolveDeps = createResolveDeps({
     stateDir: app.getPath('userData'),
     embedderOptions: resolveModelProvisioning(app),
@@ -428,14 +409,12 @@ app.whenReady().then(async () => {
   ipcMain.handle('resources:groups', (_event, projectId: number) => groupResources(listResources(projectId)))
   ipcMain.handle('resources:capture-proposal', (_event, url: string) => proposeFromUrl(url))
   ipcMain.handle('resources:create', (_event, projectId: number, input: ResourceInput) => {
-    // Wiring a resource to a live tool is NOT allowed through the generic create;
-    // it must go through the validated resources:mcp-connect seam.
-    const resource = createResource(projectId, stripMcpWiring(input))
+    const resource = createResource(projectId, input)
     broadcast('resources:updated')
     return resource
   })
   ipcMain.handle('resources:update', (_event, id: number, patch: ResourcePatch) => {
-    const resource = updateResource(id, stripMcpWiring(patch))
+    const resource = updateResource(id, patch)
     broadcast('resources:updated')
     return resource
   })
@@ -447,66 +426,14 @@ app.whenReady().then(async () => {
     restoreResource(id)
     broadcast('resources:updated')
   })
-  ipcMain.handle('resources:resolve', async (_event, projectId: number, question: string) => {
-    const result = await resolveQuestion(projectId, question, resolveDeps)
-    // A resolve can change health state (suspect / last_used); refresh the browse view.
-    broadcast('resources:updated')
-    return result
-  })
   ipcMain.handle('resources:recommend', (_event, projectId: number, question: string) =>
-    // Read-only: retrieve + rank saved metadata only. No health mutation, so no broadcast.
+    // Read-only: retrieve + rank saved metadata only. Nothing is written, so no broadcast.
     recommendResources(projectId, question, resolveDeps)
   )
   ipcMain.handle('resources:card-get', (_event, projectId: number) => getProjectCard(projectId))
   ipcMain.handle('resources:card-upsert', (_event, projectId: number, patch: ProjectCardPatch) =>
     upsertProjectCard(projectId, patch)
   )
-  ipcMain.handle('resources:mcp-list', (_event, projectId: number) => listMcpServerSummaries(projectId))
-  ipcMain.handle('resources:mcp-create', (_event, projectId: number, input: McpServerInput) => {
-    const validation = validateMcpServerInput(input.label, input.config)
-    if (!validation.ok) throw new Error(validation.error)
-    const server = upsertMcpServer(projectId, newMcpServerId(), validation.value)
-    broadcast('resources:updated')
-    return mcpConfigToSummary(server)
-  })
-  ipcMain.handle('resources:mcp-update', (_event, projectId: number, id: string, patch: McpServerPatch) => {
-    const validation = validateMcpServerPatch(patch)
-    if (!validation.ok) throw new Error(validation.error)
-    const server = updateMcpServer(projectId, id, validation.value)
-    broadcast('resources:updated')
-    return mcpConfigToSummary(server)
-  })
-  ipcMain.handle('resources:mcp-delete', (_event, projectId: number, id: string) => {
-    deleteMcpServer(projectId, id)
-    broadcast('resources:updated')
-  })
-  ipcMain.handle('resources:mcp-restore', (_event, projectId: number, id: string) => {
-    restoreMcpServer(projectId, id)
-    broadcast('resources:updated')
-  })
-  ipcMain.handle('resources:mcp-list-tools', async (_event, projectId: number, id: string) => {
-    // Scope to the project + only live servers; the full (secret) config never
-    // leaves main — only the discovered tool metadata is returned.
-    const server = getMcpServer(id)
-    if (server === null || server.projectId !== projectId) {
-      return { ok: false, error: 'MCP server not found' }
-    }
-    return listMcpTools(server.config)
-  })
-  ipcMain.handle('resources:mcp-connect', (_event, resourceId: number, input: McpConnectInput) => {
-    const toolName = validateToolName(input.toolName)
-    if (!toolName.ok) throw new Error(toolName.error)
-    const toolArgs = validateToolArgs(input.toolArgs)
-    if (!toolArgs.ok) throw new Error(toolArgs.error)
-    const resource = connectResourceToServer(resourceId, input.serverId, toolName.value, toolArgs.value)
-    broadcast('resources:updated')
-    return resource
-  })
-  ipcMain.handle('resources:mcp-disconnect', (_event, resourceId: number) => {
-    const resource = disconnectResource(resourceId)
-    broadcast('resources:updated')
-    return resource
-  })
 
   startNotificationSync()
   startSnoozeWatcher()

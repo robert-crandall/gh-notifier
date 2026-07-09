@@ -1,17 +1,15 @@
 import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { createCopilotDecideRunner } from './copilot-run'
-import { createMcpRunner } from './mcp-client'
 import { createDefaultRetriever } from './retrieve'
 import { createLocalEmbedder, type Embedder, type EmbedderOptions } from './embed'
 import { FAST_RECOMMEND_MODEL, type RecommendDeps } from './recommend'
-import type { ResolveDeps } from './resolve'
 
 /**
- * Builds the resolver's runtime dependencies with the decide call isolated:
- * an app-owned Copilot HOME containing an empty MCP config, so the decide
- * subprocess loads none of the user's global MCP servers and has no tools. The
- * app-owned MCP read (mcp-client) is what actually talks to wired servers.
+ * Builds the recommendation path's runtime dependencies with the ranking call
+ * isolated: an app-owned Copilot HOME containing an empty MCP config, so the
+ * ranking subprocess loads none of the user's global MCP servers and has no
+ * tools — it can only SELECT/ORDER saved-source ids, never execute.
  *
  * Retrieval uses the hybrid embedding retriever (semantic recall for
  * lexically-disjoint questions) with a transparent lexical fallback if the local
@@ -27,7 +25,7 @@ export function ensureIsolatedCopilotHome(baseDir: string): string {
 }
 
 export interface ResolveDepsOptions {
-  /** Writable dir for the resolver's own state (the isolated Copilot home). */
+  /** Writable dir for the recommendation path's own state (the isolated Copilot home). */
   stateDir: string
   /**
    * How the local embedding model is provisioned for this environment (from
@@ -36,8 +34,6 @@ export interface ResolveDepsOptions {
    * Resources path; dev provisioning is the `provision-model` script's job.
    */
   embedderOptions?: EmbedderOptions
-  /** Optional decide-model override. */
-  model?: string
   /**
    * Injectable embedder — ONLY so the composition-root guard test can prove the
    * wiring performs real semantic retrieval on a non-empty corpus with a
@@ -47,18 +43,16 @@ export interface ResolveDepsOptions {
 }
 
 /**
- * Builds the resolver's runtime dependencies.
+ * Builds the recommendation path's runtime dependencies.
  */
-export function createResolveDeps(options: ResolveDepsOptions): ResolveDeps & RecommendDeps {
-  const { stateDir, embedderOptions, model, embedder } = options
+export function createResolveDeps(options: ResolveDepsOptions): RecommendDeps {
+  const { stateDir, embedderOptions, embedder } = options
   const home = ensureIsolatedCopilotHome(stateDir)
   const resolvedEmbedder = embedder ?? createLocalEmbedder(embedderOptions)
   return {
-    decideRunner: createCopilotDecideRunner({ isolatedHome: home, cwd: home, model }),
-    // Read-only recommendation ranking uses the SAME tool-less isolated runner
-    // with a fast model pinned — never a live read, never a value.
+    // Read-only recommendation ranking uses a tool-less isolated runner with a
+    // fast model pinned — never a live read, never a value.
     recommendRunner: createCopilotDecideRunner({ isolatedHome: home, cwd: home, model: FAST_RECOMMEND_MODEL }),
-    mcpRunner: createMcpRunner(),
     assembleOptions: { retriever: createDefaultRetriever(resolvedEmbedder) },
   }
 }

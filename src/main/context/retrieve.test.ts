@@ -19,19 +19,8 @@ function makeResource(partial: Partial<Resource> & { title: string }): Resource 
     description: partial.description ?? '',
     aliases: partial.aliases ?? [],
     provenance: partial.provenance ?? 'manual',
-    confidence: partial.confidence ?? 0.5,
-    lastUsed: null,
-    lastVerified: null,
-    failureCount: partial.failureCount ?? 0,
-    suspect: partial.suspect ?? false,
     pinnedGroup: null,
-    mcpServer: partial.mcpServer ?? null,
-    toolName: partial.toolName ?? null,
-    toolArgs: partial.toolArgs ?? null,
     externalRef: null,
-    validationState: 'unverified',
-    lastErrorCode: null,
-    lastErrorMessage: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   }
@@ -150,14 +139,5 @@ describe('lexicalRetriever', () => {
     const corpus = [makeResource({ title: 'mesh latency', service: 'mesh' })]
     const { mode } = await lexicalRetriever.retrieve('mesh latency', corpus, 3)
     expect(mode).toBe('lexical')
-  })
-
-  it('does not apply a health penalty (relevance is pure)', () => {
-    // A suspect record with the same textual match must score identically to a
-    // healthy one — health is applied later, in assemble, not here.
-    const healthy = makeResource({ title: 'mesh latency', service: 'mesh', suspect: false, confidence: 0.9 })
-    const suspect = makeResource({ title: 'mesh latency', service: 'mesh', suspect: true, confidence: 0.1 })
-    const q = tokenize('mesh latency')
-    expect(scoreResource(q, healthy)).toBe(scoreResource(q, suspect))
   })
 })
