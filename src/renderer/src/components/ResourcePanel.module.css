@@ -123,14 +123,6 @@
   color: var(--text);
 }
 
-.liveValue {
-  font-family: var(--font-mono);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text);
-  padding-right: 20px;
-}
-
 .answerText {
   font-size: 13px;
   color: var(--text);
@@ -157,24 +149,6 @@
   border-radius: 50%;
   background: var(--attention-fg, #d29922);
   flex-shrink: 0;
-}
-
-.clarifyRow {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.clarifyIcon {
-  color: var(--attention);
-  margin-top: 1px;
-  flex: none;
-}
-
-.candidateChips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 /* Citation chip */
@@ -206,14 +180,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.suspectDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--attention);
-  flex: none;
 }
 
 /* Capture */
@@ -406,24 +372,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.suspectBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10.5px;
-  color: var(--attention);
-  flex: none;
-}
-
-.liveBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10.5px;
-  color: var(--accent-text);
-  flex: none;
 }
 
 .rowAction {
