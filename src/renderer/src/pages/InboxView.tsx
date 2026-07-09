@@ -161,9 +161,16 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
   const handleTodoDone = async (todo: ProjectTodo): Promise<void> => {
     try {
       await window.electron.ipc.invoke('todos:update', todo.id, { done: true })
+      // Invalidate any in-flight inbox-todo fetch so a stale result can't re-add this row,
+      // then optimistically drop it and refresh the rail badge.
+      todosReqRef.current += 1
       setInboxTodos((prev) => prev.filter((t) => t.id !== todo.id))
+      onAssigned()
       showUndo('Marked done', () => {
-        void window.electron.ipc.invoke('todos:update', todo.id, { done: false }).then(() => loadTodos())
+        void window.electron.ipc.invoke('todos:update', todo.id, { done: false }).then(() => {
+          onAssigned()
+          return loadTodos()
+        })
       })
     } catch (err) {
       console.error('[Inbox] Mark todo done failed:', err)
@@ -173,9 +180,14 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
   const handleTodoDismiss = async (todo: ProjectTodo): Promise<void> => {
     try {
       await window.electron.ipc.invoke('todos:delete', todo.id)
+      todosReqRef.current += 1
       setInboxTodos((prev) => prev.filter((t) => t.id !== todo.id))
+      onAssigned()
       showUndo('Todo dismissed', () => {
-        void window.electron.ipc.invoke('todos:restore', todo.id).then(() => loadTodos())
+        void window.electron.ipc.invoke('todos:restore', todo.id).then(() => {
+          onAssigned()
+          return loadTodos()
+        })
       })
     } catch (err) {
       console.error('[Inbox] Dismiss todo failed:', err)
