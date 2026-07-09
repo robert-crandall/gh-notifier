@@ -4,10 +4,10 @@ import { accessSync, constants } from 'fs'
 /**
  * The decide-stage adapter: spawns the Copilot CLI in non-interactive mode to
  * make a ranking decision over opaque candidate ids. It runs with NO tools and
- * NO MCP servers — the app owns every read separately (mcp-client.ts), so the
- * CLI can only rank, never execute. Command construction is treated as part of
- * the safety contract and is unit-tested; the raw output is validated by
- * verdict-contract.ts before the app acts on it.
+ * NO MCP servers, so the CLI can only rank, never execute — it emits ids only
+ * and the app maps them back to saved metadata. Command construction is treated
+ * as part of the safety contract and is unit-tested; the raw output is validated
+ * by the caller (recommend.ts) before the app acts on it.
  */
 
 export interface DecideOptions {

@@ -179,7 +179,6 @@ function toCitation(resource: Resource): ResolveCitation {
     kind: resource.kind,
     source: resource.source,
     url: resource.url,
-    suspect: resource.suspect,
   }
 }
 

@@ -335,12 +335,10 @@ export type ResourceKind = 'dashboard' | 'metric_query' | 'saved_search' | 'doc'
 /** How a resource record entered the registry. */
 export type ResourceProvenance = 'captured' | 'manual' | 'imported' | 'agent'
 
-/** Health of a resource's executable query, updated as a byproduct of use. */
-export type ResourceValidationState = 'unverified' | 'valid' | 'invalid' | 'no_data'
-
 /**
- * A typed resource record. Each dashboard / saved query / doc / link is one of
- * these, not a bookmark. Retrieved on demand by the resolver, never all injected.
+ * A typed resource record — plain metadata / links. Each dashboard / saved query
+ * / doc / link is one of these, not a bookmark. Retrieved on demand by the
+ * recommendation path, never all injected.
  */
 export interface Resource {
   id: number
@@ -353,30 +351,16 @@ export interface Resource {
   env: string
   /** Machine-derived structured disambiguation attributes (namespace/cluster/system/team/…). */
   tags: Record<string, string>
-  /** Human fallback link. Null when the source is a pure executable query. */
+  /** Human link to the source. Null when the record has no saved link. */
   url: string | null
   description: string
   /** Alias/glossary terms that bridge fuzzy language to this record. */
   aliases: string[]
   provenance: ResourceProvenance
-  confidence: number
-  lastUsed: string | null
-  lastVerified: string | null
-  failureCount: number
-  /** True when the source itself is suspect (a query that 400'd / returned no-data). */
-  suspect: boolean
   /** Rare, visible browse override (pin/rename a computed group). Null = auto. */
   pinnedGroup: string | null
-  /** Id of the wired per-project MCP server. Null = no live source. */
-  mcpServer: string | null
-  toolName: string | null
-  /** Args passed to the MCP tool. */
-  toolArgs: Record<string, unknown> | null
   /** Source-native id (dashboard id, saved-search id, …). */
   externalRef: string | null
-  validationState: ResourceValidationState
-  lastErrorCode: string | null
-  lastErrorMessage: string | null
   createdAt: string
   updatedAt: string
 }
@@ -393,9 +377,6 @@ export interface ResourceInput {
   description?: string
   aliases?: string[]
   provenance?: ResourceProvenance
-  mcpServer?: string | null
-  toolName?: string | null
-  toolArgs?: Record<string, unknown> | null
   externalRef?: string | null
 }
 
@@ -413,9 +394,6 @@ export type ResourcePatch = Partial<
     | 'description'
     | 'aliases'
     | 'pinnedGroup'
-    | 'mcpServer'
-    | 'toolName'
-    | 'toolArgs'
     | 'externalRef'
   >
 >
@@ -434,78 +412,6 @@ export interface ProjectCard {
 
 export type ProjectCardPatch = Partial<Pick<ProjectCard, 'purpose' | 'repos' | 'services' | 'activeGoal' | 'glossary'>>
 
-/** A wired MCP server whose read-only tools the app-owned client may run. */
-export interface McpServerConfig {
-  id: string
-  projectId: number
-  label: string
-  /** { command, args[], env{} } for the stdio transport. */
-  config: McpStdioConfig
-  createdAt: string
-  updatedAt: string
-}
-
-export interface McpStdioConfig {
-  command: string
-  args: string[]
-  env: Record<string, string>
-}
-
-export type McpServerInput = Pick<McpServerConfig, 'label'> & { config: McpStdioConfig }
-
-/**
- * Redacted view of a wired MCP server for the RENDERER. Deliberately carries no
- * env VALUES — only the key names — so secrets never cross the IPC boundary. The
- * full config (with env values) stays main-only via getMcpServer(), used solely
- * by the resolver's app-owned MCP read.
- */
-export interface McpServerSummary {
-  id: string
-  projectId: number
-  label: string
-  command: string
-  args: string[]
-  /** Names of the configured env vars; values are intentionally omitted. */
-  envKeys: string[]
-  createdAt: string
-  updatedAt: string
-}
-
-/**
- * Explicit patch for an existing MCP server. Secrets flow ONE WAY: `envSet` adds
- * or replaces keys, `envDelete` removes keys, and any env key not named in either
- * is preserved server-side. This avoids a "leave blank to keep" guess and means
- * the renderer never has to hold or re-send a stored secret value.
- */
-export interface McpServerPatch {
-  label?: string
-  command?: string
-  args?: string[]
-  envSet?: Record<string, string>
-  envDelete?: string[]
-}
-
-/** A tool advertised by a wired MCP server (from listTools). */
-export interface McpToolInfo {
-  name: string
-  description?: string
-  inputSchema?: unknown
-}
-
-/**
- * Result of probing a server's tools — the honest "does it start, and what can
- * it do". A success means the server process started and answered a listTools
- * handshake; it does NOT prove a real read (or auth for one) will succeed.
- */
-export type McpToolsResult = { ok: true; tools: McpToolInfo[] } | { ok: false; error: string }
-
-/** Wires a resource to a configured server tool so a resolve can pull a live value. */
-export interface McpConnectInput {
-  serverId: string
-  toolName: string
-  toolArgs: Record<string, unknown>
-}
-
 /** A proposed typed record produced from a pasted/dropped URL, for one-tap accept. */
 export interface CaptureProposal {
   title: string
@@ -517,13 +423,6 @@ export interface CaptureProposal {
   externalRef: string | null
   tags: Record<string, string>
 }
-
-/** The verdict of a resolve. See the safety contract: the app owns every guarantee. */
-export type ResolveVerdict =
-  | 'confident'                      // cited source + app-owned live value
-  | 'source_available_no_live_value' // cited source, no live read possible
-  | 'clarify'                        // near-tie: one question / top candidates
-  | 'none'                           // no source saved
 
 export type ResolveFailureClass =
   | 'query_invalid'
@@ -541,43 +440,17 @@ export interface ResolveCitation {
   kind: ResourceKind
   source: string
   url: string | null
-  /** True when this record last failed and is relevant to the current question. */
-  suspect: boolean
 }
 
 /**
- * Which retrieval path produced a resolve's candidates. Keeps a degraded run
- * observable end-to-end: `semantic` = the semantic (embedding) retriever path
+ * Which retrieval path produced a recommendation's candidates. Keeps a degraded
+ * run observable end-to-end: `semantic` = the semantic (embedding) retriever path
  * handled the query (it may short-circuit without invoking the model, e.g. an
  * empty corpus); `lexical-fallback` = the embedding model failed at runtime and
- * the resolver fell back to lexical; `lexical` = a lexical retriever was
- * configured (e.g. tests).
+ * retrieval fell back to lexical; `lexical` = a lexical retriever was configured
+ * (e.g. tests).
  */
 export type RetrievalMode = 'semantic' | 'lexical-fallback' | 'lexical'
-
-/**
- * The result of asking the resolver a question. `confident` and
- * `source_available_no_live_value` carry a single `citation`; `clarify` carries
- * its options in `candidates` (and leaves `citation` null); `none` carries
- * neither.
- */
-export interface ResolveResult {
-  verdict: ResolveVerdict
-  /** Natural-language answer (e.g. "p99 240ms" or "no source saved for that"). */
-  answer: string
-  /** The cited source for confident / source_available_no_live_value verdicts. */
-  citation: ResolveCitation | null
-  /** App-owned live value pulled via the MCP client. Null unless verdict='confident'. */
-  liveValue: string | null
-  /** One clarifying question, when verdict='clarify'. */
-  clarifyQuestion: string | null
-  /** Top candidate citations, when verdict='clarify'. */
-  candidates: ResolveCitation[]
-  /** Set when the resolve failed; classifies bad-source vs bad-infra. */
-  failureClass: ResolveFailureClass | null
-  /** Which retrieval path produced the candidates (observability of degraded runs). */
-  retrievalMode: RetrievalMode
-}
 
 /** A computed browse group of resources (by source / service / topic). */
 export interface ResourceGroup {
@@ -1106,16 +979,6 @@ export type IpcChannels = {
   }
 
   /**
-   * Resolves a fuzzy question against the project's brain. Runs off the render
-   * thread: retrieve -> untrusted decide -> app-owned MCP read. Async; may take
-   * a few seconds. Every non-`none` result carries an inspectable citation.
-   */
-  'resources:resolve': {
-    args: [projectId: number, question: string]
-    result: ResolveResult
-  }
-
-  /**
    * Read-only "what's relevant?" recommendation (#88). Retrieve the top-k saved
    * resources, then a fast tool-less model SELECTS + ORDERS the relevant ones by
    * opaque id only; the app maps ids to citations and generates the per-item
@@ -1136,54 +999,6 @@ export type IpcChannels = {
   'resources:card-upsert': {
     args: [projectId: number, patch: ProjectCardPatch]
     result: ProjectCard
-  }
-
-  /** Lists a project's live (non-deleted) wired MCP servers, REDACTED (no secret values). */
-  'resources:mcp-list': {
-    args: [projectId: number]
-    result: McpServerSummary[]
-  }
-
-  /** Creates a wired MCP server (full config incl. secrets, entered once). Returns a redacted summary. */
-  'resources:mcp-create': {
-    args: [projectId: number, input: McpServerInput]
-    result: McpServerSummary
-  }
-
-  /** Updates a wired MCP server via an explicit patch (secrets one-way). Returns a redacted summary. */
-  'resources:mcp-update': {
-    args: [projectId: number, id: string, patch: McpServerPatch]
-    result: McpServerSummary
-  }
-
-  /** Soft-deletes a wired MCP server (undoable; resource links are preserved). */
-  'resources:mcp-delete': {
-    args: [projectId: number, id: string]
-    result: void
-  }
-
-  /** Restores a soft-deleted MCP server. */
-  'resources:mcp-restore': {
-    args: [projectId: number, id: string]
-    result: void
-  }
-
-  /** Probes a server: starts it and lists its tools (honest connection check; no tool run). */
-  'resources:mcp-list-tools': {
-    args: [projectId: number, id: string]
-    result: McpToolsResult
-  }
-
-  /** Wires a resource to a configured server tool (validated in main). Returns the updated resource. */
-  'resources:mcp-connect': {
-    args: [resourceId: number, input: McpConnectInput]
-    result: Resource
-  }
-
-  /** Clears a resource's live wiring. Returns the updated resource. */
-  'resources:mcp-disconnect': {
-    args: [resourceId: number]
-    result: Resource
   }
 }
 

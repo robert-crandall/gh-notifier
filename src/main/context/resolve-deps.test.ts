@@ -18,12 +18,11 @@ describe('createResolveDeps (production composition root)', () => {
     return mkdtempSync(join(tmpdir(), prefix))
   }
 
-  it('wires a retriever that is NOT the plain lexical retriever, plus decide + MCP runners', () => {
+  it('wires a retriever that is NOT the plain lexical retriever, plus a recommend runner', () => {
     const deps = createResolveDeps({ stateDir: tmp('resolve-deps-guard-') })
     expect(deps.assembleOptions?.retriever).toBeDefined()
     expect(deps.assembleOptions?.retriever).not.toBe(lexicalRetriever)
-    expect(deps.decideRunner).toBeDefined()
-    expect(deps.mcpRunner).toBeDefined()
+    expect(deps.recommendRunner).toBeDefined()
   })
 
   it('performs REAL semantic retrieval on a non-empty corpus (retrieves what lexical cannot)', async () => {

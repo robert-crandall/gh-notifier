@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ProjectCard, Resource } from '../../shared/ipc-channels'
-import type { ScoredCandidate } from './retrieve'
-import { assemble, capCandidates } from './assemble'
+import { assemble } from './assemble'
 
 let nextId = 1
 function makeResource(partial: Partial<Resource> & { title: string }): Resource {
@@ -18,19 +17,8 @@ function makeResource(partial: Partial<Resource> & { title: string }): Resource 
     description: partial.description ?? '',
     aliases: partial.aliases ?? [],
     provenance: 'manual',
-    confidence: partial.confidence ?? 0.5,
-    lastUsed: null,
-    lastVerified: null,
-    failureCount: 0,
-    suspect: partial.suspect ?? false,
     pinnedGroup: null,
-    mcpServer: null,
-    toolName: null,
-    toolArgs: null,
     externalRef: null,
-    validationState: 'unverified',
-    lastErrorCode: null,
-    lastErrorMessage: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   }
@@ -46,60 +34,6 @@ const emptyCard: ProjectCard = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
-function cand(resource: Resource, score: number): ScoredCandidate {
-  return { resource, score }
-}
-
-// ── capCandidates ─────────────────────────────────────────────────────────────
-
-describe('capCandidates', () => {
-  it('caps to the limit, best-first', () => {
-    const pool = [
-      cand(makeResource({ title: 'a' }), 10),
-      cand(makeResource({ title: 'b' }), 8),
-      cand(makeResource({ title: 'c' }), 6),
-    ]
-    const capped = capCandidates(pool, 2, 2)
-    expect(capped).toHaveLength(2)
-    expect(capped[0].score).toBe(10)
-    expect(capped[1].score).toBe(8)
-  })
-
-  it('preserves the strongest suspect match (does not evict it)', () => {
-    const suspectTop = makeResource({ title: 'suspect-top', suspect: true })
-    const healthy = makeResource({ title: 'healthy', suspect: false })
-    const pool = [cand(suspectTop, 20), cand(healthy, 5)]
-    const capped = capCandidates(pool, 2, 2)
-    // Both fit; the strong suspect match stays and is ranked first.
-    expect(capped.map((c) => c.resource.title)).toContain('suspect-top')
-    expect(capped[0].resource.title).toBe('suspect-top')
-  })
-
-  it('guarantees a healthy alternative a slot instead of all-suspect crowding', () => {
-    // Top-2 by relevance are both suspect; a healthy one sits just below the cut.
-    const suspect1 = makeResource({ title: 's1', suspect: true })
-    const suspect2 = makeResource({ title: 's2', suspect: true })
-    const healthy = makeResource({ title: 'h', suspect: false })
-    const pool = [cand(suspect1, 10), cand(suspect2, 9), cand(healthy, 8)]
-
-    // limit 2, reserve 1 healthy: the weakest suspect (s2) is swapped for healthy.
-    const capped = capCandidates(pool, 2, 1)
-    const titles = capped.map((c) => c.resource.title)
-    expect(titles).toContain('s1') // strongest suspect preserved
-    expect(titles).toContain('h') // healthy alternative guaranteed a slot
-    expect(titles).not.toContain('s2') // weakest suspect swapped out
-  })
-
-  it('does not swap when there are no healthy alternatives below the cut', () => {
-    const s1 = makeResource({ title: 's1', suspect: true })
-    const s2 = makeResource({ title: 's2', suspect: true })
-    const s3 = makeResource({ title: 's3', suspect: true })
-    const pool = [cand(s1, 10), cand(s2, 9), cand(s3, 8)]
-    const capped = capCandidates(pool, 2, 2)
-    expect(capped.map((c) => c.resource.title)).toEqual(['s1', 's2'])
-  })
-})
-
 // ── assemble ──────────────────────────────────────────────────────────────────
 
 describe('assemble', () => {
@@ -112,7 +46,6 @@ describe('assemble', () => {
     expect(ctx.card).toBe(emptyCard)
     expect(ctx.candidates.length).toBeGreaterThanOrEqual(1)
     expect(ctx.candidates[0].resource.title).toBe('mesh latency')
-    expect(ctx.candidates[0].healthy).toBe(true)
   })
 
   it('never exceeds the hard cap even with a large corpus', async () => {
@@ -123,10 +56,15 @@ describe('assemble', () => {
     expect(ctx.candidates.length).toBeLessThanOrEqual(5)
   })
 
-  it('marks suspect candidates as not healthy', async () => {
-    const corpus = [makeResource({ title: 'mesh latency', service: 'mesh', suspect: true })]
-    const ctx = await assemble('mesh latency', emptyCard, corpus, {})
-    expect(ctx.candidates[0].healthy).toBe(false)
+  it('caps a large retrieved pool to the limit, best-first', async () => {
+    const corpus = Array.from({ length: 12 }, (_, i) =>
+      makeResource({ title: `latency dashboard ${i}`, service: 'svc' })
+    )
+    const ctx = await assemble('latency', emptyCard, corpus, { limit: 3, poolSize: 10 })
+    expect(ctx.candidates).toHaveLength(3)
+    // Scores are non-increasing (best-first).
+    expect(ctx.candidates[0].score).toBeGreaterThanOrEqual(ctx.candidates[1].score)
+    expect(ctx.candidates[1].score).toBeGreaterThanOrEqual(ctx.candidates[2].score)
   })
 
   it('returns no candidates for an unmatched question (feeds negative handling)', async () => {

@@ -17,20 +17,8 @@ import {
   updateResource,
   deleteResource,
   restoreResource,
-  markResourceUsed,
-  markResourceSuspect,
-  recordResolution,
   getProjectCard,
   upsertProjectCard,
-  listMcpServers,
-  listMcpServerSummaries,
-  getMcpServer,
-  upsertMcpServer,
-  updateMcpServer,
-  deleteMcpServer,
-  restoreMcpServer,
-  connectResourceToServer,
-  disconnectResource,
 } from './registry'
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
@@ -62,15 +50,12 @@ describe('createResource', () => {
     expect(r.kind).toBe('link')
     expect(r.source).toBe('generic')
     expect(r.provenance).toBe('manual')
-    expect(r.confidence).toBeCloseTo(0.5)
-    expect(r.suspect).toBe(false)
-    expect(r.validationState).toBe('unverified')
     expect(r.aliases).toEqual([])
     expect(r.tags).toEqual({})
     expect(r.url).toBeNull()
   })
 
-  it('round-trips arrays, maps, and executable metadata', () => {
+  it('round-trips arrays, maps, and link metadata', () => {
     const pid = seedProject()
     const r = createResource(pid, {
       title: 'p99 latency',
@@ -81,9 +66,6 @@ describe('createResource', () => {
       tags: { cluster: 'us-east', system: 'payments' },
       aliases: ['mesh latency', 'p99'],
       url: 'https://example.test/dash',
-      mcpServer: 'dd-1',
-      toolName: 'query_metric',
-      toolArgs: { metric: 'trace.http.request', agg: 'avg' },
       externalRef: 'dash-123',
       provenance: 'captured',
     })
@@ -91,8 +73,7 @@ describe('createResource', () => {
     expect(fetched).not.toBeNull()
     expect(fetched?.tags).toEqual({ cluster: 'us-east', system: 'payments' })
     expect(fetched?.aliases).toEqual(['mesh latency', 'p99'])
-    expect(fetched?.toolArgs).toEqual({ metric: 'trace.http.request', agg: 'avg' })
-    expect(fetched?.mcpServer).toBe('dd-1')
+    expect(fetched?.url).toBe('https://example.test/dash')
     expect(fetched?.externalRef).toBe('dash-123')
     expect(fetched?.provenance).toBe('captured')
   })
@@ -142,119 +123,31 @@ describe('updateResource', () => {
     expect(updated.description).toBe('keep')
   })
 
-  it('can clear url and toolArgs by passing null', () => {
+  it('can clear url by passing null', () => {
     const pid = seedProject()
-    const r = createResource(pid, { title: 'X', url: 'https://x.test', toolArgs: { a: 1 } })
-    const updated = updateResource(r.id, { url: null, toolArgs: null })
+    const r = createResource(pid, { title: 'X', url: 'https://x.test' })
+    const updated = updateResource(r.id, { url: null })
     expect(updated.url).toBeNull()
-    expect(updated.toolArgs).toBeNull()
   })
 
   it('throws for a missing record', () => {
     expect(() => updateResource(9999, { title: 'Nope' })).toThrow(/not found/)
   })
 
-  it('normalizes whitespace on write (trims fields, empty wiring -> null)', () => {
+  it('normalizes whitespace on write (trims fields, whitespace-only url -> null)', () => {
     const pid = seedProject()
     const r = createResource(pid, {
       title: 'X',
       source: '  datadog  ',
       service: ' checkout ',
-      mcpServer: '  dd-1  ',
-      toolName: '  query  ',
       url: '   ',
     })
     expect(r.source).toBe('datadog')
     expect(r.service).toBe('checkout')
-    expect(r.mcpServer).toBe('dd-1')
-    expect(r.toolName).toBe('query')
     expect(r.url).toBeNull() // whitespace-only -> null
 
-    const updated = updateResource(r.id, { source: '  splunk  ', mcpServer: '   ' })
+    const updated = updateResource(r.id, { source: '  splunk  ' })
     expect(updated.source).toBe('splunk')
-    expect(updated.mcpServer).toBeNull() // whitespace-only -> null
-  })
-})
-
-// ── health mutators ───────────────────────────────────────────────────────────
-
-describe('markResourceUsed', () => {
-  it('bumps confidence, clears suspect, and sets valid when verified', () => {
-    const pid = seedProject()
-    const r = createResource(pid, { title: 'Q' })
-    markResourceSuspect(r.id, 'invalid', 'ERR', 'boom')
-    expect(getResource(r.id)?.suspect).toBe(true)
-
-    markResourceUsed(r.id, true)
-    const after = getResource(r.id)
-    expect(after?.suspect).toBe(false)
-    expect(after?.failureCount).toBe(0)
-    expect(after?.validationState).toBe('valid')
-    expect(after?.lastUsed).not.toBeNull()
-    expect(after?.lastVerified).not.toBeNull()
-    expect(after?.confidence ?? 0).toBeGreaterThan(0.3)
-  })
-
-  it('does not set lastVerified when not verified', () => {
-    const pid = seedProject()
-    const r = createResource(pid, { title: 'Q' })
-    markResourceUsed(r.id, false)
-    expect(getResource(r.id)?.lastVerified).toBeNull()
-    expect(getResource(r.id)?.lastUsed).not.toBeNull()
-  })
-
-  it('an UNVERIFIED use does NOT heal a suspect record', () => {
-    const pid = seedProject()
-    const r = createResource(pid, { title: 'Q' })
-    markResourceSuspect(r.id, 'invalid', 'ERR', 'boom')
-    markResourceUsed(r.id, false) // cited but not actually read
-    const after = getResource(r.id)
-    expect(after?.suspect).toBe(true) // still suspect — never silently healed
-    expect(after?.validationState).toBe('invalid')
-    expect(after?.lastUsed).not.toBeNull()
-  })
-})
-
-describe('markResourceSuspect', () => {
-  it('sets suspect, increments failure_count, drops confidence, records error', () => {
-    const pid = seedProject()
-    const r = createResource(pid, { title: 'Bad' })
-    markResourceSuspect(r.id, 'no_data', 'NO_DATA', 'empty result')
-    const after = getResource(r.id)
-    expect(after?.suspect).toBe(true)
-    expect(after?.failureCount).toBe(1)
-    expect(after?.validationState).toBe('no_data')
-    expect(after?.lastErrorCode).toBe('NO_DATA')
-    expect(after?.confidence ?? 1).toBeLessThan(0.5)
-  })
-
-  it('clamps confidence at zero across repeated failures', () => {
-    const pid = seedProject()
-    const r = createResource(pid, { title: 'Bad' })
-    for (let i = 0; i < 10; i++) markResourceSuspect(r.id, 'invalid', null, null)
-    expect(getResource(r.id)?.confidence).toBe(0)
-  })
-})
-
-// ── resolution log ────────────────────────────────────────────────────────────
-
-describe('recordResolution', () => {
-  it('appends a row with a failure class', () => {
-    const pid = seedProject()
-    const r = createResource(pid, { title: 'Q' })
-    recordResolution({
-      projectId: pid,
-      resourceId: r.id,
-      question: 'how is latency?',
-      verdict: 'confident',
-      citedResourceId: r.id,
-      answer: 'p99 240ms',
-      failureClass: null,
-    })
-    const count = db
-      .query('SELECT COUNT(*) AS n FROM resource_resolutions WHERE project_id = ?')
-      .get(pid) as { n: number }
-    expect(count.n).toBe(1)
   })
 })
 
@@ -287,147 +180,19 @@ describe('project card', () => {
   })
 })
 
-// ── MCP servers ───────────────────────────────────────────────────────────────
-
-describe('MCP servers', () => {
-  it('upserts, lists, gets, and deletes', () => {
-    const pid = seedProject()
-    upsertMcpServer(pid, 'dd-1', {
-      label: 'Datadog',
-      config: { command: 'datadog-mcp', args: ['--stdio'], env: { DD_KEY: 'x' } },
-    })
-    expect(listMcpServers(pid)).toHaveLength(1)
-    expect(getMcpServer('dd-1')?.config.command).toBe('datadog-mcp')
-
-    // update in place (same id)
-    upsertMcpServer(pid, 'dd-1', {
-      label: 'Datadog prod',
-      config: { command: 'datadog-mcp', args: [], env: {} },
-    })
-    expect(listMcpServers(pid)).toHaveLength(1)
-    expect(getMcpServer('dd-1')?.label).toBe('Datadog prod')
-
-    deleteMcpServer(pid, 'dd-1')
-    expect(listMcpServers(pid)).toHaveLength(0)
-    expect(getMcpServer('dd-1')).toBeNull()
-  })
-
-  it('soft-deletes (preserving resource links), is project-scoped, and restores losslessly', () => {
-    const a = seedProject('A')
-    const b = seedProject('B')
-    upsertMcpServer(a, 'srv', { label: 'S', config: { command: 'x', args: [], env: {} } })
-    const r = createResource(a, { title: 'Q', mcpServer: 'srv', toolName: 'query' })
-
-    // A delete scoped to the wrong project is a no-op.
-    deleteMcpServer(b, 'srv')
-    expect(getMcpServer('srv')).not.toBeNull()
-
-    // Correct project: the server reads as gone (so resolves degrade to no live
-    // value), but the resource link is PRESERVED so the delete is undoable.
-    deleteMcpServer(a, 'srv')
-    expect(getMcpServer('srv')).toBeNull()
-    expect(listMcpServers(a)).toHaveLength(0)
-    expect(getResource(r.id)?.mcpServer).toBe('srv')
-
-    // Restore brings the server back with the link intact — lossless undo.
-    restoreMcpServer(a, 'srv')
-    expect(getMcpServer('srv')).not.toBeNull()
-    expect(getResource(r.id)?.mcpServer).toBe('srv')
-  })
-
-  it('rejects a cross-project upsert of an existing server id', () => {
-    const a = seedProject('A')
-    const b = seedProject('B')
-    upsertMcpServer(a, 'shared-id', { label: 'A', config: { command: 'x', args: [], env: {} } })
-    expect(() => upsertMcpServer(b, 'shared-id', { label: 'B', config: { command: 'y', args: [], env: {} } })).toThrow(
-      /another project/
-    )
-  })
-})
-
-describe('MCP server summaries + patch merge + wiring', () => {
-  it('summaries redact env values but keep the key names', () => {
-    const pid = seedProject()
-    upsertMcpServer(pid, 's', {
-      label: 'S',
-      config: { command: 'dd', args: ['--stdio'], env: { DD_KEY: 'secret', DD_APP: 'secret2' } },
-    })
-    const [summary] = listMcpServerSummaries(pid)
-    expect(summary).toMatchObject({ id: 's', label: 'S', command: 'dd', args: ['--stdio'] })
-    expect(summary.envKeys.sort()).toEqual(['DD_APP', 'DD_KEY'])
-    // The serialized summary must not contain any secret value.
-    expect(JSON.stringify(summary)).not.toContain('secret')
-  })
-
-  it('updateMcpServer merges env one-way (set/replace, delete, preserve)', () => {
-    const pid = seedProject()
-    upsertMcpServer(pid, 's', {
-      label: 'S',
-      config: { command: 'c', args: [], env: { KEEP: 'k', REPLACE: 'old', DROP: 'd' } },
-    })
-    updateMcpServer(pid, 's', {
-      label: 'S2',
-      envSet: { REPLACE: 'new', ADDED: 'a' },
-      envDelete: ['DROP'],
-    })
-    const server = getMcpServer('s')
-    expect(server?.label).toBe('S2')
-    expect(server?.config.env).toEqual({ KEEP: 'k', REPLACE: 'new', ADDED: 'a' })
-  })
-
-  it('updateMcpServer preserves command/args when omitted', () => {
-    const pid = seedProject()
-    upsertMcpServer(pid, 's', { label: 'S', config: { command: 'c', args: ['--x'], env: {} } })
-    updateMcpServer(pid, 's', { label: 'S2', envSet: {}, envDelete: [] })
-    const server = getMcpServer('s')
-    expect(server?.config.command).toBe('c')
-    expect(server?.config.args).toEqual(['--x'])
-  })
-
-  it('connectResourceToServer wires a resource and rejects a cross-project server', () => {
-    const a = seedProject('A')
-    const b = seedProject('B')
-    upsertMcpServer(a, 'srv-a', { label: 'A', config: { command: 'x', args: [], env: {} } })
-    upsertMcpServer(b, 'srv-b', { label: 'B', config: { command: 'x', args: [], env: {} } })
-    const r = createResource(a, { title: 'Checkout' })
-
-    const wired = connectResourceToServer(r.id, 'srv-a', 'query', { metric: 'p99' })
-    expect(wired.mcpServer).toBe('srv-a')
-    expect(wired.toolName).toBe('query')
-    expect(wired.toolArgs).toEqual({ metric: 'p99' })
-
-    expect(() => connectResourceToServer(r.id, 'srv-b', 'query', {})).toThrow(/another project/)
-    expect(() => connectResourceToServer(r.id, 'missing', 'query', {})).toThrow(/not found/)
-  })
-
-  it('disconnectResource clears the wiring', () => {
-    const pid = seedProject()
-    upsertMcpServer(pid, 'srv', { label: 'S', config: { command: 'x', args: [], env: {} } })
-    const r = createResource(pid, { title: 'Checkout' })
-    connectResourceToServer(r.id, 'srv', 'query', {})
-    const cleared = disconnectResource(r.id)
-    expect(cleared.mcpServer).toBeNull()
-    expect(cleared.toolName).toBeNull()
-    expect(cleared.toolArgs).toBeNull()
-  })
-})
-
 // ── cascade on project delete ─────────────────────────────────────────────────
 
 describe('cascade', () => {
-  it('hard-deleting a project cascades resources/cards/servers', () => {
+  it('hard-deleting a project cascades resources/cards', () => {
     const pid = seedProject()
     createResource(pid, { title: 'R' })
     upsertProjectCard(pid, { purpose: 'p' })
-    upsertMcpServer(pid, 's1', { label: 'S', config: { command: 'x', args: [], env: {} } })
 
     db.query('DELETE FROM projects WHERE id = ?').run(pid)
 
     const rCount = db.query('SELECT COUNT(*) AS n FROM resources WHERE project_id = ?').get(pid) as { n: number }
     const cCount = db.query('SELECT COUNT(*) AS n FROM project_cards WHERE project_id = ?').get(pid) as { n: number }
-    const sCount = db.query('SELECT COUNT(*) AS n FROM project_mcp_servers WHERE project_id = ?').get(pid) as { n: number }
     expect(rCount.n).toBe(0)
     expect(cCount.n).toBe(0)
-    expect(sCount.n).toBe(0)
   })
 })
