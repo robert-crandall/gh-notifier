@@ -167,10 +167,15 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
       setInboxTodos((prev) => prev.filter((t) => t.id !== todo.id))
       onAssigned()
       showUndo('Marked done', () => {
-        void window.electron.ipc.invoke('todos:update', todo.id, { done: false }).then(() => {
-          onAssigned()
-          return loadTodos()
-        })
+        void (async () => {
+          try {
+            await window.electron.ipc.invoke('todos:update', todo.id, { done: false })
+            onAssigned()
+            await loadTodos()
+          } catch (err) {
+            console.error('[Inbox] Undo mark-done failed:', err)
+          }
+        })()
       })
     } catch (err) {
       console.error('[Inbox] Mark todo done failed:', err)
@@ -184,10 +189,15 @@ export function InboxView({ onAssigned, showUndo }: InboxViewProps): JSX.Element
       setInboxTodos((prev) => prev.filter((t) => t.id !== todo.id))
       onAssigned()
       showUndo('Todo dismissed', () => {
-        void window.electron.ipc.invoke('todos:restore', todo.id).then(() => {
-          onAssigned()
-          return loadTodos()
-        })
+        void (async () => {
+          try {
+            await window.electron.ipc.invoke('todos:restore', todo.id)
+            onAssigned()
+            await loadTodos()
+          } catch (err) {
+            console.error('[Inbox] Undo dismiss failed:', err)
+          }
+        })()
       })
     } catch (err) {
       console.error('[Inbox] Dismiss todo failed:', err)

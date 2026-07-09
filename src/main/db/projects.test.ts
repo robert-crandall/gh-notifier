@@ -140,12 +140,18 @@ describe('toTodo', () => {
     expect(todo.idempotencyKey).toBe('abc')
   })
 
-  it('degrades a corrupt suggested_action blob to null', () => {
-    const row = {
-      id: 1, project_id: 1 as number | null, text: 'T', done: 0 as number, sort_order: 0,
-      created_at: '', ...baseRow, suggested_action: '{not json',
-    }
-    expect(toTodo(row).suggestedAction).toBeNull()
+  it('degrades a corrupt or partial suggested_action blob to null', () => {
+    const mk = (blob: string): ReturnType<typeof toTodo>['suggestedAction'] =>
+      toTodo({
+        id: 1, project_id: 1 as number | null, text: 'T', done: 0 as number, sort_order: 0,
+        created_at: '', ...baseRow, suggested_action: blob,
+      }).suggestedAction
+    expect(mk('{not json')).toBeNull() // unparseable
+    expect(mk('{"kind":"delegate"}')).toBeNull() // missing prompt
+    expect(mk('{"kind":"pr_comment","url":"https://e.com/1"}')).toBeNull() // missing comment
+    expect(mk('{"kind":"open_url","url":123}')).toBeNull() // url not a string
+    expect(mk('{"kind":"mystery","url":"https://e.com"}')).toBeNull() // unknown kind
+    expect(mk('{"kind":"open_url","url":"https://e.com/1"}')).toEqual({ kind: 'open_url', url: 'https://e.com/1' })
   })
 
   it('converts done integer 1 to boolean true', () => {

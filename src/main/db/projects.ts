@@ -94,20 +94,31 @@ function driftStateForRow(row: ProjectRow, now: Date): DriftState {
 }
 
 /**
- * Parse the stored `suggested_action` JSON back into a typed union. We wrote this value,
- * so we trust its shape but guard against corruption/legacy nulls — a bad blob degrades to
- * `null` (no action affordance) rather than throwing.
+ * Parse the stored `suggested_action` JSON back into a typed union. We wrote this value, so it
+ * is normally well-formed, but this is the boundary where stored data re-enters the domain, so
+ * validate per-kind (required string fields) and degrade a corrupt/partial blob to `null` (no
+ * action affordance) rather than letting `undefined` fields leak into the UI.
  */
 function parseSuggestedAction(raw: string | null): SuggestedAction | null {
   if (raw === null) return null
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(raw)
-    if (parsed !== null && typeof parsed === 'object' && 'kind' in parsed) {
-      return parsed as SuggestedAction
-    }
-    return null
+    parsed = JSON.parse(raw)
   } catch {
     return null
+  }
+  if (parsed === null || typeof parsed !== 'object') return null
+  const obj = parsed as Record<string, unknown>
+  const str = (v: unknown): v is string => typeof v === 'string' && v.length > 0
+  switch (obj.kind) {
+    case 'pr_comment':
+      return str(obj.url) && str(obj.comment) ? { kind: 'pr_comment', url: obj.url, comment: obj.comment } : null
+    case 'delegate':
+      return str(obj.prompt) ? { kind: 'delegate', prompt: obj.prompt } : null
+    case 'open_url':
+      return str(obj.url) ? { kind: 'open_url', url: obj.url } : null
+    default:
+      return null
   }
 }
 
