@@ -182,7 +182,9 @@ function TodosPanel({
           </button>
         </div>
       ))}
-      {visible.length === 0 && filter === 'copilot' && <div className={styles.empty}>No Copilot todos yet.</div>}
+      {visible.length === 0 && filter === 'copilot' && detail.todos.length > 0 && (
+        <div className={styles.empty}>No Copilot todos yet.</div>
+      )}
       {detail.todos.length === 0 && <div className={styles.empty}>No todos yet. Add the first one above.</div>}
     </div>
   )
