@@ -7,7 +7,8 @@
   "//modelcontextprotocol-sdk": "@modelcontextprotocol/sdk is intentionally kept though currently unused: the app-as-MCP-client path was removed in #99, but the inbound MCP *server* (a later issue in epic #98) depends on it.",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "bun run build:shim && electron-vite build",
+    "build:shim": "bun build src/main/mcp-server/shim/entry.ts --target=node --format=cjs --outfile build/mcp-shim.cjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint src",
     "test": "bun run typecheck && bun run lint && bun --bun run vitest run",
@@ -87,6 +88,10 @@
       {
         "from": ".model-cache",
         "to": "model-cache"
+      },
+      {
+        "from": "build/mcp-shim.cjs",
+        "to": "mcp-shim.cjs"
       }
     ],
     "files": [
