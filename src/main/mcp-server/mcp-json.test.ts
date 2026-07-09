@@ -97,6 +97,19 @@ describe('enableMcpJsonEntry', () => {
     // Original content untouched.
     expect(readFileSync(path, 'utf8')).toBe('{ not valid json')
   })
+
+  it('throws (does not clobber) when mcpServers is a non-object (array)', () => {
+    const path = tempConfigPath()
+    writeFileSync(path, JSON.stringify({ mcpServers: ['bogus'] }))
+    expect(() => enableMcpJsonEntry(command, path)).toThrow(/mcpServers/)
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ mcpServers: ['bogus'] })
+  })
+
+  it('throws when the top-level config is a JSON array', () => {
+    const path = tempConfigPath()
+    writeFileSync(path, JSON.stringify(['nope']))
+    expect(() => enableMcpJsonEntry(command, path)).toThrow(/not a JSON object/)
+  })
 })
 
 describe('disableMcpJsonEntry', () => {

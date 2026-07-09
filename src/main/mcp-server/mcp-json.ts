@@ -41,9 +41,20 @@ interface McpConfig {
   [key: string]: unknown
 }
 
+/** True for a plain (non-array, non-null) object. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 /**
  * Read + parse the config. Returns null when the file is absent. THROWS when the
  * file exists but can't be read or parsed — so a corrupt file is never clobbered.
+ *
+ * NOTE: this is a read-modify-write against a file another process/user could also
+ * edit. The temp-file + rename makes each write atomic (never a partial file), but
+ * a concurrent external edit in the window between read and rename could be lost.
+ * In practice the app is the only writer of OUR entry and edits are rare, so we
+ * accept that rather than take a lock.
  */
 function readConfig(path: string): McpConfig | null {
   let raw: string
@@ -60,10 +71,15 @@ function readConfig(path: string): McpConfig | null {
   } catch {
     throw new Error(`~/.mcp.json exists but is not valid JSON; refusing to overwrite: ${path}`)
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  if (!isPlainObject(parsed)) {
     throw new Error(`~/.mcp.json is not a JSON object; refusing to overwrite: ${path}`)
   }
-  return parsed as McpConfig
+  const config = parsed as McpConfig
+  // A malformed `mcpServers` (e.g. an array) would silently drop on re-serialize.
+  if (config.mcpServers !== undefined && !isPlainObject(config.mcpServers)) {
+    throw new Error(`~/.mcp.json has a non-object "mcpServers"; refusing to overwrite: ${path}`)
+  }
+  return config
 }
 
 /** Atomically write the config, preserving the file's mode (0600 for a new file). */

@@ -178,8 +178,17 @@ export function startMcpServer(options: StartMcpServerOptions = {}): Promise<Mcp
     httpServer.on('error', reject)
     httpServer.listen(0, '127.0.0.1', () => {
       const port = (httpServer.address() as AddressInfo).port
-      // Publish run files only after listen() has succeeded.
-      writeRunFiles({ port, token }, dir)
+      // Publish run files only after listen() has succeeded. If publication fails
+      // (unwritable dir, disk error, …), tear the server back down and reject the
+      // start — never leave a listening server without discoverable run files.
+      try {
+        writeRunFiles({ port, token }, dir)
+      } catch (err) {
+        cleanupRunFiles(dir)
+        httpServer.close()
+        reject(err instanceof Error ? err : new Error(String(err)))
+        return
+      }
       let stopped = false
       resolve({
         port,

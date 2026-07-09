@@ -29,6 +29,24 @@ import { cleanupRunFiles } from './runfiles'
 
 let handle: McpServerHandle | null = null
 
+/**
+ * Serializes lifecycle transitions so concurrent enable/disable/shutdown calls
+ * (app-ready start racing an IPC toggle racing quit) can never overlap — which
+ * would otherwise start two servers, disable during an in-flight start, or write
+ * stale run files as the process exits. Each op runs strictly after the previous
+ * one settles; a failed op never poisons the chain.
+ */
+let chain: Promise<void> = Promise.resolve()
+
+function serialize(op: () => Promise<void>): Promise<void> {
+  const run = chain.then(op, op)
+  chain = run.then(
+    () => {},
+    () => {}
+  )
+  return run
+}
+
 /** Absolute path to the shipped, self-contained shim bundle. */
 export function shimPath(): string {
   // Packaged: extraResource at Contents/Resources/mcp-shim.cjs.
@@ -57,48 +75,54 @@ function extraSecrets(): readonly string[] {
 }
 
 /** Start the loopback server (if not already running) and register the shim. */
-export async function enableMcpServer(): Promise<void> {
-  if (handle === null) {
-    handle = await startMcpServer({ extraSecrets })
-  }
-  // Only register in ~/.mcp.json when the shim bundle actually exists, so we never
-  // point Copilot at a missing command (e.g. in dev before `bun run build:shim`).
-  const path = shimPath()
-  if (!existsSync(path)) {
-    console.warn(`[mcp] shim bundle missing at ${path}; skipping ~/.mcp.json registration`)
-    return
-  }
-  try {
-    enableMcpJsonEntry(buildShimCommand())
-  } catch (err) {
-    // A corrupt ~/.mcp.json must not take down app startup.
-    console.error('[mcp] failed to register shim in ~/.mcp.json:', err instanceof Error ? err.message : 'error')
-  }
+export function enableMcpServer(): Promise<void> {
+  return serialize(async () => {
+    if (handle === null) {
+      handle = await startMcpServer({ extraSecrets })
+    }
+    // Only register in ~/.mcp.json when the shim bundle actually exists, so we
+    // never point Copilot at a missing command (e.g. in dev before build:shim).
+    const path = shimPath()
+    if (!existsSync(path)) {
+      console.warn(`[mcp] shim bundle missing at ${path}; skipping ~/.mcp.json registration`)
+      return
+    }
+    try {
+      enableMcpJsonEntry(buildShimCommand())
+    } catch (err) {
+      // A corrupt ~/.mcp.json must not take down app startup.
+      console.error('[mcp] failed to register shim in ~/.mcp.json:', err instanceof Error ? err.message : 'error')
+    }
+  })
 }
 
 /** Stop the server and remove our mcp.json entry (explicit user disable). */
-export async function disableMcpServer(): Promise<void> {
-  if (handle !== null) {
-    await handle.close()
-    handle = null
-  } else {
-    cleanupRunFiles()
-  }
-  try {
-    disableMcpJsonEntry()
-  } catch (err) {
-    console.error('[mcp] failed to remove shim from ~/.mcp.json:', err instanceof Error ? err.message : 'error')
-  }
+export function disableMcpServer(): Promise<void> {
+  return serialize(async () => {
+    if (handle !== null) {
+      await handle.close()
+      handle = null
+    } else {
+      cleanupRunFiles()
+    }
+    try {
+      disableMcpJsonEntry()
+    } catch (err) {
+      console.error('[mcp] failed to remove shim from ~/.mcp.json:', err instanceof Error ? err.message : 'error')
+    }
+  })
 }
 
 /** Stop the server on app quit. Leaves the mcp.json entry in place. */
-export async function shutdownMcpServer(): Promise<void> {
-  if (handle !== null) {
-    await handle.close()
-    handle = null
-  } else {
-    cleanupRunFiles()
-  }
+export function shutdownMcpServer(): Promise<void> {
+  return serialize(async () => {
+    if (handle !== null) {
+      await handle.close()
+      handle = null
+    } else {
+      cleanupRunFiles()
+    }
+  })
 }
 
 /** Test/inspection helper: is the loopback server currently running? */

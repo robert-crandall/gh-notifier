@@ -147,4 +147,32 @@ describe('shim proxy: tools/call (app down / stale)', () => {
       50
     )
   })
+
+  it('handles concurrent tool calls without cross-clobbering clients', async () => {
+    // Each call connects its own client; a slow one must not disrupt a fast one.
+    let created = 0
+    let closed = 0
+    const connect = async (): Promise<LoopbackClient> => {
+      created++
+      const id = created
+      return {
+        callTool: async () => ({ content: [{ type: 'text', text: `client-${id}` }] }),
+        close: async () => {
+          closed++
+        },
+      }
+    }
+    await withShim(connect, async (client) => {
+      const [a, b, c] = await Promise.all([
+        client.callTool({ name: PING_TOOL_NAME }) as Promise<CallToolResult>,
+        client.callTool({ name: PING_TOOL_NAME }) as Promise<CallToolResult>,
+        client.callTool({ name: PING_TOOL_NAME }) as Promise<CallToolResult>,
+      ])
+      // All three succeed with their own distinct client result.
+      for (const r of [a, b, c]) expect(r.isError).toBeFalsy()
+    })
+    // Every connected client was closed (no leaks).
+    expect(closed).toBe(created)
+    expect(created).toBe(3)
+  })
 })

@@ -75,65 +75,52 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 /**
- * Holds the (lazily connected) loopback client and implements reread+retry-once.
- * Every failure disposes the client so the next attempt reconnects with fresh
- * run-file values — this is what heals app restarts and token rotation.
+ * Forward one `tools/call` to the loopback with reread+retry-once. A FRESH
+ * loopback client is connected per attempt (and closed after), so there is no
+ * shared mutable client — concurrent calls can't clobber or cross-dispose each
+ * other, and a dead client is never reused. `connect()` re-reads the run files
+ * every time, which is what heals app restarts and token rotation.
+ *
+ * At most two attempts. On ANY thrown failure (connect refused/reset, timeout,
+ * 401/403 rotated token, 5xx startup/shutdown race, invalid/non-MCP response) the
+ * first attempt reconnects; the second gives up with a clean result. A tool that
+ * RESOLVES with `isError: true` is a legitimate response — returned as-is, no retry.
  */
-class LoopbackSession {
-  private client: LoopbackClient | null = null
-
-  constructor(
-    private readonly connect: () => Promise<LoopbackClient>,
-    private readonly timeoutMs: number
-  ) {}
-
-  async call(name: string, args: Record<string, unknown>): Promise<CallToolResult> {
-    // At most two attempts total (one retry). Any connect/transport failure
-    // disposes the client and counts as a failed attempt.
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      let client: LoopbackClient
-      try {
-        client = this.client ?? (await withTimeout(this.connect(), this.timeoutMs))
-        this.client = client
-      } catch {
-        this.client = null
-        if (attempt === 2) return appNotRunningResult()
-        continue
-      }
-      try {
-        return await withTimeout(client.callTool(name, args), this.timeoutMs)
-      } catch {
-        // Transport/auth/protocol failure (incl. non-2xx like 401/5xx): dispose
-        // and, on the first attempt, reconnect with fresh run-file values.
-        await this.dispose()
-        if (attempt === 2) return appNotRunningResult()
-      }
-    }
-    return appNotRunningResult()
-  }
-
-  async dispose(): Promise<void> {
-    const client = this.client
-    this.client = null
-    if (client !== null) {
-      try {
-        await client.close()
-      } catch {
-        /* best-effort */
+async function callViaLoopback(
+  connect: () => Promise<LoopbackClient>,
+  timeoutMs: number,
+  name: string,
+  args: Record<string, unknown>
+): Promise<CallToolResult> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    let client: LoopbackClient | null = null
+    try {
+      client = await withTimeout(connect(), timeoutMs)
+      return await withTimeout(client.callTool(name, args), timeoutMs)
+    } catch {
+      if (attempt === 2) return appNotRunningResult()
+      // else: fall through to a second attempt with a fresh connection.
+    } finally {
+      if (client !== null) {
+        try {
+          await client.close()
+        } catch {
+          /* best-effort */
+        }
       }
     }
   }
+  return appNotRunningResult()
 }
 
 /**
  * Build + connect the shim's MCP server over the given stdio transport. Returns
- * the connected `Server` plus a `close()` that tears down both the server and any
- * live loopback client.
+ * the connected `Server` plus a `close()` that tears down the server.
  */
 export async function runShimProxy(
   deps: ShimProxyDeps
 ): Promise<{ server: Server; close: () => Promise<void> }> {
-  const session = new LoopbackSession(deps.connect, deps.timeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS)
+  const timeoutMs = deps.timeoutMs ?? DEFAULT_ATTEMPT_TIMEOUT_MS
   const server = new Server(
     { name: SHIM_NAME, version: SHIM_VERSION },
     { capabilities: { tools: {} } }
@@ -151,7 +138,7 @@ export async function runShimProxy(
   server.setRequestHandler(CallToolRequestSchema, (request): Promise<CallToolResult> => {
     const { name } = request.params
     const args = request.params.arguments ?? {}
-    return session.call(name, args)
+    return callViaLoopback(deps.connect, timeoutMs, name, args)
   })
 
   await server.connect(deps.transport)
@@ -159,7 +146,6 @@ export async function runShimProxy(
   return {
     server,
     close: async (): Promise<void> => {
-      await session.dispose()
       await server.close()
     },
   }
