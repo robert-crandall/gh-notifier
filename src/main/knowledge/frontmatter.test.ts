@@ -61,6 +61,14 @@ describe('parseKnowledge', () => {
     expect(frontmatter.service).toBeNull()
     expect(body).toBe(raw)
   })
+
+  it('parses CRLF (\\r\\n) frontmatter', () => {
+    const raw = '---\r\nservice: web\r\nenv: prod\r\n---\r\n\r\nbody line\r\n'
+    const { frontmatter, body } = parseKnowledge(raw)
+    expect(frontmatter.service).toBe('web')
+    expect(frontmatter.env).toBe('prod')
+    expect(body).toContain('body line')
+  })
 })
 
 describe('emitKnowledge', () => {

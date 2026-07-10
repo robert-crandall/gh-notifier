@@ -73,18 +73,18 @@ export function runReadServiceKnowledge(args: Record<string, unknown>): CallTool
       const blocks: string[] = [res.knowledge.markdown]
       if (args.includeResources === true) {
         const project = optionalString(args.project)
-        let projectId: number | undefined
-        let note = ''
         if (project !== null) {
           const id = resolveProjectIdByName(project)
           if (id === null) {
-            note = `\n\n_(No active project named "${project}"; listing resources across all projects.)_`
+            // An explicit-but-unknown project must NOT broaden to every project
+            // (that would leak unrelated resources); report it and list nothing.
+            blocks.push(`_(No active project named "${project}"; no linked resources shown.)_`)
           } else {
-            projectId = id
+            blocks.push(formatResources(listResourcesByService(res.knowledge.service, id), true))
           }
+        } else {
+          blocks.push(formatResources(listResourcesByService(res.knowledge.service), false))
         }
-        const resources = listResourcesByService(res.knowledge.service, projectId)
-        blocks.push(`${formatResources(resources, projectId !== undefined)}${note}`)
       }
       return { content: blocks.map((text) => ({ type: 'text', text })) }
     }

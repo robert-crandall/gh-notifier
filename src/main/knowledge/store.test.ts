@@ -124,6 +124,16 @@ describe('size bounds', () => {
     expect(existsSync(join(dir, 'web.md'))).toBe(false)
   })
 
+  it('rejects a write whose stamped content would exceed the cap (final-size check)', async () => {
+    const dir = freshDir()
+    // Body is exactly at the cap; stamped frontmatter pushes the final file over,
+    // so the read path would otherwise reject it — the write must fail first.
+    const body = 'x'.repeat(KNOWLEDGE_MAX_BYTES)
+    const w = await writeServiceKnowledge({ service: 'web', markdown: body }, dir)
+    expect(w.status).toBe('too_large')
+    expect(existsSync(join(dir, 'web.md'))).toBe(false)
+  })
+
   it('reports too_large for a hand-edited oversized file instead of truncating', () => {
     const dir = freshDir()
     writeFileSync(join(dir, 'web.md'), 'x'.repeat(KNOWLEDGE_MAX_BYTES + 1))

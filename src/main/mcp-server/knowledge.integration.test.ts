@@ -20,7 +20,7 @@ vi.mock('../db/index', () => ({ getDb: vi.fn() }))
 
 import { getDb } from '../db/index'
 import { runMigrations } from '../db/migrate'
-import { createProject } from '../db/projects'
+import { createProject, deleteProject } from '../db/projects'
 import { createResource } from '../context/registry'
 
 /**
@@ -166,5 +166,34 @@ describe('service-knowledge tools over the real loopback server', () => {
     expect(body).toContain('Prod latency dashboard')
     expect(body).toContain('Storefront') // project context is shown
     expect(body).toContain('https://app.datadoghq.com/dashboard/web-latency')
+  })
+
+  it('does not surface resources from a soft-deleted project', async () => {
+    const { handle, token } = await startServer()
+    const client = await connectClient(handle.port, token)
+
+    const project = createProject('Doomed')
+    createResource(project.id, { title: 'Old dashboard', service: 'web', url: 'https://example.com/old' })
+    await callWrite(client, { service: 'web', markdown: 'runbook' })
+    deleteProject(project.id)
+
+    const read = await callRead(client, { service: 'web', includeResources: true })
+    const body = textOf(read)
+    expect(body).not.toContain('Old dashboard')
+    expect(body).toMatch(/No saved resources match this service\./)
+  })
+
+  it('does not broaden to all projects when an explicit project is unknown', async () => {
+    const { handle, token } = await startServer()
+    const client = await connectClient(handle.port, token)
+
+    const project = createProject('Real')
+    createResource(project.id, { title: 'Real dashboard', service: 'web', url: 'https://example.com/real' })
+    await callWrite(client, { service: 'web', markdown: 'runbook' })
+
+    const read = await callRead(client, { service: 'web', includeResources: true, project: 'Nonexistent' })
+    const body = textOf(read)
+    expect(body).not.toContain('Real dashboard') // must not leak the other project's resource
+    expect(body).toMatch(/No active project named "Nonexistent"/)
   })
 })

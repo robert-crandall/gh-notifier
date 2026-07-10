@@ -285,6 +285,18 @@ export function writeServiceKnowledge(input: WriteInput, dir: string = knowledge
 
     const existingEnv = existing !== null ? parseKnowledge(existing.toString('utf8')).frontmatter.env : null
 
+    // Build the stamped content first: force service/source/updated_at; preserve
+    // env unless the incoming markdown explicitly supplies one. Re-check the FINAL
+    // size (stamped frontmatter adds bytes) so we never write a file the read path
+    // would then reject as too_large — and reject BEFORE taking a backup.
+    const parsedIncoming = parseKnowledge(markdown)
+    const env = parsedIncoming.frontmatter.env ?? existingEnv
+    const updatedAt = new Date().toISOString()
+    const frontmatter: KnowledgeFrontmatter = { service: key, env, updatedAt, source }
+    const content = emitKnowledge(frontmatter, parsedIncoming.body)
+    const finalBytes = Buffer.byteLength(content, 'utf8')
+    if (finalBytes > KNOWLEDGE_MAX_BYTES) return { status: 'too_large', service: key, size: finalBytes }
+
     // Recoverability: back up the prior version BEFORE overwriting. Abort on failure.
     let backedUp = false
     if (existing !== null) {
@@ -295,14 +307,6 @@ export function writeServiceKnowledge(input: WriteInput, dir: string = knowledge
         return { status: 'backup_failed', reason: err instanceof Error ? err.message : 'backup failed' }
       }
     }
-
-    // Build the stamped content. Force service/source/updated_at; preserve env
-    // unless the incoming markdown explicitly supplies one.
-    const parsedIncoming = parseKnowledge(markdown)
-    const env = parsedIncoming.frontmatter.env ?? existingEnv
-    const updatedAt = new Date().toISOString()
-    const frontmatter: KnowledgeFrontmatter = { service: key, env, updatedAt, source }
-    const content = emitKnowledge(frontmatter, parsedIncoming.body)
 
     atomicWriteFile(filePath, content)
     return { status: 'ok', service: key, path: filePath, backedUp, updatedAt }

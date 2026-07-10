@@ -153,7 +153,7 @@ export function listResourcesByService(service: string, projectId?: number): Ser
   let sql =
     'SELECT r.*, p.name AS project_name FROM resources r ' +
     'JOIN projects p ON p.id = r.project_id ' +
-    'WHERE r.deleted_at IS NULL AND lower(r.service) = ?'
+    'WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL AND lower(r.service) = ?'
   if (projectId !== undefined) {
     sql += ' AND r.project_id = ?'
     params.push(projectId)

@@ -75,7 +75,7 @@ export function parseKnowledge(raw: string): ParsedKnowledge {
   if (open === null) return { frontmatter: { ...EMPTY_FRONTMATTER }, body: raw }
 
   // Walk subsequent lines, collecting inner lines until the closing `---` fence.
-  const lineRe = /([^\n]*)(\r?\n|$)/g
+  const lineRe = /([^\r\n]*)(\r?\n|$)/g
   lineRe.lastIndex = open[0].length
   const innerLines: string[] = []
   let closeEnd = -1
