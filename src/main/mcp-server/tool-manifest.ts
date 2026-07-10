@@ -78,18 +78,39 @@ export const TOOL_MANIFEST: readonly ManifestTool[] = [
           description: 'Optional PR/issue URL (http/https). Shown as a clickable link and used for dedup.',
         },
         suggestedAction: {
-          type: 'object',
           description:
-            'Optional one-tap action hint. Advisory only — the app renders an affordance but never ' +
-            'performs a GitHub write automatically.',
-          properties: {
-            kind: { type: 'string', enum: ['pr_comment', 'delegate', 'open_url'] },
-            url: { type: 'string', description: 'Target URL for pr_comment / open_url (http/https).' },
-            comment: { type: 'string', description: 'Comment body for pr_comment.' },
-            prompt: { type: 'string', description: 'Prompt to hand Copilot for delegate.' },
-          },
-          required: ['kind'],
-          additionalProperties: false,
+            'Optional one-tap action hint. Advisory only - the app renders an affordance but never ' +
+            'performs a GitHub write automatically. Shape depends on `kind`.',
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                kind: { const: 'pr_comment' },
+                url: { type: 'string', description: 'PR/issue URL (http/https).' },
+                comment: { type: 'string', description: 'Comment body to propose.' },
+              },
+              required: ['kind', 'url', 'comment'],
+              additionalProperties: false,
+            },
+            {
+              type: 'object',
+              properties: {
+                kind: { const: 'delegate' },
+                prompt: { type: 'string', description: 'Prompt to hand Copilot.' },
+              },
+              required: ['kind', 'prompt'],
+              additionalProperties: false,
+            },
+            {
+              type: 'object',
+              properties: {
+                kind: { const: 'open_url' },
+                url: { type: 'string', description: 'URL to open (http/https).' },
+              },
+              required: ['kind', 'url'],
+              additionalProperties: false,
+            },
+          ],
         },
       },
       required: ['title'],

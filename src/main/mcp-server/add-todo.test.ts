@@ -14,6 +14,7 @@ import { runMigrations } from '../db/migrate'
 import { createProject, getProject, listInboxTodos } from '../db/projects'
 import { createRepoRule } from '../db/notifications'
 import { runAddTodo } from './add-todo'
+import { ADD_TODO_TOOL_NAME, findManifestTool } from './tool-manifest'
 
 let db: BunDb
 
@@ -55,6 +56,24 @@ describe('runAddTodo — validation', () => {
   it('rejects a pr_comment without a comment', () => {
     const r = runAddTodo({ title: 'x', suggestedAction: { kind: 'pr_comment', url: 'https://e.com/1' } })
     expect(r.isError).toBe(true)
+  })
+})
+
+describe('add_todo advertised schema matches the runtime contract', () => {
+  it('models suggestedAction as a per-kind oneOf with the same required fields the handler enforces', () => {
+    const tool = findManifestTool(ADD_TODO_TOOL_NAME)
+    expect(tool).toBeDefined()
+    const action = (tool?.inputSchema.properties?.suggestedAction ?? {}) as {
+      oneOf?: Array<{ properties?: Record<string, { const?: string }>; required?: string[] }>
+    }
+    expect(Array.isArray(action.oneOf)).toBe(true)
+    const byKind = new Map(
+      (action.oneOf ?? []).map((v) => [v.properties?.kind?.const, new Set(v.required ?? [])])
+    )
+    // Same required fields the handler rejects on when missing.
+    expect(byKind.get('pr_comment')).toEqual(new Set(['kind', 'url', 'comment']))
+    expect(byKind.get('delegate')).toEqual(new Set(['kind', 'prompt']))
+    expect(byKind.get('open_url')).toEqual(new Set(['kind', 'url']))
   })
 })
 
