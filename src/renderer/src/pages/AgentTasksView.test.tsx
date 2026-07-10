@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import type { CopilotSession, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
+import type { CopilotSession, Project, RepoRule, RepoRuleSuggestion } from '@shared/ipc-channels'
 import { AgentTasksView } from './AgentTasksView'
 
 const invoke = vi.fn()
@@ -32,12 +32,17 @@ const project: Project = {
   snoozeUntil: null, copilotStatus: null, lastFocusedAt: null, driftState: 'active',
 }
 
+// repo-rules:create resolves to the created RepoRule per the typed IPC contract.
+const createdRule: RepoRule = {
+  id: 7, repoOwner: 'o', repoName: 'r', projectId: 1, createdAt: '2026-07-10T00:00:00Z',
+}
+
 function mockInvoke(sessions: CopilotSession[], assignResult: RepoRuleSuggestion | null = null): void {
   invoke.mockImplementation((channel: string) => {
     if (channel === 'copilot:unassigned') return Promise.resolve(sessions)
     if (channel === 'projects:list') return Promise.resolve([project])
     if (channel === 'copilot:assign') return Promise.resolve(assignResult)
-    if (channel === 'repo-rules:create') return Promise.resolve(undefined)
+    if (channel === 'repo-rules:create') return Promise.resolve(createdRule)
     return Promise.resolve(undefined)
   })
 }
@@ -129,7 +134,7 @@ describe('AgentTasksView', () => {
       }
       if (channel === 'projects:list') return Promise.resolve([project])
       if (channel === 'copilot:assign') return Promise.resolve(_id === 'a' ? optInSuggestion : null)
-      if (channel === 'repo-rules:create') return Promise.resolve(undefined)
+      if (channel === 'repo-rules:create') return Promise.resolve(createdRule)
       return Promise.resolve(undefined)
     })
     render(<AgentTasksView />)
