@@ -183,6 +183,11 @@ describe('service-name safety (SECURITY)', () => {
     expect(knowledgeFilePathForService('../x', dir)).toBeNull()
     expect(knowledgeFilePathForService('web', dir)).toBe(join(dir, 'web.md'))
   })
+
+  it('resolves a valid path even for a root knowledge dir (no double-separator false block)', () => {
+    // Pure path computation, no filesystem access.
+    expect(knowledgeFilePathForService('web', '/')).toBe('/web.md')
+  })
 })
 
 describe('symlink refusal (SECURITY)', () => {

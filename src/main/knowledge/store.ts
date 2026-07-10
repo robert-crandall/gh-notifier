@@ -31,7 +31,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
 import { validateServiceName } from '../../shared/service-name'
 import type { KnowledgeFrontmatter } from './frontmatter'
 import { emitKnowledge, parseKnowledge } from './frontmatter'
@@ -80,9 +80,12 @@ export type WriteResult =
  */
 function safeServiceFilePath(dir: string, key: string): string | null {
   const base = resolve(dir)
+  // Compare the resolved path against a `join`-built expected path. `join` avoids
+  // double-separator edge cases (e.g. base === '/', where string concat would
+  // produce `//key.md`) while still rejecting any resolution that lands elsewhere.
+  const expected = join(base, `${key}.md`)
   const full = resolve(base, `${key}.md`)
-  if (full !== `${base}${sep}${key}.md`) return null
-  return full
+  return full === expected ? full : null
 }
 
 /**
