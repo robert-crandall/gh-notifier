@@ -87,19 +87,27 @@ function safeServiceFilePath(dir: string, key: string): string | null {
 
 /**
  * Classify the knowledge directory. `ok` = a real directory we may traverse;
- * `missing` = it doesn't exist (so any runbook is simply missing); `unsafe` = a
- * symlink or a non-directory, which could make `<key>.md` resolve outside the
- * intended tree. Every path-resolving caller (read, reveal, write via
- * ensureRealDir) applies this same boundary.
+ * `missing` = it genuinely doesn't exist (ENOENT), so any runbook is simply
+ * missing; `unsafe` = a symlink, a non-directory, or a dir we can't stat
+ * (permission/IO error) — anything we can't prove is a real traversable dir.
+ * Every path-resolving caller (read, reveal, write via ensureRealDir) applies
+ * this same boundary.
  */
 function knowledgeDirState(dir: string): 'ok' | 'missing' | 'unsafe' {
   let st: ReturnType<typeof lstatSync>
   try {
     st = lstatSync(dir)
-  } catch {
-    return 'missing'
+  } catch (err) {
+    // Only a genuinely absent dir is "missing"; a permission/IO error is unsafe
+    // (we can't prove the dir is a real, traversable directory).
+    return isEnoent(err) ? 'missing' : 'unsafe'
   }
   return st.isSymbolicLink() || !st.isDirectory() ? 'unsafe' : 'ok'
+}
+
+/** True when a thrown filesystem error is a "no such file/dir" (ENOENT). */
+function isEnoent(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'ENOENT'
 }
 
 /**
@@ -150,7 +158,7 @@ export function readServiceKnowledge(service: string, dir: string = knowledgeDir
   const dirState = knowledgeDirState(dir)
   if (dirState === 'missing') return { status: 'missing', service: key, path: filePath }
   if (dirState === 'unsafe') {
-    return { status: 'blocked', reason: 'Knowledge directory is a symlink or not a directory.' }
+    return { status: 'blocked', reason: 'Knowledge directory is a symlink, not a directory, or is unreadable.' }
   }
 
   let st: ReturnType<typeof lstatSync>
