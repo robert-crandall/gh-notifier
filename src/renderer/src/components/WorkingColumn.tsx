@@ -23,13 +23,15 @@ import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
 import { ResourcePanel } from './ResourcePanel'
 import { RunbooksPanel } from './RunbooksPanel'
+import { CopilotSessionsPanel } from './CopilotSessionsPanel'
 import { TodoSessionChip } from './TodoSessionChip'
 import { LinkifiedText } from './LinkifiedText'
+import { useCopilotSessions } from '../hooks/useCopilotSessions'
 import { fire, openExternal } from '../ipc'
 import { isSafeExternalUrl } from '@shared/safe-url'
 import styles from './WorkingColumn.module.css'
 
-type TabId = 'todos' | 'notes' | 'resources' | 'runbooks' | 'notifications'
+type TabId = 'todos' | 'notes' | 'resources' | 'runbooks' | 'notifications' | 'copilot'
 
 interface WorkingColumnProps {
   detail: ProjectDetail
@@ -295,15 +297,30 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
 ]
 
+const COPILOT_TAB: { id: TabId; label: string; icon: LucideIcon } = { id: 'copilot', label: 'Copilot', icon: Sparkles }
+
 export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
   const [tab, setTab] = useState<TabId>('todos')
   const notifCountRef = useRef(props.detail.unreadCount)
   notifCountRef.current = props.detail.unreadCount
 
+  const { rows: copilotRows, emptyIsAuthoritative } = useCopilotSessions(props.detail.id)
+
+  // Show the Copilot tab when the project has sessions (current or historical). Keep
+  // it while it's the active tab so a project-switch reload never leaves the panel
+  // showing with no matching tab button; snap back only once we're certain the
+  // project has no sessions (a clean, both-sources-succeeded empty).
+  const showCopilotTab = copilotRows.length > 0 || tab === 'copilot'
+  const tabs = showCopilotTab ? [...TABS, COPILOT_TAB] : TABS
+
+  useEffect(() => {
+    if (tab === 'copilot' && emptyIsAuthoritative) setTab('todos')
+  }, [tab, emptyIsAuthoritative])
+
   return (
     <div className={styles.column}>
       <div className={styles.tabs}>
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button type="button"
             key={t.id}
             className={styles.tab}
@@ -333,6 +350,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
         {tab === 'resources' && <ResourcePanel key={props.detail.id} projectId={props.detail.id} showUndo={props.showUndo} />}
         {tab === 'runbooks' && <RunbooksPanel key={props.detail.id} projectId={props.detail.id} />}
         {tab === 'notifications' && <NotificationsPanel projectId={props.detail.id} onDelegate={props.onDelegate} />}
+        {tab === 'copilot' && <CopilotSessionsPanel rows={copilotRows} emptyIsAuthoritative={emptyIsAuthoritative} />}
       </div>
     </div>
   )
