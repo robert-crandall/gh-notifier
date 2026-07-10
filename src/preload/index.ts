@@ -40,6 +40,11 @@ const api: ElectronApi = {
     const handler = () => callback()
     ipcRenderer.on('todos:updated', handler)
     return () => { ipcRenderer.removeListener('todos:updated', handler) }
+  },
+  onKnowledgeUpdated: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('knowledge:updated', handler)
+    return () => { ipcRenderer.removeListener('knowledge:updated', handler) }
   }
 }
 

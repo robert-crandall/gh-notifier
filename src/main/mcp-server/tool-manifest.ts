@@ -27,6 +27,12 @@ export interface ManifestTool {
   title?: string
   description: string
   inputSchema: JsonSchemaObject
+  /**
+   * Optional per-tool cap (chars) for scrubbed output leaves. Omitted = the
+   * default sanitize cap. Only tools whose output is legitimately large (reading
+   * a runbook) opt into a larger value; every other tool keeps the small default.
+   */
+  maxOutputLen?: number
 }
 
 /** The `ping` tool: no input, exercises the surface end-to-end. */
@@ -57,6 +63,19 @@ const PROJECT_REF_SCHEMA = {
   description:
     'Project reference: an exact project name (string) or a project id (integer) from list_projects.',
 }
+
+/** The `read_service_knowledge` tool: read a service's markdown runbook. */
+export const READ_SERVICE_KNOWLEDGE_TOOL_NAME = 'read_service_knowledge'
+
+/** The `write_service_knowledge` tool: write a service's markdown runbook (ungated). */
+export const WRITE_SERVICE_KNOWLEDGE_TOOL_NAME = 'write_service_knowledge'
+
+/**
+ * Output cap for `read_service_knowledge` (512 KiB). A runbook is bounded to
+ * 256 KiB on disk, so this comfortably fits the markdown plus any linked-resource
+ * listing while still bounding pathological output.
+ */
+export const READ_SERVICE_KNOWLEDGE_MAX_OUTPUT_LEN = 512 * 1024
 
 /** The full inbound tool surface. Order is the advertised order. */
 export const TOOL_MANIFEST: readonly ManifestTool[] = [
@@ -177,6 +196,65 @@ export const TOOL_MANIFEST: readonly ManifestTool[] = [
     inputSchema: {
       type: 'object',
       properties: { project: PROJECT_REF_SCHEMA },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: READ_SERVICE_KNOWLEDGE_TOOL_NAME,
+    title: 'Read service knowledge',
+    description:
+      'Read the human-editable markdown runbook for a service (how to check health, monitor ' +
+      'links, oncall notes). Reads fresh from disk, so any hand edits are always reflected. ' +
+      'The `service` is a slug like "payments-api" (lowercase letters/digits with "-", "_", "."). ' +
+      'Set `includeResources: true` to also list saved registry resources whose service matches, ' +
+      'so prose that references a dashboard/query by name resolves to its real link; optionally ' +
+      'scope those to one project with `project`. Returns a friendly note (not an error) when no ' +
+      'runbook exists yet.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          description: 'Service slug to read (e.g. "payments-api"). Required.',
+        },
+        includeResources: {
+          type: 'boolean',
+          description: 'When true, also list saved registry resources whose service matches (with their project + link).',
+        },
+        project: {
+          type: 'string',
+          description: 'Optional exact project name to scope the linked-resource listing to.',
+        },
+      },
+      required: ['service'],
+      additionalProperties: false,
+    },
+    maxOutputLen: READ_SERVICE_KNOWLEDGE_MAX_OUTPUT_LEN,
+  },
+  {
+    name: WRITE_SERVICE_KNOWLEDGE_TOOL_NAME,
+    title: 'Write service knowledge',
+    description:
+      'Create or overwrite the markdown runbook for a service. This writes STRAIGHT THROUGH ' +
+      '(ungated) — no approval step — but is recoverable: the prior version is backed up before ' +
+      'each overwrite. The tool stamps `service`, `updated_at`, and `source: copilot` into the ' +
+      'frontmatter and preserves a human-set `env`, so send `markdown` as the runbook body (with ' +
+      'or without frontmatter). The `service` is a slug like "payments-api". Prefer referencing ' +
+      'dashboards/queries by their saved resource name/alias in prose rather than pasting URLs ' +
+      'that rot. Reads are the way to see the current content before rewriting.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          description: 'Service slug to write (e.g. "payments-api"). Required.',
+        },
+        markdown: {
+          type: 'string',
+          description: 'The runbook markdown (body, optionally with frontmatter). Required. Frontmatter is re-stamped by the app.',
+        },
+      },
+      required: ['service', 'markdown'],
       additionalProperties: false,
     },
   },

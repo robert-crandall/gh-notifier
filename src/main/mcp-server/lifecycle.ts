@@ -86,11 +86,26 @@ function broadcastTodoChanged(): void {
   }
 }
 
+/**
+ * Push a `knowledge:updated` event to every renderer when the `write_service_knowledge` tool
+ * writes a runbook, so open project runbook surfaces reload live. Kept here (not in the tool)
+ * so the tool stays free of Electron/UI concerns.
+ */
+function broadcastKnowledgeChanged(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('knowledge:updated')
+  }
+}
+
 /** Start the loopback server (if not already running) and register the shim. */
 export function enableMcpServer(): Promise<void> {
   return serialize(async () => {
     if (handle === null) {
-      handle = await startMcpServer({ extraSecrets, onTodoChanged: broadcastTodoChanged })
+      handle = await startMcpServer({
+        extraSecrets,
+        onTodoChanged: broadcastTodoChanged,
+        onKnowledgeChanged: broadcastKnowledgeChanged,
+      })
     }
     // Only register in ~/.mcp.json when the shim bundle actually exists, so we
     // never point Copilot at a missing command (e.g. in dev before build:shim).

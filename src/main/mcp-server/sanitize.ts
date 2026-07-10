@@ -15,7 +15,7 @@
 const MIN_SECRET_LEN = 4
 
 /** Cap on any single sanitized string. */
-const MAX_TEXT_LEN = 2000
+export const MAX_TEXT_LEN = 2000
 
 /** Max recursion depth for `sanitizeMcpJson` (guards pathological structures). */
 const MAX_DEPTH = 24
@@ -23,32 +23,40 @@ const MAX_DEPTH = 24
 /**
  * Redact every known secret value from `message` and cap its length. `secrets`
  * is the list of raw secret strings to scrub (token, PAT, …); empty/short
- * entries are ignored.
+ * entries are ignored. `maxLen` defaults to `MAX_TEXT_LEN` (2000); tools whose
+ * output is legitimately large (e.g. reading a runbook) pass a larger cap.
+ * Secret redaction always runs BEFORE truncation.
  */
-export function sanitizeMcpText(message: string, secrets: readonly string[]): string {
+export function sanitizeMcpText(
+  message: string,
+  secrets: readonly string[],
+  maxLen: number = MAX_TEXT_LEN
+): string {
   let out = message
   for (const secret of secrets) {
     if (secret.length >= MIN_SECRET_LEN) out = out.split(secret).join('[redacted]')
   }
-  return out.length > MAX_TEXT_LEN ? `${out.slice(0, MAX_TEXT_LEN - 1)}…` : out
+  return out.length > maxLen ? `${out.slice(0, maxLen - 1)}…` : out
 }
 
 /**
  * Recursively scrub known secret values from every string leaf AND object KEY of
  * a JSON value. Depth-capped so a deeply nested structure can't blow the stack.
+ * `maxLen` bounds each scrubbed string leaf (default `MAX_TEXT_LEN`).
  */
 export function sanitizeMcpJson(
   value: unknown,
   secrets: readonly string[],
+  maxLen: number = MAX_TEXT_LEN,
   depth = 0
 ): unknown {
   if (depth > MAX_DEPTH) return undefined
-  if (typeof value === 'string') return sanitizeMcpText(value, secrets)
-  if (Array.isArray(value)) return value.map((v) => sanitizeMcpJson(v, secrets, depth + 1))
+  if (typeof value === 'string') return sanitizeMcpText(value, secrets, maxLen)
+  if (Array.isArray(value)) return value.map((v) => sanitizeMcpJson(v, secrets, maxLen, depth + 1))
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[sanitizeMcpText(k, secrets)] = sanitizeMcpJson(v, secrets, depth + 1)
+      out[sanitizeMcpText(k, secrets, maxLen)] = sanitizeMcpJson(v, secrets, maxLen, depth + 1)
     }
     return out
   }

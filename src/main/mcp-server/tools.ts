@@ -18,11 +18,16 @@ import {
   GET_REENTRY_DIGEST_TOOL_NAME,
   LIST_PROJECTS_TOOL_NAME,
   PING_TOOL_NAME,
+  READ_SERVICE_KNOWLEDGE_TOOL_NAME,
+  WRITE_SERVICE_KNOWLEDGE_TOOL_NAME,
   TOOL_MANIFEST,
+  findManifestTool,
 } from './tool-manifest'
-import { sanitizeMcpJson } from './sanitize'
+import { MAX_TEXT_LEN, sanitizeMcpJson } from './sanitize'
 import { runAddTodo } from './add-todo'
 import { runGetProjectContext, runGetReentryDigest, runListProjects } from './read-context'
+import { runReadServiceKnowledge } from './read-service-knowledge'
+import { runWriteServiceKnowledge } from './write-service-knowledge'
 
 /** Dependencies a tool handler may need. */
 export interface ToolDeps {
@@ -37,6 +42,12 @@ export interface ToolDeps {
    * and the shim can omit it.
    */
   onTodoChanged?: () => void
+  /**
+   * Fired after a tool successfully writes service knowledge (`write_service_knowledge`). The
+   * app uses this to push a `knowledge:updated` event so open project runbook surfaces reload
+   * live. Optional so tests and the shim can omit it.
+   */
+  onKnowledgeChanged?: () => void
 }
 
 /** A tool handler: validated args in, an MCP `CallToolResult` out. */
@@ -58,6 +69,12 @@ export function buildToolHandlers(deps: ToolDeps): Map<string, ToolHandler> {
   handlers.set(LIST_PROJECTS_TOOL_NAME, () => runListProjects())
   handlers.set(GET_PROJECT_CONTEXT_TOOL_NAME, (args) => runGetProjectContext(args))
   handlers.set(GET_REENTRY_DIGEST_TOOL_NAME, (args) => runGetReentryDigest(args))
+  handlers.set(READ_SERVICE_KNOWLEDGE_TOOL_NAME, (args) => runReadServiceKnowledge(args))
+  handlers.set(WRITE_SERVICE_KNOWLEDGE_TOOL_NAME, async (args) => {
+    const result = await runWriteServiceKnowledge(args)
+    if (result.isError !== true) deps.onKnowledgeChanged?.()
+    return result
+  })
   return handlers
 }
 
@@ -87,12 +104,15 @@ export function registerTools(server: Server, deps: ToolDeps): void {
     } catch (err) {
       // A tool handler that throws (e.g. a DB error) must surface as a clean isError result,
       // not a transport-level failure. Never echo the error detail — it could carry a secret
-      // or an internal path. (onTodoChanged lives inside the handler and only fires on a
-      // successful result, so a throw here never triggers it.)
+      // or an internal path. (onTodoChanged/onKnowledgeChanged live inside the handler and only
+      // fire on a successful result, so a throw here never triggers them.)
       console.error(`[mcp-server] tool "${name}" threw:`, err instanceof Error ? err.name : 'error')
       result = { content: [{ type: 'text', text: `Tool "${name}" failed.` }], isError: true }
     }
-    // Defense-in-depth: scrub any known secret that slipped into the output.
-    return sanitizeMcpJson(result, deps.getSecrets()) as CallToolResult
+    // Defense-in-depth: scrub any known secret that slipped into the output. Most
+    // tools keep the small default cap; a tool with legitimately large output
+    // (reading a runbook) opts into a larger `maxOutputLen` via the manifest.
+    const maxOutputLen = findManifestTool(name)?.maxOutputLen ?? MAX_TEXT_LEN
+    return sanitizeMcpJson(result, deps.getSecrets(), maxOutputLen) as CallToolResult
   })
 }

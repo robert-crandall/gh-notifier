@@ -46,6 +46,8 @@ import { refreshTodoAppSessionsForProject } from './agent/copilot-app/status'
 import { getAppDelegateEnabled, setAppDelegateEnabled, getReposRoot, setReposRoot } from './agent/copilot-app/settings'
 import { enableMcpServer, disableMcpServer, shutdownMcpServer } from './mcp-server/lifecycle'
 import { getMcpServerEnabled, setMcpServerEnabled } from './mcp-server/settings'
+import { listRunbooksForProject } from './knowledge/project-runbooks'
+import { revealablePathForService } from './knowledge/store'
 import type { ProjectPatch, ProjectTodoPatch, ProjectLinkPatch, SnoozeMode, SyncIntervalMinutes, MaxSyncDays, CreateRoutingRulePayload, LaunchAgentTaskPayload, ResourceInput, ResourcePatch, ProjectCardPatch, DelegatePayload } from '../shared/ipc-channels'
 import { SYNC_INTERVAL_OPTIONS, MAX_SYNC_DAYS_OPTIONS } from '../shared/ipc-channels'
 
@@ -448,6 +450,15 @@ app.whenReady().then(async () => {
   ipcMain.handle('resources:card-upsert', (_event, projectId: number, patch: ProjectCardPatch) =>
     upsertProjectCard(projectId, patch)
   )
+
+  // Service knowledge / runbooks (#100). Reads only; the loopback MCP server owns writes.
+  ipcMain.handle('knowledge:list-for-project', (_event, projectId: number) =>
+    listRunbooksForProject(projectId)
+  )
+  ipcMain.handle('knowledge:reveal', (_event, service: string) => {
+    const path = revealablePathForService(service)
+    if (path !== null) shell.showItemInFolder(path)
+  })
 
   startNotificationSync()
   startSnoozeWatcher()

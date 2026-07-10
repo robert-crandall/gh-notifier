@@ -436,6 +436,30 @@ export interface ProjectCard {
 
 export type ProjectCardPatch = Partial<Pick<ProjectCard, 'purpose' | 'repos' | 'services' | 'activeGoal' | 'glossary'>>
 
+// ── Service knowledge / runbooks (#100) ───────────────────────────────────────
+
+/**
+ * A per-service markdown runbook as surfaced in the project view. One is produced
+ * for each service on the project card (deduped by normalized key). `status`
+ * distinguishes a present runbook from one that hasn't been written yet, a card
+ * service whose name isn't a valid runbook key, an oversized file, or a path the
+ * store refused (symlink/containment).
+ */
+export interface ServiceRunbook {
+  /** The service name as listed on the project card (display form). */
+  service: string
+  /** Normalized filename key when the name is a valid runbook slug, else null. */
+  key: string | null
+  status: 'ok' | 'missing' | 'invalid' | 'too_large' | 'blocked'
+  /** Human-readable reason for `invalid` / `blocked` / `too_large`; null otherwise. */
+  reason: string | null
+  /** Full file markdown when `status === 'ok'`, else null. */
+  markdown: string | null
+  env: string | null
+  updatedAt: string | null
+  source: string | null
+}
+
 /** A proposed typed record produced from a pasted/dropped URL, for one-tap accept. */
 export interface CaptureProposal {
   title: string
@@ -1043,6 +1067,20 @@ export type IpcChannels = {
     args: [projectId: number, patch: ProjectCardPatch]
     result: ProjectCard
   }
+
+  // ── Service knowledge / runbooks (#100) ──────────────────────────────────────
+
+  /** Returns a runbook entry for each service on the project card (deduped by key). */
+  'knowledge:list-for-project': {
+    args: [projectId: number]
+    result: ServiceRunbook[]
+  }
+
+  /** Reveals a service's runbook file in Finder. No-op when the file doesn't exist. */
+  'knowledge:reveal': {
+    args: [service: string]
+    result: void
+  }
 }
 
 export type IpcChannelName = keyof IpcChannels
@@ -1085,6 +1123,12 @@ export interface ElectronApi {
    * live. Returns an unsubscribe fn.
    */
   onTodosUpdated: (callback: () => void) => () => void
+  /**
+   * Registers a callback that fires when service knowledge changes out-of-band — specifically
+   * when the `write_service_knowledge` MCP tool writes a runbook. The project Runbooks surface
+   * reloads on this so an agent-written runbook appears live. Returns an unsubscribe fn.
+   */
+  onKnowledgeUpdated: (callback: () => void) => () => void
 }
 
 declare global {
