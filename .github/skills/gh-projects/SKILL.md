@@ -1,14 +1,6 @@
 ---
 name: gh-projects
-description: >-
-  Use when working inside the GH Projects app's world - re-entering a project,
-  triaging GitHub notifications, reviewing a PR you were asked to follow up on,
-  or planning/recording a service rollout - and the GH Projects MCP tools
-  (ping, add_todo, list_projects, get_project_context, get_reentry_digest,
-  read_service_knowledge, write_service_knowledge) are available. Teaches when to
-  orient with the read tools before acting, how to propose human-gated follow-up
-  work with add_todo instead of writing to GitHub, and how to read/record service
-  runbooks. Do NOT trigger this for unrelated coding sessions.
+description: Use when working inside the GH Projects app's world - re-entering a project, triaging GitHub notifications, reviewing a PR you were asked to follow up on, or planning/recording a service rollout - and the GH Projects MCP tools (ping, add_todo, list_projects, get_project_context, get_reentry_digest, read_service_knowledge, write_service_knowledge) are available. Teaches when to orient with the read tools before acting, how to propose human-gated follow-up work with add_todo instead of writing to GitHub, and how to read/record service runbooks. Do NOT trigger this for unrelated coding sessions.
 ---
 
 # GH Projects MCP tools

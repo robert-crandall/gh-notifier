@@ -114,15 +114,22 @@ Copilot discovers skills two ways:
 - **Repo-local** - when you run Copilot in a checkout of this repo, the
   `.github/skills/gh-projects/` skill is discovered automatically.
 - **User-global** - to make the skill available in *any* session (not just this repo),
-  copy the skill folder into your personal skills directory:
+  copy the skill into your personal skills directory. This form is safe to re-run to
+  update in place (it won't create a nested `gh-projects/gh-projects/`):
 
   ```bash
-  mkdir -p ~/.copilot/skills
-  cp -R .github/skills/gh-projects ~/.copilot/skills/gh-projects
+  mkdir -p ~/.copilot/skills/gh-projects
+  cp -R .github/skills/gh-projects/. ~/.copilot/skills/gh-projects/
   ```
 
+Note: keep the skill's frontmatter `description:` on a single line. Every skill the
+Copilot CLI loads here uses a single-line description, and multi-line YAML block scalars
+(`>-`) may be ignored - so a single line is the safe, compatible shape.
+
 After installing (or updating) the skill, **start a fresh Copilot session** so it picks
-up the change.
+up the change. Skill discovery happens in the Copilot CLI (it scans the skills directory
+when a session's CLI process starts and caches the result) - this is separate from the
+GH Projects app, which owns the MCP server described above.
 
 ---
 
