@@ -27,6 +27,47 @@
   color: var(--text-3);
 }
 
+.suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 12px 24px 0;
+  padding: 10px 14px;
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.suggestionActions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.accept,
+.dismiss {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.accept {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border: 1px solid transparent;
+}
+
+.dismiss {
+  color: var(--text-2);
+  background: var(--bg-window);
+  border: 1px solid var(--border);
+}
+
 .content {
   flex: 1;
   overflow-y: auto;

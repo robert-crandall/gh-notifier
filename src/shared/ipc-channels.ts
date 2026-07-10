@@ -866,11 +866,13 @@ export type IpcChannels = {
 
   /**
    * Pins an unassigned session to a live project (sticky across syncs).
+   * Returns a repo-rule suggestion when the repo has no live mapping yet
+   * (offer to remember it so future sessions auto-assign), otherwise null.
    * Throws if the project is missing or soft-deleted.
    */
   'copilot:assign': {
     args: [sessionId: string, projectId: number]
-    result: void
+    result: RepoRuleSuggestion | null
   }
 
   /**

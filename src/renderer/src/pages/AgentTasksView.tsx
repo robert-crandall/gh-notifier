@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { Sparkles, GitPullRequest, PauseCircle, CheckCircle2, ExternalLink } from 'lucide-react'
-import type { CopilotSession, CopilotSessionStatus, Project } from '@shared/ipc-channels'
+import type { CopilotSession, CopilotSessionStatus, Project, RepoRuleSuggestion } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from '../components/Icon'
 import { openExternal } from '../ipc'
@@ -74,6 +74,7 @@ export function AgentTasksView(): JSX.Element {
   const [sessions, setSessions] = useState<CopilotSession[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [suggestion, setSuggestion] = useState<RepoRuleSuggestion | null>(null)
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -105,13 +106,28 @@ export function AgentTasksView(): JSX.Element {
 
   const handleAssign = useCallback(async (sessionId: string, projectId: number) => {
     try {
-      await window.electron.ipc.invoke('copilot:assign', sessionId, projectId)
+      const result = await window.electron.ipc.invoke('copilot:assign', sessionId, projectId)
+      if (!mountedRef.current) return
+      // Offer to remember the repo → project mapping so future sessions in this
+      // repo auto-assign. A null result (repo already has a live mapping) also
+      // clears any stale banner from a previous assignment.
+      setSuggestion(result)
       // Optimistically drop it from the list; the push event reconciles the rest.
       setSessions((prev) => prev.filter((s) => s.id !== sessionId))
     } catch (err) {
       console.error('[AgentTasks] Assign failed:', err)
     }
   }, [])
+
+  const acceptRule = useCallback(async () => {
+    if (!suggestion) return
+    try {
+      await window.electron.ipc.invoke('repo-rules:create', suggestion.repoOwner, suggestion.repoName, suggestion.projectId)
+    } catch (err) {
+      console.error('[AgentTasks] Repo rule creation failed:', err)
+    }
+    if (mountedRef.current) setSuggestion(null)
+  }, [suggestion])
 
   const active = sessions.filter((s) => s.status !== 'completed')
   const completed = sessions.filter((s) => s.status === 'completed')
@@ -122,6 +138,18 @@ export function AgentTasksView(): JSX.Element {
         <span className={styles.heading}>Agent tasks</span>
         <span className={styles.sub}>Copilot sessions not tied to a project</span>
       </header>
+
+      {suggestion && (
+        <div className={styles.suggestion}>
+          <span>
+            Always route {suggestion.repoOwner}/{suggestion.repoName} to &ldquo;{suggestion.projectName}&rdquo;?
+          </span>
+          <div className={styles.suggestionActions}>
+            <button type="button" className={styles.accept} onClick={() => void acceptRule()}>Remember repo</button>
+            <button type="button" className={styles.dismiss} onClick={() => setSuggestion(null)}>No thanks</button>
+          </div>
+        </div>
+      )}
 
       <div className={styles.content}>
         {isLoading && <div className={styles.empty}>Loading…</div>}
