@@ -183,8 +183,11 @@ export function readServiceKnowledge(service: string, dir: string = knowledgeDir
   let st: ReturnType<typeof lstatSync>
   try {
     st = lstatSync(filePath) // lstat: does NOT follow a symlink
-  } catch {
-    return { status: 'missing', service: key, path: filePath }
+  } catch (err) {
+    // Only a genuinely absent file is "missing"; a permission/IO error is a
+    // blocked/unavailable state, not a missing runbook.
+    if (isEnoent(err)) return { status: 'missing', service: key, path: filePath }
+    return { status: 'blocked', reason: 'The runbook file could not be read (permission or I/O error).' }
   }
   if (st.isSymbolicLink()) return { status: 'blocked', reason: 'Refusing to follow a symlinked runbook.' }
   if (!st.isFile()) return { status: 'missing', service: key, path: filePath }
