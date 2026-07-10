@@ -61,7 +61,7 @@ async function startServer(): Promise<{ handle: McpServerHandle; token: string }
   return { handle, token: endpoint.token }
 }
 
-function connectClient(port: number, token: string): Promise<Client> {
+async function connectClient(port: number, token: string): Promise<Client> {
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
     requestInit: { headers: { Authorization: `Bearer ${token}` } },
   })
@@ -69,7 +69,8 @@ function connectClient(port: number, token: string): Promise<Client> {
   cleanups.push(async () => {
     await client.close()
   })
-  return client.connect(transport).then(() => client)
+  await client.connect(transport)
+  return client
 }
 
 interface ProjectContextPayload {

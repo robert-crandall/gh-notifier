@@ -12,11 +12,13 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { ADD_TODO_TOOL_NAME, PING_TOOL_NAME, TOOL_MANIFEST } from './tool-manifest'
 import {
+  ADD_TODO_TOOL_NAME,
   GET_PROJECT_CONTEXT_TOOL_NAME,
   GET_REENTRY_DIGEST_TOOL_NAME,
   LIST_PROJECTS_TOOL_NAME,
+  PING_TOOL_NAME,
+  TOOL_MANIFEST,
 } from './tool-manifest'
 import { sanitizeMcpJson } from './sanitize'
 import { runAddTodo } from './add-todo'

@@ -42,6 +42,7 @@ import { getDigest } from '../digest'
 /** Hard caps on the list sections so a huge project can't produce a bloated payload. */
 const OPEN_TODO_LIMIT = 50
 const RESOURCE_LIMIT = 30
+const LINK_LIMIT = 30
 /** Intentional per-field caps on the genuinely-long markdown leaves. */
 const TODO_BODY_MAX = 600
 const RESOURCE_DESCRIPTION_MAX = 300
@@ -170,6 +171,9 @@ interface ProjectContext {
   openTodoCount: number
   openTodosTruncated: boolean
   links: LinkView[]
+  /** Total links (before the `LINK_LIMIT` cap). */
+  linkCount: number
+  linksTruncated: boolean
   resources: ResourceView[]
   /** Total live resources (before the `RESOURCE_LIMIT` cap). */
   resourceCount: number
@@ -264,6 +268,7 @@ export function runGetProjectContext(args: Record<string, unknown>): CallToolRes
 
   const openTodosAll = detail.todos.filter((t) => !t.done)
   const openTodos = openTodosAll.slice(0, OPEN_TODO_LIMIT).map(toOpenTodoView)
+  const links = detail.links.slice(0, LINK_LIMIT).map(toLinkView)
   const resources = allResources.slice(0, RESOURCE_LIMIT).map(toResourceView)
 
   const payload: ProjectContext = {
@@ -288,7 +293,9 @@ export function runGetProjectContext(args: Record<string, unknown>): CallToolRes
     openTodos,
     openTodoCount: openTodosAll.length,
     openTodosTruncated: openTodosAll.length > openTodos.length,
-    links: detail.links.map(toLinkView),
+    links,
+    linkCount: detail.links.length,
+    linksTruncated: detail.links.length > links.length,
     resources,
     resourceCount: allResources.length,
     resourcesTruncated: allResources.length > resources.length,

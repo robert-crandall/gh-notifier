@@ -75,6 +75,8 @@ interface ProjectContextPayload {
   openTodoCount: number
   openTodosTruncated: boolean
   links: { id: number; label: string; url: string }[]
+  linkCount: number
+  linksTruncated: boolean
   resources: {
     id: number
     title: string
@@ -232,15 +234,19 @@ describe('runGetProjectContext — shape', () => {
     )
   })
 
-  it('caps the open-todo and resource lists and flags truncation', () => {
+  it('caps the open-todo, link and resource lists and flags truncation', () => {
     const p = createProject('Busy')
     for (let i = 0; i < 55; i++) createTodo(p.id, `todo ${i}`)
+    for (let i = 0; i < 35; i++) createLink(p.id, `link ${i}`, `https://example.com/${i}`)
     for (let i = 0; i < 35; i++) createResource(p.id, { title: `res ${i}` })
 
     const ctx = payload<ProjectContextPayload>(runGetProjectContext({ project: p.id }))
     expect(ctx.openTodos).toHaveLength(50)
     expect(ctx.openTodoCount).toBe(55)
     expect(ctx.openTodosTruncated).toBe(true)
+    expect(ctx.links).toHaveLength(30)
+    expect(ctx.linkCount).toBe(35)
+    expect(ctx.linksTruncated).toBe(true)
     expect(ctx.resources).toHaveLength(30)
     expect(ctx.resourceCount).toBe(35)
     expect(ctx.resourcesTruncated).toBe(true)
@@ -374,9 +380,15 @@ describe('read-context manifest wiring', () => {
     // get_reentry_digest's project is optional.
     const digest = findManifestTool(GET_REENTRY_DIGEST_TOOL_NAME)
     expect(digest?.inputSchema.required).toBeUndefined()
-    // project accepts a name (string) or an id (integer).
-    const projectSchema = ctx?.inputSchema.properties?.project as { type?: unknown }
+    // project accepts a name (string) or an id (integer), with bounds mirroring the handlers.
+    const projectSchema = ctx?.inputSchema.properties?.project as {
+      type?: unknown
+      minLength?: unknown
+      minimum?: unknown
+    }
     expect(projectSchema.type).toEqual(['string', 'integer'])
+    expect(projectSchema.minLength).toBe(1)
+    expect(projectSchema.minimum).toBe(1)
   })
 
   it('has a handler registered for every advertised tool', () => {

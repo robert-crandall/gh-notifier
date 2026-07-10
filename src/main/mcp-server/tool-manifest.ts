@@ -46,10 +46,14 @@ export const GET_REENTRY_DIGEST_TOOL_NAME = 'get_reentry_digest'
 
 /**
  * A `project` reference: an exact project NAME (JSON string, case-insensitive) or a project ID
- * (JSON integer, as returned by `list_projects`). String→name, number→id — unambiguous.
+ * (JSON integer, as returned by `list_projects`). String→name, number→id — unambiguous. The
+ * `minLength`/`minimum` bounds mirror what the handlers accept (a non-empty name, a positive id),
+ * so a client can fail fast before calling.
  */
 const PROJECT_REF_SCHEMA = {
   type: ['string', 'integer'],
+  minLength: 1,
+  minimum: 1,
   description:
     'Project reference: an exact project name (string) or a project id (integer) from list_projects.',
 }
