@@ -552,7 +552,11 @@ export function addAgentTodo(input: AddAgentTodoInput): AddAgentTodoResult {
       input.idempotencyKey === null
         ? undefined
         : (db
-            .prepare('SELECT * FROM project_todos WHERE idempotency_key = ?')
+            // Scope to agent todos: the tool must never update a user todo, even if one
+            // somehow carried a non-null idempotency_key (corrupt DB, manual edit, future
+            // feature). A stray key on a user row then falls through to INSERT, where the
+            // unique index rejects it — surfaced as a clean isError rather than a silent edit.
+            .prepare("SELECT * FROM project_todos WHERE idempotency_key = ? AND origin = 'copilot'")
             .get(input.idempotencyKey) as TodoRow | undefined)
     // bun:sqlite returns null (better-sqlite3 returns undefined) for a missing row — normalize.
     const existing: TodoRow | null = found ?? null
@@ -622,11 +626,11 @@ export function addAgentTodo(input: AddAgentTodoInput): AddAgentTodoResult {
   return run()
 }
 
-/** Lists Inbox todos (no owning project, not soft-deleted) for the agent-todo Inbox surface. */
+/** Lists Inbox todos (agent-origin, no owning project, not soft-deleted) for the Inbox surface. */
 export function listInboxTodos(): ProjectTodo[] {
   const rows = getDb()
     .prepare(
-      'SELECT * FROM project_todos WHERE project_id IS NULL AND deleted_at IS NULL ORDER BY sort_order ASC, id ASC'
+      "SELECT * FROM project_todos WHERE project_id IS NULL AND deleted_at IS NULL AND origin = 'copilot' ORDER BY sort_order ASC, id ASC"
     )
     .all() as TodoRow[]
   return rows.map(toTodo)

@@ -358,6 +358,18 @@ describe('addAgentTodo', () => {
     restoreTodo(created.todo.id)
     expect(getProject(p.id).todos.map((t) => t.id)).toContain(created.todo.id)
   })
+
+  it('never touches a non-copilot todo that carries a stray idempotency_key', () => {
+    const a = createProject('Guarded')
+    getDb()
+      .prepare("INSERT INTO project_todos (project_id, text, origin, idempotency_key) VALUES (?, 'user note', 'user', 'shared')")
+      .run(a.id)
+    // The lookup is origin-scoped, so this falls through to INSERT and the unique index rejects it.
+    expect(() => addAgentTodo(base({ resolvedProjectId: a.id, idempotencyKey: 'shared', title: 'hijack' }))).toThrow()
+    const row = getDb().prepare("SELECT text, origin FROM project_todos WHERE idempotency_key = 'shared'").get() as { text: string; origin: string }
+    expect(row.text).toBe('user note') // untouched
+    expect(row.origin).toBe('user')
+  })
 })
 
 describe('listInboxTodos', () => {
@@ -370,6 +382,13 @@ describe('listInboxTodos', () => {
     const ids = listInboxTodos().map((t) => t.id)
     expect(ids).toContain(inbox.todo.id)
     expect(ids).not.toContain(dismissed.todo.id)
+  })
+
+  it('excludes non-copilot project-less todos (agent-todo surface only)', () => {
+    getDb().prepare("INSERT INTO project_todos (project_id, text, origin) VALUES (NULL, 'stray user', 'user')").run()
+    const agent = addAgentTodo(base({ title: 'agent inbox' }))
+    expect(listInboxTodos().map((t) => t.id)).toContain(agent.todo.id)
+    expect(listInboxTodos().every((t) => t.origin === 'copilot')).toBe(true)
   })
 })
 
