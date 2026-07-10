@@ -90,6 +90,12 @@ function TodosPanel({
   const [filter, setFilter] = useState<TodoFilter>('all')
 
   const copilotCount = detail.todos.filter((t) => t.origin === 'copilot').length
+  // The filter chips only show when copilotCount > 0, so if the last Copilot todo goes away
+  // while the Copilot filter is active, snap back to "all" — otherwise the user is stranded in
+  // an empty Copilot view with no chips to switch back.
+  useEffect(() => {
+    if (copilotCount === 0 && filter === 'copilot') setFilter('all')
+  }, [copilotCount, filter])
   const visible = filter === 'copilot' ? detail.todos.filter((t) => t.origin === 'copilot') : detail.todos
   const active = visible.filter((t) => !t.done)
   const done = visible.filter((t) => t.done)
