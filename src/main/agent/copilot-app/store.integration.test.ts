@@ -92,6 +92,25 @@ describe('observed app sessions (#119)', () => {
     expect(s.origin).toBe('launched')
   })
 
+  it('UPGRADES an observed row to launched when Projects later delegates it', () => {
+    const pid = makeProject('P')
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    const s = insertAppSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(s.origin).toBe('launched')
+  })
+
+  it('skips the write (no updated_at churn) on an unchanged re-reconcile', () => {
+    const pid = makeProject('P')
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    db.prepare("UPDATE copilot_app_sessions SET updated_at = '2000-01-01 00:00:00' WHERE id = 's1'").run()
+    // Identical input → no write, so updated_at stays the sentinel.
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(getAppSession('s1')?.updatedAt).toBe('2000-01-01 00:00:00')
+    // A real change DOES write (updated_at moves off the sentinel).
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/y', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(getAppSession('s1')?.updatedAt).not.toBe('2000-01-01 00:00:00')
+  })
+
   it('keeps a sticky pin over the freshly-resolved project on re-upsert', () => {
     const a = makeProject('A')
     const b = makeProject('B')

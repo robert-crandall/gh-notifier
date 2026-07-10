@@ -69,6 +69,9 @@ export function insertAppSession(input: InsertAppSessionInput): CopilotAppSessio
     VALUES
       (?, ?, ?, ?, 'in_progress', ?, ?, 'launched')
     ON CONFLICT(id) DO UPDATE SET
+      -- A launched session is authoritative provenance (Projects created it), so
+      -- upgrade an existing observed row rather than leaving it mis-tagged.
+      origin     = 'launched',
       cwd        = excluded.cwd,
       title      = excluded.title,
       repo_owner = excluded.repo_owner,
@@ -100,10 +103,38 @@ export interface UpsertObservedSessionInput {
  * `pinned_project_id` points at a live project it wins over the freshly-resolved
  * `project_id` (a manual assignment doesn't drift on the next reconcile); a pin
  * whose project is gone is cleared. New rows keep `pinned_project_id` NULL.
- * Volatile fields (cwd/title/repo) always track the on-disk truth. Returns the row.
+ * Volatile fields (cwd/title/repo) always track the on-disk truth.
+ *
+ * No-op guard: when an existing row would come out identical (same repo/cwd/title
+ * and the same effective project + pin), the write is skipped entirely so a
+ * periodic reconcile doesn't bump `updated_at` and reorder the project's session
+ * list. Returns the row either way.
  */
 export function upsertObservedSession(input: UpsertObservedSessionInput): CopilotAppSession {
   const db = getDb()
+
+  // Skip the write when nothing would actually change, mirroring the SQL's
+  // sticky-pin resolution so `updated_at` (and list order) stays put on a no-op.
+  const existing = db.prepare('SELECT * FROM copilot_app_sessions WHERE id = ?').get(input.id) as
+    | AppSessionRow
+    | undefined
+    | null
+  if (existing !== undefined && existing !== null) {
+    const pinLive =
+      existing.pinned_project_id !== null &&
+      db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(existing.pinned_project_id) != null
+    const effectivePin = pinLive ? existing.pinned_project_id : null
+    const effectiveProject = pinLive ? existing.pinned_project_id : input.projectId
+    const unchanged =
+      existing.cwd === input.cwd &&
+      existing.title === input.title &&
+      existing.repo_owner === input.repoOwner &&
+      existing.repo_name === input.repoName &&
+      existing.project_id === effectiveProject &&
+      existing.pinned_project_id === effectivePin
+    if (unchanged) return toSession(existing)
+  }
+
   db.prepare(`
     INSERT INTO copilot_app_sessions
       (id, project_id, cwd, title, status, repo_owner, repo_name, origin)
