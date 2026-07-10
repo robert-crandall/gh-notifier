@@ -125,6 +125,19 @@ export function readServiceKnowledge(service: string, dir: string = knowledgeDir
   const filePath = safeServiceFilePath(dir, key)
   if (filePath === null) return { status: 'blocked', reason: 'Resolved path escaped the knowledge directory.' }
 
+  // Guard the knowledge dir itself: a symlinked (or non-directory) dir could make
+  // `<key>.md` resolve outside the intended tree. A missing dir just means the
+  // runbook is missing.
+  let dirStat: ReturnType<typeof lstatSync>
+  try {
+    dirStat = lstatSync(dir)
+  } catch {
+    return { status: 'missing', service: key, path: filePath }
+  }
+  if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) {
+    return { status: 'blocked', reason: 'Knowledge directory is a symlink or not a directory.' }
+  }
+
   let st: ReturnType<typeof lstatSync>
   try {
     st = lstatSync(filePath) // lstat: does NOT follow a symlink
@@ -243,11 +256,22 @@ function pruneHistory(hDir: string): void {
   }
 }
 
-/** Atomically write `content` to `filePath` via an exclusive temp file + rename. */
+/** Atomically write `content` to `filePath` via an exclusive temp file + rename.
+ * Cleans up the temp file if the write/rename fails, so a failed ungated write
+ * never leaves a stray `.tmp-*` behind. */
 function atomicWriteFile(filePath: string, content: string): void {
   const tmp = `${filePath}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
-  writeFileSync(tmp, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-  renameSync(tmp, filePath)
+  try {
+    writeFileSync(tmp, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+    renameSync(tmp, filePath)
+  } catch (err) {
+    try {
+      rmSync(tmp, { force: true })
+    } catch {
+      /* best-effort cleanup */
+    }
+    throw err
+  }
 }
 
 export interface WriteInput {
@@ -319,7 +343,13 @@ export function writeServiceKnowledge(input: WriteInput, dir: string = knowledge
       }
     }
 
-    atomicWriteFile(filePath, content)
+    try {
+      atomicWriteFile(filePath, content)
+    } catch {
+      // A backup (if any) already succeeded, so the prior version is recoverable;
+      // surface a controlled, path-free failure instead of a generic "Tool failed".
+      return { status: 'blocked', reason: 'Could not write the runbook to disk.' }
+    }
     return { status: 'ok', service: key, path: filePath, backedUp, updatedAt }
   })
 }

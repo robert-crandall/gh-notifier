@@ -207,6 +207,15 @@ describe('symlink refusal (SECURITY)', () => {
     const r = readServiceKnowledge('web', dir)
     expect(r.status === 'ok' && r.knowledge.markdown.includes('v1')).toBe(true)
   })
+
+  it('refuses to read through a symlinked knowledge directory', () => {
+    const real = freshDir()
+    writeFileSync(join(real, 'web.md'), 'secret runbook')
+    const linkDir = join(freshDir(), 'knowledge-link')
+    symlinkSync(real, linkDir)
+    const r = readServiceKnowledge('web', linkDir)
+    expect(r.status).toBe('blocked')
+  })
 })
 
 describe('concurrent writes', () => {
