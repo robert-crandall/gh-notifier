@@ -354,6 +354,14 @@ export function writeServiceKnowledge(input: WriteInput, dir: string = knowledge
       }
       if (st.isSymbolicLink()) return { status: 'blocked', reason: 'Refusing to overwrite a symlinked runbook.' }
       if (!st.isFile()) return { status: 'blocked', reason: 'A non-file exists at the runbook path.' }
+      // Guard against loading a hand-edited oversized (or binary) file into memory
+      // just to back it up / parse env. Refuse the overwrite instead.
+      if (st.size > KNOWLEDGE_MAX_BYTES) {
+        return {
+          status: 'blocked',
+          reason: `The existing runbook is too large (${st.size} bytes) to overwrite safely; reduce it on disk first.`,
+        }
+      }
       existing = readFileSync(filePath)
     }
 

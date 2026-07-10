@@ -142,6 +142,17 @@ describe('size bounds', () => {
     const r = readServiceKnowledge('web', dir)
     expect(r.status).toBe('too_large')
   })
+
+  it('refuses to overwrite an existing oversized file (no huge read into memory)', async () => {
+    const dir = freshDir()
+    const big = 'x'.repeat(KNOWLEDGE_MAX_BYTES + 1)
+    writeFileSync(join(dir, 'web.md'), big)
+    const w = await writeServiceKnowledge({ service: 'web', markdown: 'small new body' }, dir)
+    expect(w.status).toBe('blocked')
+    // The oversized file must be left untouched (not overwritten, not backed up).
+    expect(readFileSync(join(dir, 'web.md'), 'utf8')).toBe(big)
+    expect(listServiceHistory('web', dir)).toHaveLength(0)
+  })
 })
 
 describe('service-name safety (SECURITY)', () => {
