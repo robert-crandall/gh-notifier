@@ -23,7 +23,7 @@ The tool surface itself is documented for the model in
   `127.0.0.1:<ephemeral>`, speaking MCP over Streamable HTTP
   (`src/main/mcp-server/server.ts`).
 - A small, self-contained **stdio shim** (`build/mcp-shim.cjs`, built from
-  `src/main/mcp-server/shim/entry.ts`) is what the Copilot app actually spawns. It
+  `src/main/mcp-server/shim/entry.ts`) is what the Copilot CLI actually spawns. It
   bridges Copilot's stdio channel to the loopback server:
 
   ```
