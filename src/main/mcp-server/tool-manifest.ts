@@ -35,6 +35,25 @@ export const PING_TOOL_NAME = 'ping'
 /** The `add_todo` tool: Copilot creates a human-gated action-proposal todo in a project. */
 export const ADD_TODO_TOOL_NAME = 'add_todo'
 
+/** The `list_projects` tool: the read-only project roster (#106). */
+export const LIST_PROJECTS_TOOL_NAME = 'list_projects'
+
+/** The `get_project_context` tool: the read-only situational brief for one project (#106). */
+export const GET_PROJECT_CONTEXT_TOOL_NAME = 'get_project_context'
+
+/** The `get_reentry_digest` tool: the read-only "what changed while I was away" digest (#106). */
+export const GET_REENTRY_DIGEST_TOOL_NAME = 'get_reentry_digest'
+
+/**
+ * A `project` reference: an exact project NAME (JSON string, case-insensitive) or a project ID
+ * (JSON integer, as returned by `list_projects`). String→name, number→id — unambiguous.
+ */
+const PROJECT_REF_SCHEMA = {
+  type: ['string', 'integer'],
+  description:
+    'Project reference: an exact project name (string) or a project id (integer) from list_projects.',
+}
+
 /** The full inbound tool surface. Order is the advertised order. */
 export const TOOL_MANIFEST: readonly ManifestTool[] = [
   {
@@ -114,6 +133,45 @@ export const TOOL_MANIFEST: readonly ManifestTool[] = [
         },
       },
       required: ['title'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: LIST_PROJECTS_TOOL_NAME,
+    title: 'List projects',
+    description:
+      'READ-ONLY. List the GH Projects roster so you know what exists before acting. Returns one ' +
+      'lean row per project — id, name, status (active/snoozed), next action, and open-todo count. ' +
+      'Mutates nothing. Use the returned id or name with get_project_context and get_reentry_digest; ' +
+      'pass the project NAME (not id) to add_todo.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: GET_PROJECT_CONTEXT_TOOL_NAME,
+    title: 'Get project context',
+    description:
+      "READ-ONLY. Get one project's situational brief so you act with context: its card (purpose, " +
+      'repos, services, active goal, glossary), open todos, links, and saved brain resources. ' +
+      '`services` lists the project\'s service names; per-service runbook bodies are surfaced ' +
+      'separately once available. Mutates nothing.',
+    inputSchema: {
+      type: 'object',
+      properties: { project: PROJECT_REF_SCHEMA },
+      required: ['project'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: GET_REENTRY_DIGEST_TOOL_NAME,
+    title: 'Get re-entry digest',
+    description:
+      'READ-ONLY. Get the blame-free "what changed while I was away / what should I pick up" digest ' +
+      'the app computes (recent Copilot sessions + unread activity) plus each project\'s drift ' +
+      'state. Pass `project` for one project; omit it for every project with new activity or drift. ' +
+      'Mutates nothing.',
+    inputSchema: {
+      type: 'object',
+      properties: { project: PROJECT_REF_SCHEMA },
       additionalProperties: false,
     },
   },
