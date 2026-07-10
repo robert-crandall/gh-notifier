@@ -5,7 +5,7 @@
  */
 
 import { getDb } from '../db'
-import type { CopilotSession, CopilotSessionStatus } from '../../shared/ipc-channels'
+import type { CopilotSession, CopilotSessionStatus, RepoRuleSuggestion } from '../../shared/ipc-channels'
 
 interface CopilotSessionRow {
   id: string
@@ -229,6 +229,59 @@ export function assignSession(sessionId: string, projectId: number): void {
     .prepare('UPDATE copilot_sessions SET project_id = ?, pinned_project_id = ? WHERE id = ?')
     .run(projectId, projectId, sessionId)
   if (result.changes === 0) throw new Error('SESSION_NOT_FOUND')
+}
+
+/**
+ * After an unassigned session is assigned to a project, offer to remember the
+ * repo → project mapping so future sessions in that repo auto-assign at sync time
+ * (the "Assign to project + remember this repo" affordance). Mirrors the Inbox's
+ * repo-rule suggestion: always an `opt-in` for cloud sessions (there is no
+ * other-threads signal to compute opt-out from).
+ *
+ * Returns null when:
+ *   - the session is missing or carries no repo (nothing to remember), or
+ *   - a repo rule already exists whose project is LIVE. A rule pointing at a
+ *     soft-deleted project is treated as no effective mapping (resolveProjectId
+ *     skips dead-project rules, which is why the session was unassigned), so the
+ *     suggestion still fires and `createRepoRule`'s UPSERT can repair the stale row.
+ *
+ * Uses exact-case repo matching, consistent with resolveProjectId step 2 and
+ * createRepoRule.
+ */
+export function getRepoRuleSuggestionForSession(
+  sessionId: string,
+  projectId: number
+): RepoRuleSuggestion | null {
+  const db = getDb()
+
+  const session = db
+    .prepare('SELECT repo_owner, repo_name FROM copilot_sessions WHERE id = ?')
+    .get(sessionId) as { repo_owner: string | null; repo_name: string | null } | undefined | null
+  if (!session || !session.repo_owner || !session.repo_name) return null
+
+  // A live repo rule already routes future sessions here — nothing to suggest.
+  const liveRule = db
+    .prepare(`
+      SELECT 1 FROM repo_rules rr
+      JOIN projects p ON p.id = rr.project_id
+      WHERE rr.repo_owner = ? AND rr.repo_name = ? AND p.deleted_at IS NULL
+      LIMIT 1
+    `)
+    .get(session.repo_owner, session.repo_name)
+  if (liveRule) return null
+
+  const project = db
+    .prepare('SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL')
+    .get(projectId) as { name: string } | undefined | null
+  if (!project) return null
+
+  return {
+    type: 'opt-in',
+    repoOwner: session.repo_owner,
+    repoName: session.repo_name,
+    projectId,
+    projectName: project.name,
+  }
 }
 
 /**

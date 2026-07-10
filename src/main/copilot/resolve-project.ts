@@ -26,7 +26,7 @@ export function resolveProjectId(
   // A chosen project only counts if it's live (not soft-deleted), so a deleted
   // project can't keep absorbing Copilot sessions on the next sync.
   const isLive = (projectId: number): boolean =>
-    db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(projectId) !== undefined
+    db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(projectId) != null
 
   // 1. Follow the notification thread — wherever the PR notification is routed, the
   //    Copilot session goes too. This keeps Copilot sessions co-located with their work

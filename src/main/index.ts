@@ -25,7 +25,7 @@ import { listRoutingRules, createRoutingRule, deleteRoutingRule, applyRoutingRul
 import { startNotificationSync, syncOnce, prefetchThreadContent, getSyncIntervalMinutes, setSyncIntervalMinutes, rescheduleSync, getMaxSyncDays, setMaxSyncDays } from './notifications/sync'
 import { startSnoozeWatcher } from './snooze'
 import { syncCopilotSessions } from './copilot/sync'
-import { getSessionsForProject, getAllStatuses, insertLaunchedSession, getUnassignedSessions, getUnassignedActiveCount, assignSession } from './copilot/db'
+import { getSessionsForProject, getAllStatuses, insertLaunchedSession, getUnassignedSessions, getUnassignedActiveCount, assignSession, getRepoRuleSuggestionForSession } from './copilot/db'
 import { launchAgentTask } from './copilot/launch'
 import { getLaunchTargets } from './copilot/launch-targets'
 import { getDigest, markProjectFocused, markDigestSeen, dismissResurface } from './digest'
@@ -335,8 +335,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('copilot:unassigned-count', () => getUnassignedActiveCount())
   ipcMain.handle('copilot:assign', (_event, sessionId: string, projectId: number) => {
     assignSession(sessionId, projectId)
+    const suggestion = getRepoRuleSuggestionForSession(sessionId, projectId)
     broadcast('copilot:updated')
     broadcast('projects:updated')
+    return suggestion
   })
   ipcMain.handle('copilot:launch-targets', (_event, projectId: number) => getLaunchTargets(projectId))
 

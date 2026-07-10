@@ -18,8 +18,11 @@ import {
   getUnassignedSessions,
   getUnassignedActiveCount,
   assignSession,
+  getRepoRuleSuggestionForSession,
 } from './db'
 import { getLaunchTargets } from './launch-targets'
+import { resolveProjectId } from './resolve-project'
+import { createRepoRule, listRepoRules } from '../db/notifications'
 import { deleteProject } from '../db/projects'
 import { getDigest } from '../digest'
 
@@ -139,6 +142,128 @@ describe('assignSession', () => {
     expect(() => assignSession('nope', p)).toThrow(/SESSION_NOT_FOUND/)
     deleteProject(p)
     expect(() => assignSession('s1', p)).toThrow(/PROJECT_NOT_FOUND/)
+  })
+})
+
+describe('getRepoRuleSuggestionForSession', () => {
+  it('suggests opt-in when the repo has no rule yet', () => {
+    const p = makeProject('P')
+    upsertSessions([syncedSession({ id: 's1', projectId: null, repoOwner: 'o', repoName: 'r' })])
+    assignSession('s1', p)
+
+    expect(getRepoRuleSuggestionForSession('s1', p)).toEqual({
+      type: 'opt-in',
+      repoOwner: 'o',
+      repoName: 'r',
+      projectId: p,
+      projectName: 'P',
+    })
+  })
+
+  it('returns null when a live repo rule already exists', () => {
+    const p = makeProject('P')
+    upsertSessions([syncedSession({ id: 's1', projectId: null, repoOwner: 'o', repoName: 'r' })])
+    assignSession('s1', p)
+    createRepoRule('o', 'r', p)
+
+    expect(getRepoRuleSuggestionForSession('s1', p)).toBeNull()
+  })
+
+  it('still suggests (to repair) when the only rule points at a soft-deleted project', () => {
+    const dead = makeProject('Dead')
+    const live = makeProject('Live')
+    createRepoRule('o', 'r', dead)
+    deleteProject(dead)
+    upsertSessions([syncedSession({ id: 's1', projectId: null, repoOwner: 'o', repoName: 'r' })])
+    assignSession('s1', live)
+
+    expect(getRepoRuleSuggestionForSession('s1', live)).toEqual({
+      type: 'opt-in',
+      repoOwner: 'o',
+      repoName: 'r',
+      projectId: live,
+      projectName: 'Live',
+    })
+  })
+
+  it('returns null when the session carries no repo', () => {
+    const p = makeProject('P')
+    upsertSessions([syncedSession({ id: 's1', projectId: null, repoOwner: null, repoName: null })])
+    assignSession('s1', p)
+    expect(getRepoRuleSuggestionForSession('s1', p)).toBeNull()
+  })
+
+  it('returns null for a missing session', () => {
+    const p = makeProject('P')
+    expect(getRepoRuleSuggestionForSession('nope', p)).toBeNull()
+  })
+})
+
+describe('assign-and-remember (issue #118)', () => {
+  it('assigns the session and remembers the repo so future sessions auto-assign', () => {
+    const p = makeProject('P')
+    upsertSessions([syncedSession({ id: 's1', projectId: null, repoOwner: 'o', repoName: 'r' })])
+
+    // One-tap: assign the session, then remember the repo mapping.
+    assignSession('s1', p)
+    const suggestion = getRepoRuleSuggestionForSession('s1', p)
+    expect(suggestion).not.toBeNull()
+    createRepoRule(suggestion!.repoOwner, suggestion!.repoName, suggestion!.projectId)
+
+    // The session is homed and the repo rule now exists.
+    expect(getSessionsForProject(p).map((s) => s.id)).toContain('s1')
+    expect(listRepoRules().map((r) => `${r.repoOwner}/${r.repoName}→${r.projectId}`)).toContain('o/r→' + p)
+
+    // A subsequent NEW session synced from the same repo auto-resolves — no manual assign.
+    const resolved = resolveProjectId('o', 'r', null)
+    expect(resolved).toBe(p)
+    upsertSessions([syncedSession({ id: 's2', projectId: resolved, repoOwner: 'o', repoName: 'r' })])
+    expect(getSessionsForProject(p).map((s) => s.id)).toContain('s2')
+    expect(getUnassignedSessions().map((s) => s.id)).not.toContain('s2')
+  })
+
+  it('the just-assigned session survives a resync that resolves to null (sticky)', () => {
+    const p = makeProject('P')
+    upsertSessions([syncedSession({ id: 's1', projectId: null, repoOwner: 'o', repoName: 'r' })])
+    assignSession('s1', p)
+    createRepoRule('o', 'r', p)
+
+    // Force a sync whose incoming projectId is null to prove the PIN (not the rule) holds it.
+    upsertSessions([syncedSession({ id: 's1', projectId: null, repoOwner: 'o', repoName: 'r' })])
+
+    const row = db
+      .prepare('SELECT project_id, pinned_project_id FROM copilot_sessions WHERE id = ?')
+      .get('s1') as { project_id: number | null; pinned_project_id: number | null }
+    expect(row.project_id).toBe(p)
+    expect(row.pinned_project_id).toBe(p)
+    expect(getUnassignedSessions().map((s) => s.id)).not.toContain('s1')
+    expect(getUnassignedActiveCount()).toBe(0)
+  })
+
+  it('repairs a stale dead-project rule so new sessions resolve to the live project', () => {
+    const dead = makeProject('Old')
+    const live = makeProject('New')
+    createRepoRule('o', 'r', dead)
+    deleteProject(dead)
+
+    // resolveProjectId skips the dead-project rule, so a synced session lands unassigned.
+    expect(resolveProjectId('o', 'r', null)).toBeNull()
+    upsertSessions([syncedSession({ id: 's1', projectId: resolveProjectId('o', 'r', null), repoOwner: 'o', repoName: 'r' })])
+    expect(getUnassignedSessions().map((s) => s.id)).toContain('s1')
+
+    // Assign + remember: the suggestion fires (dead rule = no live mapping) and the
+    // UPSERT overwrites the stale rule to point at the live project.
+    assignSession('s1', live)
+    const suggestion = getRepoRuleSuggestionForSession('s1', live)
+    expect(suggestion).not.toBeNull()
+    createRepoRule(suggestion!.repoOwner, suggestion!.repoName, suggestion!.projectId)
+
+    expect(listRepoRules().map((r) => `${r.repoOwner}/${r.repoName}→${r.projectId}`)).toEqual(['o/r→' + live])
+
+    // A new synced session now resolves to the live project.
+    expect(resolveProjectId('o', 'r', null)).toBe(live)
+    upsertSessions([syncedSession({ id: 's2', projectId: resolveProjectId('o', 'r', null), repoOwner: 'o', repoName: 'r' })])
+    expect(getSessionsForProject(live).map((s) => s.id)).toContain('s2')
   })
 })
 
