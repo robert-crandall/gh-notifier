@@ -183,7 +183,7 @@ export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
         </div>
       )}
 
-      {runbooks.map((rb) => (
+      {loaded && !runbooksError && runbooks.map((rb) => (
         <RunbookCard key={rb.key ?? `invalid:${rb.service}`} rb={rb} />
       ))}
     </div>

@@ -24,16 +24,19 @@ interface EditorRow {
 /**
  * Dedupe the card's services by normalized key (first occurrence wins), matching how
  * the runbook list collapses them. Keeps legacy/mixed-case/invalid entries visible so
- * they can be detached rather than silently hidden.
+ * they can be detached rather than silently hidden - including empty / whitespace-only
+ * entries (hand-edited into the DB), which collapse to a single "(empty)" row so the user
+ * can still clean them up.
  */
 function dedupeByKey(services: string[]): EditorRow[] {
   const seen = new Set<string>()
   const rows: EditorRow[] = []
   for (const raw of services) {
     const key = normalizeServiceName(raw)
-    if (key.length === 0 || seen.has(key)) continue
+    if (seen.has(key)) continue
     seen.add(key)
-    rows.push({ display: raw.trim(), key })
+    const display = raw.trim()
+    rows.push({ display: display.length > 0 ? display : '(empty)', key })
   }
   return rows
 }

@@ -6,7 +6,7 @@ import { normalizeServiceName } from '@shared/service-name'
 import { RunbooksPanel } from './RunbooksPanel'
 
 const invoke = vi.fn()
-const onKnowledgeUpdated = vi.fn(() => () => {})
+const onKnowledgeUpdated = vi.fn((_callback: () => void) => () => {})
 
 // Stateful mock: the card's services array is the source of truth. `knowledge:list-for-project`
 // either returns an explicit list or derives one runbook per (deduped) service so tests can
@@ -143,6 +143,21 @@ describe('RunbooksPanel', () => {
     render(<RunbooksPanel projectId={1} />)
     expect(await screen.findByText(/Couldn’t load this project’s card/i)).toBeTruthy()
     expect(screen.queryByLabelText('Add a service')).toBeNull()
+  })
+
+  it('hides stale runbook cards when a later refresh fails', async () => {
+    setCardServices(['web'])
+    setRunbooks([rb({ service: 'web', status: 'ok', markdown: 'Hit /health.' })])
+    render(<RunbooksPanel projectId={1} />)
+    expect(await screen.findByText('Hit /health.', { exact: false })).toBeTruthy()
+
+    // A later out-of-band refresh fails: show the error, not the now-stale cards.
+    failRunbooks = true
+    const refresh = onKnowledgeUpdated.mock.calls[0]?.[0]
+    refresh?.()
+
+    expect(await screen.findByText(/Couldn’t load runbooks/i)).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText('Hit /health.', { exact: false })).toBeNull())
   })
 
   it('adds a service: upserts the card then reloads so the runbook appears', async () => {

@@ -72,6 +72,15 @@ describe('ServicesEditor', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
   })
 
+  it('keeps a legacy empty/whitespace entry detachable as a single "(empty)" row', () => {
+    const { onRemove } = renderEditor(['', '   '])
+    const rows = screen.getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(screen.getByText('(empty)')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('Remove (empty)'))
+    expect(onRemove).toHaveBeenCalledWith('')
+  })
+
   it('states that removing keeps the runbook file on disk', () => {
     renderEditor(['api'])
     expect(screen.getByText(/runbook file on disk is kept/i)).toBeTruthy()
