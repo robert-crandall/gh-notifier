@@ -12,9 +12,17 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { ADD_TODO_TOOL_NAME, PING_TOOL_NAME, TOOL_MANIFEST } from './tool-manifest'
+import {
+  ADD_TODO_TOOL_NAME,
+  GET_PROJECT_CONTEXT_TOOL_NAME,
+  GET_REENTRY_DIGEST_TOOL_NAME,
+  LIST_PROJECTS_TOOL_NAME,
+  PING_TOOL_NAME,
+  TOOL_MANIFEST,
+} from './tool-manifest'
 import { sanitizeMcpJson } from './sanitize'
 import { runAddTodo } from './add-todo'
+import { runGetProjectContext, runGetReentryDigest, runListProjects } from './read-context'
 
 /** Dependencies a tool handler may need. */
 export interface ToolDeps {
@@ -45,6 +53,11 @@ export function buildToolHandlers(deps: ToolDeps): Map<string, ToolHandler> {
     if (result.isError !== true) deps.onTodoChanged?.()
     return result
   })
+  // Read-only context tools (#106): expose the app's own computed state. They mutate nothing,
+  // so they take no deps and never fire onTodoChanged.
+  handlers.set(LIST_PROJECTS_TOOL_NAME, () => runListProjects())
+  handlers.set(GET_PROJECT_CONTEXT_TOOL_NAME, (args) => runGetProjectContext(args))
+  handlers.set(GET_REENTRY_DIGEST_TOOL_NAME, (args) => runGetReentryDigest(args))
   return handlers
 }
 
