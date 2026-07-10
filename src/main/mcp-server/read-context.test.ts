@@ -94,15 +94,15 @@ interface ProjectContextPayload {
 interface DigestItemLite {
   kind: string
 }
-interface DigestSinglePayload {
+interface DigestView {
   projectId: number
   name: string
   driftState: string
   asOf: string
   items: DigestItemLite[]
 }
-interface DigestGlobalPayload {
-  projects: { projectId: number; name: string; driftState: string; asOf: string; items: DigestItemLite[] }[]
+interface DigestPayload {
+  projects: DigestView[]
 }
 
 function payload<T>(result: CallToolResult): T {
@@ -310,10 +310,12 @@ describe('runGetReentryDigest — single project', () => {
     expect(runGetReentryDigest({ project: 'Nope' }).isError).toBe(true)
   })
 
-  it('returns computed digest items and drift for a project with activity', () => {
+  it('returns a one-element projects list with items and drift for a project with activity', () => {
     const id = seedProject('Active', 60, 5)
     seedRecentSession(id)
-    const digest = payload<DigestSinglePayload>(runGetReentryDigest({ project: id }))
+    const { projects } = payload<DigestPayload>(runGetReentryDigest({ project: id }))
+    expect(projects).toHaveLength(1)
+    const digest = projects[0]
     expect(digest.projectId).toBe(id)
     expect(digest.name).toBe('Active')
     expect(digest.items.length).toBeGreaterThan(0)
@@ -321,10 +323,12 @@ describe('runGetReentryDigest — single project', () => {
     expect(typeof digest.asOf).toBe('string')
   })
 
-  it('returns an empty item list for a quiet project', () => {
+  it('still returns the requested project (one element) even when it is quiet', () => {
     const id = seedProject('Quiet', 1, 0)
-    const digest = payload<DigestSinglePayload>(runGetReentryDigest({ project: id }))
-    expect(digest.items).toEqual([])
+    const { projects } = payload<DigestPayload>(runGetReentryDigest({ project: id }))
+    expect(projects).toHaveLength(1)
+    expect(projects[0].projectId).toBe(id)
+    expect(projects[0].items).toEqual([])
   })
 
   it('does not write to the database', () => {
@@ -343,7 +347,7 @@ describe('runGetReentryDigest — all projects', () => {
     seedProject('Quiet', 1, 0) // active, no activity → excluded
     seedProject('Drifting', 10, 10) // no activity but stale → included via drift
 
-    const { projects } = payload<DigestGlobalPayload>(runGetReentryDigest({}))
+    const { projects } = payload<DigestPayload>(runGetReentryDigest({}))
     const byName = new Map(projects.map((p) => [p.name, p]))
     expect(byName.has('Active')).toBe(true)
     expect(byName.has('Drifting')).toBe(true)
@@ -355,7 +359,7 @@ describe('runGetReentryDigest — all projects', () => {
 
   it('returns an empty list when nothing has activity or drift', () => {
     seedProject('Quiet', 1, 0)
-    expect(payload<DigestGlobalPayload>(runGetReentryDigest({})).projects).toEqual([])
+    expect(payload<DigestPayload>(runGetReentryDigest({})).projects).toEqual([])
   })
 
   it('does not write to the database', () => {

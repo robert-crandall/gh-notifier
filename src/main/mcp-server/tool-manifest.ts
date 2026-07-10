@@ -171,7 +171,8 @@ export const TOOL_MANIFEST: readonly ManifestTool[] = [
     description:
       'READ-ONLY. Get the blame-free "what changed while I was away / what should I pick up" digest ' +
       'the app computes (recent Copilot sessions + unread activity) plus each project\'s drift ' +
-      'state. Pass `project` for one project; omit it for every project with new activity or drift. ' +
+      'state. Always returns a `projects` list (uniform shape): pass `project` for a one-element ' +
+      'list with just that project; omit it for every project with new activity or drift. ' +
       'Mutates nothing.',
     inputSchema: {
       type: 'object',

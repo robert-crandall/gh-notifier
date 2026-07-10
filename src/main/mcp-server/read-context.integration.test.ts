@@ -164,13 +164,13 @@ describe('read-context tools over the real loopback server', () => {
     expect(result.isError).toBeFalsy()
 
     const appDigest = getDigest(p.id)
-    const digest = result.structuredContent as unknown as {
-      projectId: number
-      items: { kind: string }[]
+    const { projects } = result.structuredContent as unknown as {
+      projects: { projectId: number; items: { kind: string }[] }[]
     }
-    expect(digest.projectId).toBe(p.id)
-    expect(digest.items.map((i) => i.kind)).toEqual(appDigest.items.map((i) => i.kind))
-    expect(digest.items.length).toBeGreaterThan(0)
+    expect(projects).toHaveLength(1)
+    expect(projects[0].projectId).toBe(p.id)
+    expect(projects[0].items.map((i) => i.kind)).toEqual(appDigest.items.map((i) => i.kind))
+    expect(projects[0].items.length).toBeGreaterThan(0)
   })
 
   it('an unknown project yields an isError result (not a transport failure)', async () => {

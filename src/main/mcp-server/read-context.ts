@@ -323,6 +323,14 @@ function digestViewFor(id: number, name: string, driftState: DriftState): Projec
  * that either has digest activity OR is drifting (the resurface signal) — deliberately-parked
  * (snoozed, no activity) projects are omitted so we don't nag about what the user set aside.
  */
+/**
+ * `get_reentry_digest`: the blame-free "what changed while I was away / what should I pick up"
+ * digest. Always returns a uniform `{ projects: ProjectDigestView[] }` envelope so clients don't
+ * have to branch on the response shape. With a `project`, the list holds exactly that one project
+ * (even if it has no new activity — you asked for it). Without one, it holds every project that
+ * either has digest activity OR is drifting (the resurface signal); deliberately-parked (snoozed,
+ * no activity) projects are omitted so we don't nag about what the user set aside.
+ */
 export function runGetReentryDigest(args: Record<string, unknown>): CallToolResult {
   if (args.project !== undefined && args.project !== null) {
     const ref = resolveProjectRef(args.project)
@@ -338,7 +346,7 @@ export function runGetReentryDigest(args: Record<string, unknown>): CallToolResu
       view.items.length === 0
         ? `${ref.name}: nothing new since you were last here (drift: ${view.driftState}).`
         : `${ref.name}: ${view.items.length} update${view.items.length === 1 ? '' : 's'} since you were away (drift: ${view.driftState}).`
-    return ok(summary, view)
+    return ok(summary, { projects: [view] })
   }
 
   const projects = listProjects()
