@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, FolderOpen, AlertTriangle } from 'lucide-react'
-import type { ServiceRunbook } from '@shared/ipc-channels'
+import type { ProjectCard, ServiceRunbook } from '@shared/ipc-channels'
+import { normalizeServiceName } from '@shared/service-name'
 import { Icon } from './Icon'
 import { LinkifiedText } from './LinkifiedText'
+import { ServicesEditor } from './ServicesEditor'
 import { fire } from '../ipc'
 import styles from './RunbooksPanel.module.css'
 
@@ -59,52 +61,129 @@ function RunbookCard({ rb }: { rb: ServiceRunbook }): JSX.Element {
 }
 
 export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
+  const [card, setCard] = useState<ProjectCard | null>(null)
   const [runbooks, setRunbooks] = useState<ServiceRunbook[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(false)
+  const [cardError, setCardError] = useState(false)
+  const [runbooksError, setRunbooksError] = useState(false)
+  const [saving, setSaving] = useState(false)
+  // Synchronous in-flight mutex: `saving` state drives the disabled UI but only updates on
+  // re-render, so it can't reliably reject a second call fired in the same tick. The ref does.
+  const savingRef = useRef(false)
+  // Guards against setState after the component unmounts (e.g. a fast project switch mid-load,
+  // since the parent remounts this component per project).
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // Load the card and the runbook list independently: a transient runbook read failure must
+  // not hide the services editor when the card loaded fine (and vice versa).
+  const load = useCallback(async (): Promise<void> => {
+    const [cardResult, runbooksResult] = await Promise.allSettled([
+      window.electron.ipc.invoke('resources:card-get', projectId),
+      window.electron.ipc.invoke('knowledge:list-for-project', projectId),
+    ])
+    if (!mountedRef.current) return
+    if (cardResult.status === 'fulfilled') {
+      setCard(cardResult.value ?? null)
+      setCardError(false)
+    } else {
+      console.error('[Runbooks] card load failed:', cardResult.reason)
+      setCardError(true)
+    }
+    if (runbooksResult.status === 'fulfilled') {
+      setRunbooks(runbooksResult.value)
+      setRunbooksError(false)
+    } else {
+      console.error('[Runbooks] runbook load failed:', runbooksResult.reason)
+      setRunbooksError(true)
+    }
+  }, [projectId])
 
   useEffect(() => {
     let active = true
-    const load = async (): Promise<void> => {
-      try {
-        const list = await window.electron.ipc.invoke('knowledge:list-for-project', projectId)
-        if (active) {
-          setRunbooks(list)
-          setError(false)
-          setLoaded(true)
-        }
-      } catch (err) {
-        console.error('[Runbooks] load failed:', err)
-        if (active) {
-          setError(true)
-          setLoaded(true)
-        }
-      }
+    const run = async (): Promise<void> => {
+      await load()
+      if (active) setLoaded(true)
     }
-    void load()
+    void run()
+    // card-upsert fires no event, so this only reloads on out-of-band MCP knowledge writes;
+    // in-app card edits reload directly via the add/remove handlers below.
     const unsub = window.electron.onKnowledgeUpdated(() => { void load() })
     return () => {
       active = false
       unsub()
     }
-  }, [projectId])
+  }, [load])
 
-  if (loaded && error) {
-    return <div className={styles.empty}>Couldn’t load runbooks for this project. Try again in a moment.</div>
-  }
+  // Persist a new services array, then reload so runbooks appear/disappear live. The synchronous
+  // `savingRef` mutex drops overlapping mutations so a stale services array can't clobber a newer
+  // one even if two calls fire before a re-render disables the controls.
+  const persistServices = useCallback(
+    async (services: string[]): Promise<void> => {
+      if (savingRef.current) return
+      savingRef.current = true
+      setSaving(true)
+      try {
+        const updated = await window.electron.ipc.invoke('resources:card-upsert', projectId, { services })
+        if (mountedRef.current) setCard(updated ?? null)
+        await load()
+      } catch (err) {
+        console.error('[Runbooks] card-upsert failed:', err)
+      } finally {
+        savingRef.current = false
+        if (mountedRef.current) setSaving(false)
+      }
+    },
+    [projectId, load]
+  )
 
-  if (loaded && runbooks.length === 0) {
-    return (
-      <div className={styles.empty}>
-        This project lists no services yet. Add services to the project card, then Copilot can keep a per-service
-        runbook (how to check health, monitor links, oncall notes).
-      </div>
-    )
-  }
+  const addService = useCallback(
+    (key: string): void => {
+      if (card === null) return
+      if (card.services.some((s) => normalizeServiceName(s) === key)) return
+      fire(persistServices([...card.services, key]), 'resources:card-upsert')
+    },
+    [card, persistServices]
+  )
+
+  const removeService = useCallback(
+    (key: string): void => {
+      if (card === null) return
+      const next = card.services.filter((s) => normalizeServiceName(s) !== key)
+      if (next.length === card.services.length) return
+      fire(persistServices(next), 'resources:card-upsert')
+    },
+    [card, persistServices]
+  )
 
   return (
     <div className={styles.panel}>
-      {runbooks.map((rb) => (
+      {card !== null && (
+        <ServicesEditor services={card.services} onAdd={addService} onRemove={removeService} busy={saving} />
+      )}
+
+      {loaded && cardError && (
+        <div className={styles.empty}>Couldn’t load this project’s card. Try again in a moment.</div>
+      )}
+
+      {loaded && runbooksError && (
+        <div className={styles.empty}>Couldn’t load runbooks for this project. Try again in a moment.</div>
+      )}
+
+      {loaded && !cardError && !runbooksError && runbooks.length === 0 && (
+        <div className={styles.empty}>
+          No services on this project yet. Add one above and Copilot can keep a per-service runbook (how to check
+          health, monitor links, oncall notes).
+        </div>
+      )}
+
+      {loaded && !runbooksError && runbooks.map((rb) => (
         <RunbookCard key={rb.key ?? `invalid:${rb.service}`} rb={rb} />
       ))}
     </div>

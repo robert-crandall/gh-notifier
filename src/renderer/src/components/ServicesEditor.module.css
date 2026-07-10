@@ -1,0 +1,146 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.addIcon {
+  color: var(--text-3);
+  flex: none;
+}
+
+.addInput {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-window);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+  outline: none;
+  padding: 5px 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.addInput:focus {
+  border-color: var(--text-3);
+}
+
+.addInput::placeholder {
+  color: var(--text-3);
+}
+
+.addInput:disabled {
+  opacity: 0.6;
+}
+
+.addButton {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-window);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+
+.addButton:hover:not(:disabled) {
+  border-color: var(--text-3);
+}
+
+.addButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.preview {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.preview code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  color: var(--text);
+}
+
+.ok {
+  color: var(--text-3);
+}
+
+.dupe {
+  color: var(--text-2);
+}
+
+.error {
+  color: var(--danger, #cf222e);
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--bg-window);
+  border: 1px solid var(--border-muted);
+  border-radius: 999px;
+}
+
+.chipName {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+}
+
+.removeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--text-3);
+  background: none;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.removeBtn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-inset);
+}
+
+.removeBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.note {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
