@@ -44,9 +44,9 @@ const SAFE_KEY = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/
  * rewrites) anything unsafe: empty/whitespace, path separators, `..`, leading
  * dots, control chars, non-ASCII, or anything outside the `[a-z0-9._-]` slug
  * charset. Case is folded first, so validation always runs on the same key the
- * store will use.
+ * store will use. Accepts `unknown` because it gates untrusted MCP/IPC input.
  */
-export function validateServiceName(raw: string): ServiceNameValidation {
+export function validateServiceName(raw: unknown): ServiceNameValidation {
   if (typeof raw !== 'string') {
     return { ok: false, reason: 'Service must be a string.' }
   }
@@ -83,6 +83,6 @@ export function validateServiceName(raw: string): ServiceNameValidation {
 }
 
 /** Convenience boolean form of {@link validateServiceName}. */
-export function isValidServiceName(raw: string): boolean {
+export function isValidServiceName(raw: unknown): boolean {
   return validateServiceName(raw).ok
 }

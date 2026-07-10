@@ -22,6 +22,7 @@ function RunbookCard({ rb }: { rb: ServiceRunbook }): JSX.Element {
   const reveal = (): void => {
     fire(window.electron.ipc.invoke('knowledge:reveal', rb.service), 'knowledge:reveal')
   }
+  const meta = rb.status === 'ok' ? metaLine(rb) : ''
   return (
     <div className={styles.card}>
       <div className={styles.cardHead}>
@@ -36,7 +37,7 @@ function RunbookCard({ rb }: { rb: ServiceRunbook }): JSX.Element {
 
       {rb.status === 'ok' && (
         <>
-          {metaLine(rb).length > 0 && <div className={styles.meta}>{metaLine(rb)}</div>}
+          {meta.length > 0 && <div className={styles.meta}>{meta}</div>}
           <pre className={styles.body}>
             <LinkifiedText text={rb.markdown ?? ''} />
           </pre>

@@ -181,23 +181,24 @@ function backupStamp(): string {
   return new Date().toISOString().replace(/[:.]/g, '-')
 }
 
-/** mkdir a real directory, rejecting a symlinked path (returns false = blocked). */
+/** mkdir a real directory, returning false (never throwing) on any failure — a
+ * symlinked path, a non-directory in the way, or a permission/IO error — so
+ * callers always get a controlled result instead of an exception. */
 function ensureRealDir(dirPath: string): boolean {
-  mkdirSync(dirPath, { recursive: true, mode: 0o700 })
   try {
-    if (lstatSync(dirPath).isSymbolicLink()) return false
+    mkdirSync(dirPath, { recursive: true, mode: 0o700 })
+    return !lstatSync(dirPath).isSymbolicLink()
   } catch {
     return false
   }
-  return true
 }
 
 /** Copy `content` into `.history/<key>/<stamp>.md` (exclusive create), then prune. */
 function backupBuffer(dir: string, key: string, content: Buffer): void {
   const hRoot = historyDir(dir)
-  if (!ensureRealDir(hRoot)) throw new Error('history dir is a symlink')
+  if (!ensureRealDir(hRoot)) throw new Error('history directory is a symlink or unwritable')
   const hDir = join(hRoot, key)
-  if (!ensureRealDir(hDir)) throw new Error('service history dir is a symlink')
+  if (!ensureRealDir(hDir)) throw new Error('service history directory is a symlink or unwritable')
   const name = `${backupStamp()}-${backupCounter++}.md`
   writeFileSync(join(hDir, name), content, { flag: 'wx', mode: 0o600 })
   pruneHistory(hDir)
@@ -264,7 +265,7 @@ export function writeServiceKnowledge(input: WriteInput, dir: string = knowledge
   }
 
   return serializeWrite(key, async (): Promise<WriteResult> => {
-    if (!ensureRealDir(dir)) return { status: 'blocked', reason: 'Knowledge directory is a symlink.' }
+    if (!ensureRealDir(dir)) return { status: 'blocked', reason: 'Could not prepare the knowledge directory (it may be a symlink or unwritable).' }
     const filePath = safeServiceFilePath(dir, key)
     if (filePath === null) return { status: 'blocked', reason: 'Resolved path escaped the knowledge directory.' }
 

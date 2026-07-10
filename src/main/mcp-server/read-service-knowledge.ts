@@ -10,7 +10,7 @@
  */
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { knowledgeFilePathForService, readServiceKnowledge } from '../knowledge/store'
+import { readServiceKnowledge } from '../knowledge/store'
 import { listResourcesByService, type ServiceResource } from '../context/registry'
 import { resolveProjectIdByName } from '../db/routing-rules'
 
@@ -58,13 +58,10 @@ export function runReadServiceKnowledge(args: Record<string, unknown>): CallTool
       return errorResult(`Invalid service name: ${res.reason}`)
     case 'blocked':
       return errorResult(res.reason)
-    case 'too_large': {
-      const path = knowledgeFilePathForService(res.service)
-      const where = path === null ? 'on disk' : `on disk at ${path}`
+    case 'too_large':
       return textResult(
-        `The runbook for "${res.service}" is ${res.size} bytes, which is too large to return via this tool. Edit it ${where}.`
+        `The runbook for "${res.service}" is ${res.size} bytes, which is too large to return via this tool. Edit "${res.service}.md" on disk in the knowledge directory.`
       )
-    }
     case 'missing':
       return textResult(
         `No runbook yet for service "${res.service}". Use write_service_knowledge to create one.`
