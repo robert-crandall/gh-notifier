@@ -21,8 +21,8 @@
 
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { CopilotAppSessionStatus, TodoAppSession } from '../../../shared/ipc-channels'
-import { getTodoAppSessionsForProject, updateAppSessionStatus } from './store'
+import type { CopilotAppSessionStatus, TodoAppSession, CopilotAppSession } from '../../../shared/ipc-channels'
+import { getTodoAppSessionsForProject, updateAppSessionStatus, getAppSessionsForProject } from './store'
 
 /** Path to the desktop app's own sqlite database. */
 export function copilotDataDbPath(): string {
@@ -123,4 +123,34 @@ export async function refreshTodoAppSessionsForProject(
     }
   }
   return changed ? getTodoAppSessionsForProject(projectId) : links
+}
+
+/**
+ * Return ALL app sessions for a project (both Projects-'launched' and directly-
+ * 'observed', #119), newest first, after refreshing their live status from the
+ * app's local store (read-only). Mirrors `refreshTodoAppSessionsForProject` but
+ * keyed on project assignment rather than a todo link, so observed sessions —
+ * which have no todo — surface too. On a transient read failure the stored
+ * (last-known) status is kept. `reader` is injectable for tests.
+ */
+export async function refreshProjectAppSessions(
+  projectId: number,
+  reader: AppStatusReader = readAppSessionStatuses
+): Promise<CopilotAppSession[]> {
+  const sessions = getAppSessionsForProject(projectId)
+  const ids = [...new Set(sessions.map((s) => s.id))]
+  const read = await reader(ids)
+  if (!read.ok) return sessions // transient failure → last-known
+
+  // Only write when the status actually changed, so polling doesn't bump
+  // updated_at (and reorder sessions) on every refresh.
+  const current = new Map(sessions.map((s) => [s.id, s.status]))
+  let changed = false
+  for (const [id, status] of read.statuses) {
+    if (current.get(id) !== status) {
+      updateAppSessionStatus(id, status)
+      changed = true
+    }
+  }
+  return changed ? getAppSessionsForProject(projectId) : sessions
 }

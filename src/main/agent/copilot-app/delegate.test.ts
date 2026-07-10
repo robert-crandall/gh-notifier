@@ -23,7 +23,8 @@ const payload: DelegatePayload = {
 
 const appSession: CopilotAppSession = {
   id: 'app-1', projectId: 1, cwd: '/repos/foo', title: 'do the thing',
-  status: 'in_progress', repoOwner: 'me', repoName: 'foo', createdAt: '', updatedAt: '',
+  status: 'in_progress', repoOwner: 'me', repoName: 'foo', origin: 'launched',
+  pinnedProjectId: null, createdAt: '', updatedAt: '',
 }
 const cloudSession: CopilotSession = {
   id: 'cloud-1', projectId: 1, source: 'github', status: 'in_progress', title: 'do the thing',

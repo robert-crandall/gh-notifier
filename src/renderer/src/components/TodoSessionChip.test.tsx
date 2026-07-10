@@ -17,7 +17,8 @@ beforeEach(() => {
 function session(overrides: Partial<CopilotAppSession> = {}): CopilotAppSession {
   return {
     id: 'app-1', projectId: 1, cwd: '/x', title: 't', status: 'in_progress',
-    repoOwner: null, repoName: null, createdAt: '', updatedAt: '', ...overrides,
+    repoOwner: null, repoName: null, origin: 'launched', pinnedProjectId: null,
+    createdAt: '', updatedAt: '', ...overrides,
   }
 }
 
