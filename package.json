@@ -26,6 +26,7 @@
   "author": "robert-crandall",
   "license": "MIT",
   "trustedDependencies": [
+    "electron",
     "onnxruntime-node",
     "protobufjs"
   ],
