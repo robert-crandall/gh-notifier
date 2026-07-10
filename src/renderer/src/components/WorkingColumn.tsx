@@ -304,7 +304,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
   const notifCountRef = useRef(props.detail.unreadCount)
   notifCountRef.current = props.detail.unreadCount
 
-  const { rows: copilotRows, isLoading: copilotLoading, emptyIsAuthoritative } = useCopilotSessions(props.detail.id)
+  const { rows: copilotRows, emptyIsAuthoritative } = useCopilotSessions(props.detail.id)
 
   // Show the Copilot tab when the project has sessions (current or historical). Keep
   // it while it's the active tab so a project-switch reload never leaves the panel
@@ -350,7 +350,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
         {tab === 'resources' && <ResourcePanel key={props.detail.id} projectId={props.detail.id} showUndo={props.showUndo} />}
         {tab === 'runbooks' && <RunbooksPanel key={props.detail.id} projectId={props.detail.id} />}
         {tab === 'notifications' && <NotificationsPanel projectId={props.detail.id} onDelegate={props.onDelegate} />}
-        {tab === 'copilot' && <CopilotSessionsPanel rows={copilotRows} isLoading={copilotLoading} />}
+        {tab === 'copilot' && <CopilotSessionsPanel rows={copilotRows} emptyIsAuthoritative={emptyIsAuthoritative} />}
       </div>
     </div>
   )

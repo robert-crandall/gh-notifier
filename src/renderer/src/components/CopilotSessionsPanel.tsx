@@ -97,13 +97,20 @@ function SessionRow({ row }: { row: CopilotSessionRow }): JSX.Element {
 
 export function CopilotSessionsPanel({
   rows,
-  isLoading,
+  emptyIsAuthoritative,
 }: {
   rows: CopilotSessionRow[]
-  isLoading: boolean
+  emptyIsAuthoritative: boolean
 }): JSX.Element {
   if (rows.length === 0) {
-    return <div className={styles.empty}>{isLoading ? 'Loading…' : 'No Copilot sessions for this project yet.'}</div>
+    // Only a clean, both-sources-succeeded empty is a real "no sessions". A still-
+    // loading or failed (non-authoritative) empty stays indeterminate so a transient
+    // IPC failure never presents as "no sessions".
+    return (
+      <div className={styles.empty}>
+        {emptyIsAuthoritative ? 'No Copilot sessions for this project yet.' : 'Loading…'}
+      </div>
+    )
   }
   return (
     <div className={styles.list}>
