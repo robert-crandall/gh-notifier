@@ -83,7 +83,7 @@ export function runReadServiceKnowledge(args: Record<string, unknown>): CallTool
           blocks.push(formatResources(listResourcesByService(res.knowledge.service), false))
         }
       }
-      return { content: blocks.map((text) => ({ type: 'text', text })) }
+      return { content: [{ type: 'text', text: blocks.join('\n\n') }] }
     }
   }
 }

@@ -86,6 +86,23 @@ function safeServiceFilePath(dir: string, key: string): string | null {
 }
 
 /**
+ * Classify the knowledge directory. `ok` = a real directory we may traverse;
+ * `missing` = it doesn't exist (so any runbook is simply missing); `unsafe` = a
+ * symlink or a non-directory, which could make `<key>.md` resolve outside the
+ * intended tree. Every path-resolving caller (read, reveal, write via
+ * ensureRealDir) applies this same boundary.
+ */
+function knowledgeDirState(dir: string): 'ok' | 'missing' | 'unsafe' {
+  let st: ReturnType<typeof lstatSync>
+  try {
+    st = lstatSync(dir)
+  } catch {
+    return 'missing'
+  }
+  return st.isSymbolicLink() || !st.isDirectory() ? 'unsafe' : 'ok'
+}
+
+/**
  * Public helper for callers that just need the on-disk path for a service (e.g.
  * reveal-in-Finder). Returns null for an invalid/unsafe service name.
  */
@@ -96,13 +113,15 @@ export function knowledgeFilePathForService(service: string, dir: string = knowl
 }
 
 /**
- * Path to a service's runbook only when it exists as a real (non-symlink) file —
- * for reveal-in-Finder. Returns null when the name is invalid, the file is
- * missing, or the path is a symlink.
+ * Path to a service's runbook only when it exists as a real (non-symlink) file
+ * under a real (non-symlink) knowledge directory — for reveal-in-Finder. Returns
+ * null when the name is invalid, the dir is unsafe, the file is missing, or the
+ * path is a symlink.
  */
 export function revealablePathForService(service: string, dir: string = knowledgeDir()): string | null {
   const path = knowledgeFilePathForService(service, dir)
   if (path === null) return null
+  if (knowledgeDirState(dir) !== 'ok') return null
   try {
     const st = lstatSync(path)
     if (st.isSymbolicLink() || !st.isFile()) return null
@@ -128,13 +147,9 @@ export function readServiceKnowledge(service: string, dir: string = knowledgeDir
   // Guard the knowledge dir itself: a symlinked (or non-directory) dir could make
   // `<key>.md` resolve outside the intended tree. A missing dir just means the
   // runbook is missing.
-  let dirStat: ReturnType<typeof lstatSync>
-  try {
-    dirStat = lstatSync(dir)
-  } catch {
-    return { status: 'missing', service: key, path: filePath }
-  }
-  if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) {
+  const dirState = knowledgeDirState(dir)
+  if (dirState === 'missing') return { status: 'missing', service: key, path: filePath }
+  if (dirState === 'unsafe') {
     return { status: 'blocked', reason: 'Knowledge directory is a symlink or not a directory.' }
   }
 

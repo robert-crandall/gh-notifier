@@ -7,6 +7,7 @@ import {
   writeServiceKnowledge,
   listServiceHistory,
   knowledgeFilePathForService,
+  revealablePathForService,
   pendingWriteChainCount,
   KNOWLEDGE_MAX_BYTES,
   MAX_HISTORY_VERSIONS,
@@ -215,6 +216,23 @@ describe('symlink refusal (SECURITY)', () => {
     symlinkSync(real, linkDir)
     const r = readServiceKnowledge('web', linkDir)
     expect(r.status).toBe('blocked')
+  })
+
+  it('revealablePathForService returns a real file path but null for symlinked file/dir', () => {
+    const dir = freshDir()
+    writeFileSync(join(dir, 'web.md'), 'body')
+    expect(revealablePathForService('web', dir)).toBe(join(dir, 'web.md'))
+    expect(revealablePathForService('ghost', dir)).toBeNull() // missing
+
+    // Symlinked file -> null.
+    const symDir = freshDir()
+    symlinkSync(join(dir, 'web.md'), join(symDir, 'web.md'))
+    expect(revealablePathForService('web', symDir)).toBeNull()
+
+    // Symlinked knowledge dir -> null.
+    const linkDir = join(freshDir(), 'link')
+    symlinkSync(dir, linkDir)
+    expect(revealablePathForService('web', linkDir)).toBeNull()
   })
 })
 
