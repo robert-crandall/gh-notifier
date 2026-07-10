@@ -29,6 +29,11 @@ describe('parseWorkspaceYaml', () => {
     expect(parseWorkspaceYaml('repository: "owner/repo"').repository).toBe('owner/repo')
   })
 
+  it('honors escaped quotes/backslashes inside a double-quoted scalar', () => {
+    expect(parseWorkspaceYaml('name: "a \\"quoted\\" b"').name).toBe('a "quoted" b')
+    expect(parseWorkspaceYaml('name: "back\\\\slash"').name).toBe('back\\slash')
+  })
+
   it('IGNORES indented (nested) keys — only column-0 keys count', () => {
     const yaml = ['meta:', '  repository: sneaky/nested', '  cwd: /nested/path'].join('\n')
     const parsed = parseWorkspaceYaml(yaml)

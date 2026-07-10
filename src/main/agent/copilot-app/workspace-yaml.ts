@@ -94,10 +94,28 @@ function unquoteScalar(raw: string): string | null {
   }
 
   if (s.startsWith('"')) {
-    const end = s.indexOf('"', 1)
-    if (end === -1) return null
-    const body = s.slice(1, end).replace(/\\"/g, '"').replace(/\\\\/g, '\\')
-    return body.length > 0 ? body : null
+    // Double-quoted: scan to the closing quote, honoring `\"` and `\\` escapes so
+    // an escaped quote inside the value doesn't terminate it early.
+    let out = ''
+    let i = 1
+    let closed = false
+    while (i < s.length) {
+      const ch = s[i]
+      if (ch === '\\' && i + 1 < s.length) {
+        const next = s[i + 1]
+        out += next === '"' || next === '\\' ? next : `\\${next}`
+        i += 2
+        continue
+      }
+      if (ch === '"') {
+        closed = true
+        break
+      }
+      out += ch
+      i += 1
+    }
+    if (!closed) return null // no closing quote → malformed
+    return out.length > 0 ? out : null
   }
 
   // Unquoted scalar: strip a trailing inline comment only when clearly separated
