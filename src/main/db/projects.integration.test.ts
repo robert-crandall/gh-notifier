@@ -20,6 +20,11 @@ import {
   wakeExpiredSnoozes,
   createTodo,
   createLink,
+  addAgentTodo,
+  listInboxTodos,
+  getProjectNameById,
+  deleteTodo,
+  restoreTodo,
 } from './projects'
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
@@ -229,5 +234,168 @@ describe('wakeExpiredSnoozes', () => {
     snoozeProject(p.id, 'notification')
     wakeExpiredSnoozes()
     expect(getProject(p.id).status).toBe('snoozed')
+  })
+})
+
+// ── addAgentTodo / listInboxTodos (#102) ──────────────────────────────────────
+
+function base(overrides: Partial<Parameters<typeof addAgentTodo>[0]> = {}): Parameters<typeof addAgentTodo>[0] {
+  return {
+    resolvedProjectId: null,
+    explicitPlacement: false,
+    title: 'Approve PR',
+    body: null,
+    sourceUrl: null,
+    suggestedAction: null,
+    idempotencyKey: null,
+    ...overrides,
+  }
+}
+
+describe('addAgentTodo', () => {
+  it('creates a copilot-origin todo on the resolved project', () => {
+    const p = createProject('Alpha')
+    const { todo, status } = addAgentTodo(base({ resolvedProjectId: p.id, title: 'Do it', body: 'details' }))
+    expect(status).toBe('created')
+    expect(todo.origin).toBe('copilot')
+    expect(todo.projectId).toBe(p.id)
+    expect(todo.text).toBe('Do it') // text mirrors the title for back-compat renderers
+    expect(todo.title).toBe('Do it')
+    expect(todo.body).toBe('details')
+    expect(getProject(p.id).todos).toHaveLength(1)
+  })
+
+  it('lands in the Inbox (null project) when resolvedProjectId is null', () => {
+    const { todo } = addAgentTodo(base({ title: 'Unrouted' }))
+    expect(todo.projectId).toBeNull()
+    expect(listInboxTodos().map((t) => t.id)).toContain(todo.id)
+  })
+
+  it('is idempotent on the key — a repeat updates instead of duplicating', () => {
+    const p = createProject('Beta')
+    const first = addAgentTodo(base({ resolvedProjectId: p.id, title: 'v1', idempotencyKey: 'k1' }))
+    expect(first.status).toBe('created')
+    const second = addAgentTodo(base({ resolvedProjectId: p.id, title: 'v2 refined', idempotencyKey: 'k1' }))
+    expect(second.status).toBe('updated')
+    expect(second.todo.id).toBe(first.todo.id)
+    expect(second.todo.title).toBe('v2 refined')
+    expect(getProject(p.id).todos).toHaveLength(1)
+  })
+
+  it('a null idempotency key always inserts (no dedup)', () => {
+    const p = createProject('Gamma')
+    addAgentTodo(base({ resolvedProjectId: p.id, title: 'a' }))
+    addAgentTodo(base({ resolvedProjectId: p.id, title: 'b' }))
+    expect(getProject(p.id).todos).toHaveLength(2)
+  })
+
+  it('stores and round-trips the suggested action', () => {
+    const p = createProject('Delta')
+    const action = { kind: 'pr_comment' as const, url: 'https://example.com/pr/1', comment: 'nice' }
+    const { todo } = addAgentTodo(base({ resolvedProjectId: p.id, suggestedAction: action, sourceUrl: 'https://example.com/pr/1', idempotencyKey: 'k' }))
+    expect(getProject(p.id).todos[0].suggestedAction).toEqual(action)
+    expect(todo.sourceUrl).toBe('https://example.com/pr/1')
+  })
+
+  it('explicit placement MOVES an existing todo on the conflict', () => {
+    const a = createProject('Home')
+    const b = createProject('Elsewhere')
+    const first = addAgentTodo(base({ resolvedProjectId: a.id, idempotencyKey: 'k1' }))
+    const second = addAgentTodo(base({ resolvedProjectId: b.id, explicitPlacement: true, idempotencyKey: 'k1' }))
+    expect(second.todo.id).toBe(first.todo.id)
+    expect(second.todo.projectId).toBe(b.id)
+  })
+
+  it('non-explicit re-resolution leaves placement STICKY', () => {
+    const a = createProject('Sticky')
+    const b = createProject('Other')
+    const first = addAgentTodo(base({ resolvedProjectId: a.id, idempotencyKey: 'k1' }))
+    const second = addAgentTodo(base({ resolvedProjectId: b.id, explicitPlacement: false, idempotencyKey: 'k1' }))
+    expect(second.todo.id).toBe(first.todo.id)
+    expect(second.todo.projectId).toBe(a.id) // did not move
+  })
+
+  it('appends (recomputes sort_order) when a todo moves buckets', () => {
+    const a = createProject('From')
+    const b = createProject('To')
+    // Fill B with two todos so its max sort_order is 1.
+    createTodo(b.id, 'b0')
+    createTodo(b.id, 'b1')
+    const moved = addAgentTodo(base({ resolvedProjectId: a.id, idempotencyKey: 'k1' }))
+    expect(moved.todo.sortOrder).toBe(0) // first in A
+    const after = addAgentTodo(base({ resolvedProjectId: b.id, explicitPlacement: true, idempotencyKey: 'k1' }))
+    expect(after.todo.projectId).toBe(b.id)
+    expect(after.todo.sortOrder).toBe(2) // appended after B's 0 and 1, not left at 0
+  })
+
+  it('moves a todo off a now-soft-deleted project on a non-explicit update', () => {
+    const dead = createProject('Dead')
+    const first = addAgentTodo(base({ resolvedProjectId: dead.id, idempotencyKey: 'k1' }))
+    deleteProject(dead.id) // soft-delete
+    const second = addAgentTodo(base({ resolvedProjectId: null, explicitPlacement: false, idempotencyKey: 'k1' }))
+    expect(second.todo.id).toBe(first.todo.id)
+    expect(second.todo.projectId).toBeNull() // rehomed to the Inbox
+  })
+
+  it('preserves done + reports updated_completed on a re-propose', () => {
+    const p = createProject('Complete')
+    const created = addAgentTodo(base({ resolvedProjectId: p.id, idempotencyKey: 'c1' }))
+    // Mark it done at the DB level via the same table the app uses.
+    getDb().prepare('UPDATE project_todos SET done = 1 WHERE id = ?').run(created.todo.id)
+    const again = addAgentTodo(base({ resolvedProjectId: p.id, title: 'still relevant', idempotencyKey: 'c1' }))
+    expect(again.status).toBe('updated_completed')
+    expect(again.todo.done).toBe(true) // stayed done
+    expect(again.todo.title).toBe('still relevant') // content still refreshed
+  })
+
+  it('preserves deleted_at + reports updated_dismissed on a re-propose', () => {
+    const p = createProject('Dismissed')
+    const created = addAgentTodo(base({ resolvedProjectId: p.id, idempotencyKey: 'd1' }))
+    deleteTodo(created.todo.id) // soft-delete = dismiss
+    const again = addAgentTodo(base({ resolvedProjectId: p.id, idempotencyKey: 'd1' }))
+    expect(again.status).toBe('updated_dismissed')
+    // A restore brings the refreshed todo back.
+    restoreTodo(created.todo.id)
+    expect(getProject(p.id).todos.map((t) => t.id)).toContain(created.todo.id)
+  })
+
+  it('never touches a non-copilot todo that carries a stray idempotency_key', () => {
+    const a = createProject('Guarded')
+    getDb()
+      .prepare("INSERT INTO project_todos (project_id, text, origin, idempotency_key) VALUES (?, 'user note', 'user', 'shared')")
+      .run(a.id)
+    // The lookup is origin-scoped, so this falls through to INSERT and the unique index rejects it.
+    expect(() => addAgentTodo(base({ resolvedProjectId: a.id, idempotencyKey: 'shared', title: 'hijack' }))).toThrow()
+    const row = getDb().prepare("SELECT text, origin FROM project_todos WHERE idempotency_key = 'shared'").get() as { text: string; origin: string }
+    expect(row.text).toBe('user note') // untouched
+    expect(row.origin).toBe('user')
+  })
+})
+
+describe('listInboxTodos', () => {
+  it('returns only project-less, non-deleted todos', () => {
+    const p = createProject('WithTodos')
+    createTodo(p.id, 'project todo')
+    const inbox = addAgentTodo(base({ title: 'inbox todo' }))
+    const dismissed = addAgentTodo(base({ title: 'dismissed', idempotencyKey: 'x' }))
+    deleteTodo(dismissed.todo.id)
+    const ids = listInboxTodos().map((t) => t.id)
+    expect(ids).toContain(inbox.todo.id)
+    expect(ids).not.toContain(dismissed.todo.id)
+  })
+
+  it('excludes non-copilot project-less todos (agent-todo surface only)', () => {
+    getDb().prepare("INSERT INTO project_todos (project_id, text, origin) VALUES (NULL, 'stray user', 'user')").run()
+    const agent = addAgentTodo(base({ title: 'agent inbox' }))
+    expect(listInboxTodos().map((t) => t.id)).toContain(agent.todo.id)
+    expect(listInboxTodos().every((t) => t.origin === 'copilot')).toBe(true)
+  })
+})
+
+describe('getProjectNameById', () => {
+  it('returns the name for a live project and null when missing', () => {
+    const p = createProject('Named')
+    expect(getProjectNameById(p.id)).toBe('Named')
+    expect(getProjectNameById(999999)).toBeNull()
   })
 })

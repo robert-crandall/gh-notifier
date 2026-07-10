@@ -13,7 +13,7 @@
  * — no dependency on a system node/bun and no asar-script-execution.
  */
 
-import { app } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadToken } from '../auth/storage'
@@ -74,11 +74,23 @@ function extraSecrets(): readonly string[] {
   return pat !== null && pat.length > 0 ? [pat] : []
 }
 
+/**
+ * Push a `todos:updated` (+ `projects:updated` for rail counts) event to every renderer when
+ * the `add_todo` tool changes a todo, so open todo surfaces reload live. Kept here (not in the
+ * tool) so the tool stays free of Electron/UI concerns.
+ */
+function broadcastTodoChanged(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('todos:updated')
+    win.webContents.send('projects:updated')
+  }
+}
+
 /** Start the loopback server (if not already running) and register the shim. */
 export function enableMcpServer(): Promise<void> {
   return serialize(async () => {
     if (handle === null) {
-      handle = await startMcpServer({ extraSecrets })
+      handle = await startMcpServer({ extraSecrets, onTodoChanged: broadcastTodoChanged })
     }
     // Only register in ~/.mcp.json when the shim bundle actually exists, so we
     // never point Copilot at a missing command (e.g. in dev before build:shim).

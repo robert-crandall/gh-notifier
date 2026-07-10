@@ -39,6 +39,8 @@ export interface StartMcpServerOptions {
   extraSecrets?: () => readonly string[]
   /** Token generator (tests may inject a fixed value). Defaults to `generateToken`. */
   generateTokenFn?: () => string
+  /** Called after a tool successfully mutates todo state, so the app can push `todos:updated`. */
+  onTodoChanged?: () => void
 }
 
 export interface McpServerHandle {
@@ -134,6 +136,7 @@ export function startMcpServer(options: StartMcpServerOptions = {}): Promise<Mcp
   const token = (options.generateTokenFn ?? generateToken)()
   const toolDeps: ToolDeps = {
     getSecrets: () => [token, ...(options.extraSecrets?.() ?? [])],
+    onTodoChanged: options.onTodoChanged,
   }
 
   const httpServer: HttpServer = createServer((req, res) => {

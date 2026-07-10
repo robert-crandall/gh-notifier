@@ -15,6 +15,7 @@ import {
   CircleAlert,
   Trash2,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react'
 import type { NotificationThread, NotificationType, ProjectDetail, ProjectTodo, LaunchTarget, CopilotAppSession } from '@shared/ipc-channels'
 import type { LucideIcon } from 'lucide-react'
@@ -23,6 +24,7 @@ import { ResourcePanel } from './ResourcePanel'
 import { TodoSessionChip } from './TodoSessionChip'
 import { LinkifiedText } from './LinkifiedText'
 import { fire, openExternal } from '../ipc'
+import { isSafeExternalUrl } from '@shared/safe-url'
 import styles from './WorkingColumn.module.css'
 
 type TabId = 'todos' | 'notes' | 'resources' | 'notifications'
@@ -51,6 +53,31 @@ function relativeTime(iso: string): string {
 
 // ── Todos ─────────────────────────────────────────────────────────────────────
 
+type TodoFilter = 'all' | 'copilot'
+
+/** The link a copilot todo's one-tap "open" affordance should point at, if any. */
+function openableUrl(todo: ProjectTodo): string | null {
+  const action = todo.suggestedAction
+  if (action && (action.kind === 'pr_comment' || action.kind === 'open_url') && isSafeExternalUrl(action.url)) {
+    return action.url
+  }
+  return isSafeExternalUrl(todo.sourceUrl) ? todo.sourceUrl : null
+}
+
+/** The prompt to hand Copilot when delegating a todo — a delegate action's prompt, else the title. */
+function delegatePrompt(todo: ProjectTodo): string {
+  return todo.suggestedAction?.kind === 'delegate' ? todo.suggestedAction.prompt : todo.title ?? todo.text
+}
+
+function CopilotBadge(): JSX.Element {
+  return (
+    <span className={styles.originBadge} title="Created by Copilot">
+      <Icon icon={Sparkles} size={10} />
+      Copilot
+    </span>
+  )
+}
+
 function TodosPanel({
   detail,
   onCreateTodo,
@@ -60,8 +87,18 @@ function TodosPanel({
   appSessionsByTodo,
 }: Pick<WorkingColumnProps, 'detail' | 'onCreateTodo' | 'onToggleTodo' | 'onDeleteTodo' | 'onDelegate' | 'appSessionsByTodo'>): JSX.Element {
   const [text, setText] = useState('')
-  const active = detail.todos.filter((t) => !t.done)
-  const done = detail.todos.filter((t) => t.done)
+  const [filter, setFilter] = useState<TodoFilter>('all')
+
+  const copilotCount = detail.todos.filter((t) => t.origin === 'copilot').length
+  // The filter chips only show when copilotCount > 0, so if the last Copilot todo goes away
+  // while the Copilot filter is active, snap back to "all" — otherwise the user is stranded in
+  // an empty Copilot view with no chips to switch back.
+  useEffect(() => {
+    if (copilotCount === 0 && filter === 'copilot') setFilter('all')
+  }, [copilotCount, filter])
+  const visible = filter === 'copilot' ? detail.todos.filter((t) => t.origin === 'copilot') : detail.todos
+  const active = visible.filter((t) => !t.done)
+  const done = visible.filter((t) => t.done)
 
   const submit = (): void => {
     const trimmed = text.trim()
@@ -82,35 +119,78 @@ function TodosPanel({
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
       </div>
-      {active.map((t) => (
-        <div key={t.id} className={styles.todoItem}>
-          <div className={styles.todoRow}>
-            <button type="button" className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
-            <span className={styles.todoText}><LinkifiedText text={t.text} /></span>
-            <button type="button" className={styles.rowAction} onClick={() => onDelegate(t.text, undefined, t.id)} aria-label="Delegate to Copilot" title="Delegate to Copilot">
-              <Icon icon={Sparkles} size={13} />
-            </button>
-            <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
-              <Icon icon={Trash2} size={13} />
-            </button>
-          </div>
-          {(appSessionsByTodo.get(t.id) ?? []).map((s) => (
-            <TodoSessionChip key={s.id} session={s} />
-          ))}
+      {copilotCount > 0 && (
+        <div className={styles.todoFilter} role="group" aria-label="Filter todos">
+          <button
+            type="button"
+            className={styles.filterChip}
+            aria-pressed={filter === 'all'}
+            onClick={() => setFilter('all')}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={styles.filterChip}
+            aria-pressed={filter === 'copilot'}
+            onClick={() => setFilter('copilot')}
+          >
+            <Icon icon={Sparkles} size={11} />
+            Copilot
+          </button>
         </div>
-      ))}
+      )}
+      {active.map((t) => {
+        const url = openableUrl(t)
+        return (
+          <div key={t.id} className={styles.todoItem}>
+            <div className={styles.todoRow}>
+              <button type="button" className={styles.checkbox} onClick={() => onToggleTodo(t)} aria-label="Mark done" />
+              <span className={styles.todoText}>
+                <LinkifiedText text={t.title ?? t.text} />
+                {t.origin === 'copilot' && <CopilotBadge />}
+              </span>
+              {url && (
+                <button type="button" className={styles.rowAction} onClick={() => openExternal(url)} aria-label="Open link" title="Open link">
+                  <Icon icon={ExternalLink} size={13} />
+                </button>
+              )}
+              <button type="button" className={styles.rowAction} onClick={() => onDelegate(delegatePrompt(t), undefined, t.id)} aria-label="Delegate to Copilot" title="Delegate to Copilot">
+                <Icon icon={Sparkles} size={13} />
+              </button>
+              <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
+                <Icon icon={Trash2} size={13} />
+              </button>
+            </div>
+            {t.body && (
+              <div className={styles.todoBody}>
+                <LinkifiedText text={t.body} />
+              </div>
+            )}
+            {(appSessionsByTodo.get(t.id) ?? []).map((s) => (
+              <TodoSessionChip key={s.id} session={s} />
+            ))}
+          </div>
+        )
+      })}
       {done.length > 0 && <div className={styles.divider} />}
       {done.map((t) => (
         <div key={t.id} className={`${styles.todoRow} ${styles.todoDone}`}>
           <button type="button" className={`${styles.checkbox} ${styles.checkboxDone}`} onClick={() => onToggleTodo(t)} aria-label="Mark not done">
             <Icon icon={Check} size={11} strokeWidth={3} />
           </button>
-          <span className={`${styles.todoText} ${styles.struck}`}><LinkifiedText text={t.text} /></span>
+          <span className={`${styles.todoText} ${styles.struck}`}>
+            <LinkifiedText text={t.title ?? t.text} />
+            {t.origin === 'copilot' && <CopilotBadge />}
+          </span>
           <button type="button" className={styles.rowAction} onClick={() => onDeleteTodo(t)} aria-label="Delete todo">
             <Icon icon={Trash2} size={13} />
           </button>
         </div>
       ))}
+      {visible.length === 0 && filter === 'copilot' && detail.todos.length > 0 && (
+        <div className={styles.empty}>No Copilot todos yet.</div>
+      )}
       {detail.todos.length === 0 && <div className={styles.empty}>No todos yet. Add the first one above.</div>}
     </div>
   )

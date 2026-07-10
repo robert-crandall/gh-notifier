@@ -121,6 +121,30 @@
   font-size: 13px;
 }
 
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.sectionLabel:first-child {
+  padding-top: 0;
+}
+
+.todoBody {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+  margin-top: 3px;
+  white-space: pre-wrap;
+}
+
 .error {
   color: var(--danger);
 }

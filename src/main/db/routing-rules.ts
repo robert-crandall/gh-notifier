@@ -115,6 +115,83 @@ export function deleteRoutingRule(id: number): void {
   getDb().prepare('DELETE FROM routing_rules WHERE id = ?').run(id)
 }
 
+// ── Repo -> project resolution (shared with the `add_todo` MCP tool) ───────────
+
+/**
+ * Resolve a bare `owner/name` repo to the project it should land in, mirroring the exact
+ * precedence `upsertThreads` applies to notifications: (1) an exact `repo_rules` entry claims
+ * the repo (and resolves to the Inbox if its target project is soft-deleted — it does NOT fall
+ * through); (2) otherwise the `route` routing rules, first match wins, evaluated through the
+ * SAME `routingRuleMatches` matcher via a repo-only pseudo-thread (empty type/reason, so a
+ * type/reason-conditioned rule simply won't match — correct, since a bare repo carries neither);
+ * (3) otherwise the Inbox (`null`). We reuse the matcher rather than reinventing it, but do NOT
+ * route notifications through here — those legitimately need type/reason matching.
+ */
+export function resolveProjectIdForRepo(repoOwner: string, repoName: string): number | null {
+  const db = getDb()
+  const liveProjectIds = new Set(
+    (db.prepare('SELECT id FROM projects WHERE deleted_at IS NULL').all() as { id: number }[]).map((r) => r.id)
+  )
+
+  const repoRule = db
+    .prepare(
+      // GitHub owner/name are case-insensitive, and Copilot may send `repo` with different
+      // casing than the stored canonical form, so match case-insensitively.
+      'SELECT project_id FROM repo_rules WHERE lower(repo_owner) = lower(?) AND lower(repo_name) = lower(?) LIMIT 1'
+    )
+    .get(repoOwner, repoName) as { project_id: number } | undefined
+  if (repoRule != null) {
+    // A repo rule claims the repo even when its target is dead — matching upsertThreads,
+    // which then gates a dead target down to the Inbox rather than trying routing rules.
+    return liveProjectIds.has(repoRule.project_id) ? repoRule.project_id : null
+  }
+
+  const routeRules = listRoutingRules().filter(
+    (r) => r.action === 'route' && r.projectId !== null && liveProjectIds.has(r.projectId)
+  )
+  const pseudoThread: NotificationThread = {
+    id: '',
+    projectId: null,
+    repoOwner,
+    repoName,
+    title: '',
+    type: '' as NotificationThread['type'],
+    reason: '',
+    unread: false,
+    updatedAt: '',
+    lastReadAt: null,
+    apiUrl: '',
+    subjectUrl: null,
+    subjectState: null,
+    htmlUrl: null,
+  }
+  for (const rule of routeRules) {
+    if (routingRuleMatches(rule, pseudoThread)) {
+      return rule.projectId
+    }
+  }
+
+  return null
+}
+
+/**
+ * Resolve an explicit project name to a live project id. Case-insensitive exact match;
+ * lowest id wins on the (rare) duplicate-name tie. Returns `null` when no live project matches.
+ */
+export function resolveProjectIdByName(name: string): number | null {
+  const trimmed = name.trim()
+  if (trimmed.length === 0) return null
+  const row = getDb()
+    .prepare(
+      `SELECT id FROM projects
+       WHERE deleted_at IS NULL AND lower(name) = lower(?)
+       ORDER BY id ASC
+       LIMIT 1`
+    )
+    .get(trimmed) as { id: number } | undefined
+  return row?.id ?? null
+}
+
 // ── Rule evaluation ───────────────────────────────────────────────────────────
 
 /**

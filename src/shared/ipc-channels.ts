@@ -267,13 +267,37 @@ export interface UnreadCount {
 
 export type ProjectPatch = Partial<Pick<Project, 'name' | 'notes' | 'nextAction' | 'status' | 'sortOrder'>>
 
+/** Where a todo came from: a human (`user`) or the Copilot agent via the `add_todo` MCP tool. */
+export type TodoOrigin = 'user' | 'copilot'
+
+/**
+ * A structured, one-tap action hint attached to an agent todo. Purely advisory — the
+ * app renders an affordance for it but NEVER performs a GitHub write on the agent's
+ * behalf; the human stays in the loop.
+ */
+export type SuggestedAction =
+  | { kind: 'pr_comment'; url: string; comment: string }
+  | { kind: 'delegate'; prompt: string }
+  | { kind: 'open_url'; url: string }
+
 export interface ProjectTodo {
   id: number
-  projectId: number
+  /** Owning project, or `null` when the todo sits in the Inbox (unresolved repo). */
+  projectId: number | null
   text: string
   done: boolean
   sortOrder: number
   createdAt: string
+  /** Agent-todo fields (null on plain user todos). */
+  title: string | null
+  /** Markdown instructions. Rendered as plain linkified text (never as raw HTML). */
+  body: string | null
+  /** Source PR/issue link — clickable and used for dedup. */
+  sourceUrl: string | null
+  suggestedAction: SuggestedAction | null
+  origin: TodoOrigin
+  /** Deterministic dedup key for agent todos; null for user todos (never deduped). */
+  idempotencyKey: string | null
 }
 
 export type ProjectTodoPatch = Partial<Pick<ProjectTodo, 'text' | 'done' | 'sortOrder'>>
@@ -580,6 +604,12 @@ export type IpcChannels = {
   'todos:delete': {
     args: [id: number]
     result: void
+  }
+
+  /** Lists Inbox todos (no owning project, not soft-deleted) — the agent-todo Inbox surface. */
+  'todos:inbox': {
+    args: []
+    result: ProjectTodo[]
   }
 
   // ── Links ──────────────────────────────────────────────────────────────────
@@ -1048,6 +1078,13 @@ export interface ElectronApi {
   onProjectsUpdated: (callback: () => void) => () => void
   /** Registers a callback that fires whenever a project's resource registry changes. Returns an unsubscribe fn. */
   onResourcesUpdated: (callback: () => void) => () => void
+  /**
+   * Registers a callback that fires when todos change out-of-band — specifically when the
+   * `add_todo` MCP tool inserts or updates an agent todo. Todo surfaces (a project's todo
+   * list, the Inbox agent-todo section) reload on this so an agent-created todo appears
+   * live. Returns an unsubscribe fn.
+   */
+  onTodosUpdated: (callback: () => void) => () => void
 }
 
 declare global {

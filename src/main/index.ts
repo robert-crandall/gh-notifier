@@ -5,7 +5,7 @@ import { initDb } from './db'
 import { initAuth, getAuthStatus, savePat, logout, getOctokit } from './auth'
 import {
   listProjects, getProject, createProject, updateProject, deleteProject, restoreProject,
-  createTodo, updateTodo, deleteTodo, restoreTodo,
+  createTodo, updateTodo, deleteTodo, restoreTodo, listInboxTodos,
   createLink, updateLink, deleteLink,
   snoozeProject,
 } from './db/projects'
@@ -177,6 +177,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('todos:create', (_event, projectId: number, text: string) => createTodo(projectId, text))
   ipcMain.handle('todos:update', (_event, id: number, patch: ProjectTodoPatch) => updateTodo(id, patch))
   ipcMain.handle('todos:delete', (_event, id: number) => deleteTodo(id))
+  ipcMain.handle('todos:inbox', () => listInboxTodos())
 
   // Link handlers
   ipcMain.handle('links:create', (_event, projectId: number, label: string, url: string) => createLink(projectId, label, url))

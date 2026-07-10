@@ -10,6 +10,7 @@ import type {
   ProjectTodo,
   ProjectTodoPatch,
   SnoozeMode,
+  SuggestedAction,
 } from '../../shared/ipc-channels'
 import { getDb } from './index'
 import { classifyDrift } from '../digest/classify'
@@ -35,11 +36,18 @@ interface ProjectRow {
 
 interface TodoRow {
   id: number
-  project_id: number
+  project_id: number | null
   text: string
   done: number
   sort_order: number
   created_at: string
+  deleted_at: string | null
+  title: string | null
+  body: string | null
+  source_url: string | null
+  suggested_action: string | null
+  origin: string
+  idempotency_key: string | null
 }
 
 interface LinkRow {
@@ -85,6 +93,35 @@ function driftStateForRow(row: ProjectRow, now: Date): DriftState {
   })
 }
 
+/**
+ * Parse the stored `suggested_action` JSON back into a typed union. We wrote this value, so it
+ * is normally well-formed, but this is the boundary where stored data re-enters the domain, so
+ * validate per-kind (required string fields) and degrade a corrupt/partial blob to `null` (no
+ * action affordance) rather than letting `undefined` fields leak into the UI.
+ */
+function parseSuggestedAction(raw: string | null): SuggestedAction | null {
+  if (raw === null) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (parsed === null || typeof parsed !== 'object') return null
+  const obj = parsed as Record<string, unknown>
+  const str = (v: unknown): v is string => typeof v === 'string' && v.length > 0
+  switch (obj.kind) {
+    case 'pr_comment':
+      return str(obj.url) && str(obj.comment) ? { kind: 'pr_comment', url: obj.url, comment: obj.comment } : null
+    case 'delegate':
+      return str(obj.prompt) ? { kind: 'delegate', prompt: obj.prompt } : null
+    case 'open_url':
+      return str(obj.url) ? { kind: 'open_url', url: obj.url } : null
+    default:
+      return null
+  }
+}
+
 export function toTodo(row: TodoRow): ProjectTodo {
   return {
     id: row.id,
@@ -93,6 +130,12 @@ export function toTodo(row: TodoRow): ProjectTodo {
     done: row.done === 1,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
+    title: row.title,
+    body: row.body,
+    sourceUrl: row.source_url,
+    suggestedAction: parseSuggestedAction(row.suggested_action),
+    origin: row.origin === 'copilot' ? 'copilot' : 'user',
+    idempotencyKey: row.idempotency_key,
   }
 }
 
@@ -394,6 +437,14 @@ export function wakeExpiredSnoozes(): number[] {
 
 // ── Todos ─────────────────────────────────────────────────────────────────────
 
+/** Look up a project's display name by id (live or soft-deleted), or null if it's gone. */
+export function getProjectNameById(id: number): string | null {
+  const row = getDb().prepare('SELECT name FROM projects WHERE id = ?').get(id) as
+    | { name: string }
+    | undefined
+  return row?.name ?? null
+}
+
 export function createTodo(projectId: number, text: string): ProjectTodo {
   const db = getDb()
   const { m } = db
@@ -439,6 +490,150 @@ export function deleteTodo(id: number): void {
 /** Restore a soft-deleted todo. */
 export function restoreTodo(id: number): void {
   getDb().prepare('UPDATE project_todos SET deleted_at = NULL WHERE id = ?').run(id)
+}
+
+// ── Agent todos (the `add_todo` MCP tool) ─────────────────────────────────────
+
+/** Input for {@link addAgentTodo}. Placement is pre-resolved by the tool layer. */
+export interface AddAgentTodoInput {
+  /** The project this todo resolves to, or `null` for the Inbox. */
+  resolvedProjectId: number | null
+  /**
+   * True only when the caller passed an explicit `project`. On an idempotent update this
+   * lets the explicit target MOVE the todo; a repo/inbox resolution leaves placement sticky.
+   */
+  explicitPlacement: boolean
+  title: string
+  body: string | null
+  sourceUrl: string | null
+  suggestedAction: SuggestedAction | null
+  /** Deterministic dedup key, or `null` to always insert (no dedup). */
+  idempotencyKey: string | null
+}
+
+export type AddAgentTodoStatus = 'created' | 'updated' | 'updated_dismissed' | 'updated_completed'
+
+export interface AddAgentTodoResult {
+  todo: ProjectTodo
+  status: AddAgentTodoStatus
+}
+
+function isLiveProject(db: ReturnType<typeof getDb>, projectId: number): boolean {
+  const row = db
+    .prepare('SELECT 1 AS x FROM projects WHERE id = ? AND deleted_at IS NULL')
+    .get(projectId)
+  return row != null
+}
+
+/**
+ * Insert (or idempotently update) an agent-originated todo. NEVER touches GitHub — it only
+ * writes a row. Dedup is by `idempotencyKey`: a repeated call with the same key updates the
+ * existing todo's content instead of duplicating.
+ *
+ * Placement on an update:
+ * - explicit `project` (explicitPlacement) MOVES the todo to the resolved project;
+ * - else if the existing todo sits on a now-soft-deleted project, it MOVES to the freshly
+ *   resolved target (project or Inbox) so it never gets stranded on a dead project;
+ * - else placement is STICKY (respects wherever it currently lives).
+ * `done` and `deleted_at` are always preserved — a re-review never silently un-completes or
+ * un-dismisses a human's decision; the returned status reports when a hidden todo was touched.
+ *
+ * Runs read-then-write in a transaction. better-sqlite3 is synchronous and the app uses a
+ * single DB connection, so this read-then-write block runs to completion before any other JS
+ * (including another add_todo) can begin — there is no interleaving in practice. The partial
+ * unique index on idempotency_key is the backstop if that assumption ever changes.
+ */
+export function addAgentTodo(input: AddAgentTodoInput): AddAgentTodoResult {
+  const db = getDb()
+  const actionJson = input.suggestedAction === null ? null : JSON.stringify(input.suggestedAction)
+
+  const run = db.transaction((): AddAgentTodoResult => {
+    const found =
+      input.idempotencyKey === null
+        ? undefined
+        : (db
+            // Scope to agent todos: the tool must never update a user todo, even if one
+            // somehow carried a non-null idempotency_key (corrupt DB, manual edit, future
+            // feature). A stray key on a user row then falls through to INSERT, where the
+            // unique index rejects it — surfaced as a clean isError rather than a silent edit.
+            .prepare("SELECT * FROM project_todos WHERE idempotency_key = ? AND origin = 'copilot'")
+            .get(input.idempotencyKey) as TodoRow | undefined)
+    // bun:sqlite returns null (better-sqlite3 returns undefined) for a missing row — normalize.
+    const existing: TodoRow | null = found ?? null
+
+    if (existing === null) {
+      // `project_id IS ?` matches both a numeric bucket and the NULL (Inbox) bucket.
+      const { m } = db
+        .prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM project_todos WHERE project_id IS ?')
+        .get(input.resolvedProjectId) as { m: number }
+      const row = db
+        .prepare(
+          `INSERT INTO project_todos
+             (project_id, text, sort_order, title, body, source_url, suggested_action, origin, idempotency_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'copilot', ?)
+           RETURNING *`
+        )
+        .get(
+          input.resolvedProjectId,
+          input.title,
+          m + 1,
+          input.title,
+          input.body,
+          input.sourceUrl,
+          actionJson,
+          input.idempotencyKey
+        ) as TodoRow
+      return { todo: toTodo(row), status: 'created' }
+    }
+
+    let projectId = existing.project_id
+    if (input.explicitPlacement) {
+      projectId = input.resolvedProjectId
+    } else if (existing.project_id !== null && !isLiveProject(db, existing.project_id)) {
+      projectId = input.resolvedProjectId
+    }
+
+    // If the todo moves to a different bucket, append it (max sort_order + 1 in the
+    // destination) rather than carrying its old sort_order, which would interleave it oddly
+    // in the destination's (sort_order, id) ordering. Otherwise keep its place.
+    const moved = projectId !== existing.project_id
+    let sortOrder = existing.sort_order
+    if (moved) {
+      const { m } = db
+        .prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM project_todos WHERE project_id IS ?')
+        .get(projectId) as { m: number }
+      sortOrder = m + 1
+    }
+
+    const row = db
+      .prepare(
+        `UPDATE project_todos
+           SET title = ?, body = ?, text = ?, source_url = ?, suggested_action = ?, project_id = ?, sort_order = ?
+         WHERE id = ?
+         RETURNING *`
+      )
+      .get(input.title, input.body, input.title, input.sourceUrl, actionJson, projectId, sortOrder, existing.id) as TodoRow
+
+    const status: AddAgentTodoStatus =
+      existing.deleted_at !== null
+        ? 'updated_dismissed'
+        : existing.done === 1
+          ? 'updated_completed'
+          : 'updated'
+    return { todo: toTodo(row), status }
+  })
+
+  return run()
+}
+
+/** Lists Inbox todos (agent-origin, no owning project, not soft-deleted) for the Inbox surface. */
+export function listInboxTodos(): ProjectTodo[] {
+  const rows = getDb()
+    .prepare(
+      "SELECT * FROM project_todos WHERE project_id IS NULL AND deleted_at IS NULL AND origin = 'copilot' ORDER BY sort_order ASC, id ASC"
+    )
+    .all() as TodoRow[]
+  return rows.map(toTodo)
 }
 
 // ── Links ─────────────────────────────────────────────────────────────────────
