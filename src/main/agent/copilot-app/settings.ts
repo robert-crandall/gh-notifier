@@ -11,6 +11,7 @@ import { getDb } from '../../db'
 import { DEFAULT_REPOS_ROOT } from './cwd'
 
 const APP_DELEGATE_ENABLED_KEY = 'copilot_app_delegate_enabled'
+const APP_OBSERVE_ENABLED_KEY = 'copilot_app_observe_enabled'
 const REPOS_ROOT_KEY = 'copilot_repos_root'
 
 function readMeta(key: string): string | null {
@@ -31,6 +32,20 @@ export function getAppDelegateEnabled(): boolean {
 
 export function setAppDelegateEnabled(enabled: boolean): void {
   writeMeta(APP_DELEGATE_ENABLED_KEY, enabled ? 'true' : 'false')
+}
+
+/**
+ * Whether directly-opened desktop-app sessions are observed (#119). Default TRUE:
+ * this is the feature's whole point, it's read-only w.r.t. the app's files, and it
+ * degrades quietly when the app is closed. A visible Settings toggle is the kill
+ * switch. Stored as the literal 'false' to disable, so an absent key reads as on.
+ */
+export function getAppObserveEnabled(): boolean {
+  return readMeta(APP_OBSERVE_ENABLED_KEY) !== 'false'
+}
+
+export function setAppObserveEnabled(enabled: boolean): void {
+  writeMeta(APP_OBSERVE_ENABLED_KEY, enabled ? 'true' : 'false')
 }
 
 /** The configured repos root (raw string; `~` is expanded by the cwd resolver). */

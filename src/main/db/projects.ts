@@ -350,6 +350,9 @@ export function deleteProject(id: number): void {
     ).run(new Date().toISOString(), id)
     db.prepare('UPDATE notification_threads SET project_id = NULL WHERE project_id = ?').run(id)
     db.prepare('UPDATE copilot_sessions SET project_id = NULL, pinned_project_id = NULL WHERE project_id = ? OR pinned_project_id = ?').run(id, id)
+    // Desktop-app sessions (launched + observed, #119) detach the same way, so a
+    // deleted project doesn't keep hiding live external work behind a dead pin.
+    db.prepare('UPDATE copilot_app_sessions SET project_id = NULL, pinned_project_id = NULL WHERE project_id = ? OR pinned_project_id = ?').run(id, id)
   })
   run()
 }

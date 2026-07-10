@@ -60,22 +60,25 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
   const [syncInterval, setSyncInterval] = useState<SyncIntervalMinutes | null>(null)
   const [maxDays, setMaxDays] = useState<MaxSyncDays | null>(null)
   const [appDelegate, setAppDelegate] = useState<boolean | null>(null)
+  const [appObserve, setAppObserve] = useState<boolean | null>(null)
   const [reposRoot, setReposRoot] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     void (async () => {
       try {
-        const [interval, days, delegate, root] = await Promise.all([
+        const [interval, days, delegate, observe, root] = await Promise.all([
           window.electron.ipc.invoke('settings:get-sync-interval'),
           window.electron.ipc.invoke('settings:get-max-sync-days'),
           window.electron.ipc.invoke('settings:get-app-delegate-enabled'),
+          window.electron.ipc.invoke('settings:get-app-observe-enabled'),
           window.electron.ipc.invoke('settings:get-repos-root'),
         ])
         if (!active) return
         setSyncInterval(interval)
         setMaxDays(days)
         setAppDelegate(delegate)
+        setAppObserve(observe)
         setReposRoot(root)
       } catch (err) {
         console.error('[Settings] load failed:', err)
@@ -97,6 +100,10 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
   const changeAppDelegate = (value: boolean): void => {
     setAppDelegate(value)
     fire(window.electron.ipc.invoke('settings:set-app-delegate-enabled', value), 'settings:set-app-delegate-enabled')
+  }
+  const changeAppObserve = (value: boolean): void => {
+    setAppObserve(value)
+    fire(window.electron.ipc.invoke('settings:set-app-observe-enabled', value), 'settings:set-app-observe-enabled')
   }
   const saveReposRoot = (): void => {
     if (reposRoot === null) return
@@ -255,6 +262,19 @@ export function SettingsView({ theme, onClose, onOpenRules }: SettingsViewProps)
               checked={appDelegate ?? false}
               disabled={appDelegate === null}
               onChange={(e) => changeAppDelegate(e.target.checked)}
+            />
+          </label>
+          <label className={styles.field}>
+            <span className={styles.label}>
+              Observe desktop-app sessions
+              <span className={styles.hint}> — tracks sessions you open directly in the Copilot app (read-only) and shows them under the matching project. Turn off to stop watching.</span>
+            </span>
+            <input
+              type="checkbox"
+              className={styles.checkbox}
+              checked={appObserve ?? false}
+              disabled={appObserve === null}
+              onChange={(e) => changeAppObserve(e.target.checked)}
             />
           </label>
           <div className={styles.field}>

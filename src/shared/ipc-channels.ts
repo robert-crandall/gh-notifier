@@ -93,9 +93,18 @@ export type CopilotAppSessionStatus =
   | 'unknown'     // app closed / status unreadable
 
 /**
- * A task delegated to the INSTALLED GitHub Copilot desktop app over its local
- * WebSocket. Kept in a dedicated table (`copilot_app_sessions`), never mixed
- * with cloud `gh agent-task` sessions.
+ * How a `copilot_app_sessions` row came to exist:
+ *   - 'launched'  — GH Projects created the session over the WS delegate path.
+ *   - 'observed'  — the user opened the session directly in the desktop app and
+ *                   we reconciled it read-only from the app's on-disk store (#119).
+ */
+export type CopilotAppSessionOrigin = 'launched' | 'observed'
+
+/**
+ * A GitHub Copilot desktop-app session. Kept in a dedicated table
+ * (`copilot_app_sessions`), never mixed with cloud `gh agent-task` sessions.
+ * Either delegated by Projects ('launched') or observed after the user opened it
+ * directly in the app ('observed', #119).
  */
 export interface CopilotAppSession {
   id: string                     // WS session_id (uuid)
@@ -105,6 +114,14 @@ export interface CopilotAppSession {
   status: CopilotAppSessionStatus
   repoOwner: string | null
   repoName: string | null
+  origin: CopilotAppSessionOrigin
+  /**
+   * Sticky project assignment for an app session, mirroring
+   * `CopilotSession.pinnedProjectId`. Set by manual assignment; when it points at
+   * a live project it wins over the reconciler's auto-resolution so an observed
+   * session doesn't drift on the next reconcile. Null = follow auto-resolution.
+   */
+  pinnedProjectId: number | null
   createdAt: string              // SQLite datetime, UTC ("YYYY-MM-DD HH:MM:SS")
   updatedAt: string              // SQLite datetime, UTC ("YYYY-MM-DD HH:MM:SS")
 }
@@ -920,6 +937,19 @@ export type IpcChannels = {
     result: TodoAppSession[]
   }
 
+  /**
+   * Returns ALL desktop-app sessions for a project (both Projects-'launched' and
+   * directly-'observed', #119), newest first. Unlike
+   * `copilot:app-sessions-for-project` (which only surfaces sessions linked to a
+   * todo), this is keyed purely on the session's project assignment, so observed
+   * sessions — which have no todo link — show up too. The clean per-project reader
+   * #117's Copilot tab builds on.
+   */
+  'copilot:project-app-sessions': {
+    args: [projectId: number]
+    result: CopilotAppSession[]
+  }
+
   /** Reads the app-delegate feature flag (default false). */
   'settings:get-app-delegate-enabled': {
     args: []
@@ -928,6 +958,18 @@ export type IpcChannels = {
 
   /** Sets the app-delegate feature flag. */
   'settings:set-app-delegate-enabled': {
+    args: [enabled: boolean]
+    result: void
+  }
+
+  /** Reads whether directly-opened desktop-app sessions are observed (default true, #119). */
+  'settings:get-app-observe-enabled': {
+    args: []
+    result: boolean
+  }
+
+  /** Enables/disables observing directly-opened desktop-app sessions (#119). */
+  'settings:set-app-observe-enabled': {
     args: [enabled: boolean]
     result: void
   }

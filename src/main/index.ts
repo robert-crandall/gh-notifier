@@ -42,8 +42,9 @@ import { resolveModelProvisioning } from './context/model-path'
 import { runEmbeddingSmoke, EMBEDDING_SMOKE_FLAG } from './context/embedding-smoke'
 import { delegateTask, appDelegateAvailability, buildAppSessionDeepLink, createDefaultDelegateDeps } from './agent/copilot-app/delegate'
 import { linkTodoSession } from './agent/copilot-app/store'
-import { refreshTodoAppSessionsForProject } from './agent/copilot-app/status'
-import { getAppDelegateEnabled, setAppDelegateEnabled, getReposRoot, setReposRoot } from './agent/copilot-app/settings'
+import { refreshTodoAppSessionsForProject, refreshProjectAppSessions } from './agent/copilot-app/status'
+import { getAppDelegateEnabled, setAppDelegateEnabled, getReposRoot, setReposRoot, getAppObserveEnabled } from './agent/copilot-app/settings'
+import { initObserving, setObserveEnabled, shutdownObserving } from './agent/copilot-app/observe'
 import { enableMcpServer, disableMcpServer, shutdownMcpServer } from './mcp-server/lifecycle'
 import { getMcpServerEnabled, setMcpServerEnabled } from './mcp-server/settings'
 import { listRunbooksForProject } from './knowledge/project-runbooks'
@@ -370,11 +371,20 @@ app.whenReady().then(async () => {
   ipcMain.handle('copilot:app-sessions-for-project', (_event, projectId: number) =>
     refreshTodoAppSessionsForProject(projectId)
   )
+  ipcMain.handle('copilot:project-app-sessions', (_event, projectId: number) =>
+    refreshProjectAppSessions(projectId)
+  )
 
   // Desktop-app delegate settings.
   ipcMain.handle('settings:get-app-delegate-enabled', () => getAppDelegateEnabled())
   ipcMain.handle('settings:set-app-delegate-enabled', (_event, enabled: boolean) => {
     setAppDelegateEnabled(enabled)
+  })
+  // Observe directly-opened desktop-app sessions (#119). Toggling stops/starts the
+  // whole observer pipeline (WS + on-disk reconcile).
+  ipcMain.handle('settings:get-app-observe-enabled', () => getAppObserveEnabled())
+  ipcMain.handle('settings:set-app-observe-enabled', (_event, enabled: boolean) => {
+    setObserveEnabled(enabled)
   })
   ipcMain.handle('settings:get-repos-root', () => getReposRoot())
   ipcMain.handle('settings:set-repos-root', (_event, root: string) => {
@@ -472,6 +482,15 @@ app.whenReady().then(async () => {
     })
   }
 
+  // Observe directly-opened desktop-app sessions (#119). Read-only, degrades
+  // quietly when the app is closed; a reconcile that changes something refreshes
+  // the renderer. Guarded so a failure can't block the window.
+  try {
+    initObserving(() => broadcast('copilot:updated'))
+  } catch (err) {
+    console.error('[copilot/observe] Failed to start observer:', err instanceof Error ? err.message : 'error')
+  }
+
   createWindow()
 
   app.on('activate', () => {
@@ -489,6 +508,7 @@ app.on('window-all-closed', () => {
 // ~/.mcp.json entry in place (quit != disable); the shim degrades gracefully to
 // "app not running" when the run files are gone.
 app.on('will-quit', () => {
+  shutdownObserving()
   void shutdownMcpServer().catch((err: unknown) => {
     console.error('[mcp] Shutdown failed:', err instanceof Error ? err.message : 'error')
   })

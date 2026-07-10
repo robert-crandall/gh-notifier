@@ -9,7 +9,7 @@
  */
 
 import { getDb } from '../../db'
-import type { CopilotAppSession, CopilotAppSessionStatus } from '../../../shared/ipc-channels'
+import type { CopilotAppSession, CopilotAppSessionStatus, CopilotAppSessionOrigin } from '../../../shared/ipc-channels'
 
 interface AppSessionRow {
   id: string
@@ -19,6 +19,8 @@ interface AppSessionRow {
   status: CopilotAppSessionStatus
   repo_owner: string | null
   repo_name: string | null
+  origin: CopilotAppSessionOrigin
+  pinned_project_id: number | null
   created_at: string
   updated_at: string
 }
@@ -32,6 +34,8 @@ function toSession(row: AppSessionRow): CopilotAppSession {
     status: row.status,
     repoOwner: row.repo_owner,
     repoName: row.repo_name,
+    origin: row.origin,
+    pinnedProjectId: row.pinned_project_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -47,10 +51,10 @@ export interface InsertAppSessionInput {
 }
 
 /**
- * Insert a just-delegated app session (status starts `in_progress`). Only pins a
- * live project: if the originating project vanished mid-delegate (or is
- * soft-deleted), the session is tracked unassigned instead, so a successful
- * delegate is never lost to an FK failure.
+ * Insert a just-delegated app session (status starts `in_progress`, origin
+ * `launched`). Only pins a live project: if the originating project vanished
+ * mid-delegate (or is soft-deleted), the session is tracked unassigned instead,
+ * so a successful delegate is never lost to an FK failure.
  */
 export function insertAppSession(input: InsertAppSessionInput): CopilotAppSession {
   const db = getDb()
@@ -61,10 +65,13 @@ export function insertAppSession(input: InsertAppSessionInput): CopilotAppSessio
 
   db.prepare(`
     INSERT INTO copilot_app_sessions
-      (id, project_id, cwd, title, status, repo_owner, repo_name)
+      (id, project_id, cwd, title, status, repo_owner, repo_name, origin)
     VALUES
-      (?, ?, ?, ?, 'in_progress', ?, ?)
+      (?, ?, ?, ?, 'in_progress', ?, ?, 'launched')
     ON CONFLICT(id) DO UPDATE SET
+      -- A launched session is authoritative provenance (Projects created it), so
+      -- upgrade an existing observed row rather than leaving it mis-tagged.
+      origin     = 'launched',
       cwd        = excluded.cwd,
       title      = excluded.title,
       repo_owner = excluded.repo_owner,
@@ -76,10 +83,114 @@ export function insertAppSession(input: InsertAppSessionInput): CopilotAppSessio
   return toSession(row)
 }
 
+export interface UpsertObservedSessionInput {
+  id: string
+  /** Freshly auto-resolved project for the session's repo (may be null). */
+  projectId: number | null
+  cwd: string
+  title: string
+  repoOwner: string | null
+  repoName: string | null
+}
+
+/**
+ * Upsert a session observed directly in the desktop app (#119). New rows are
+ * tagged origin `observed`; an EXISTING row is never downgraded from `launched`
+ * to `observed` (so a session Projects created keeps its provenance even though
+ * the reconciler also sees it on disk).
+ *
+ * Sticky assignment mirrors `copilot_sessions.upsertSessions`: while a row's
+ * `pinned_project_id` points at a live project it wins over the freshly-resolved
+ * `project_id` (a manual assignment doesn't drift on the next reconcile); a pin
+ * whose project is gone is cleared. New rows keep `pinned_project_id` NULL.
+ * Volatile fields (cwd/title/repo) always track the on-disk truth.
+ *
+ * No-op guard: when an existing row would come out identical (same repo/cwd/title
+ * and the same effective project + pin), the write is skipped entirely so a
+ * periodic reconcile doesn't bump `updated_at` and reorder the project's session
+ * list. Returns the row either way.
+ */
+export function upsertObservedSession(input: UpsertObservedSessionInput): CopilotAppSession {
+  const db = getDb()
+
+  // Skip the write when nothing would actually change, mirroring the SQL's
+  // sticky-pin resolution so `updated_at` (and list order) stays put on a no-op.
+  const existing = db.prepare('SELECT * FROM copilot_app_sessions WHERE id = ?').get(input.id) as
+    | AppSessionRow
+    | undefined
+    | null
+  if (existing !== undefined && existing !== null) {
+    const pinLive =
+      existing.pinned_project_id !== null &&
+      db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(existing.pinned_project_id) != null
+    const effectivePin = pinLive ? existing.pinned_project_id : null
+    const effectiveProject = pinLive ? existing.pinned_project_id : input.projectId
+    const unchanged =
+      existing.cwd === input.cwd &&
+      existing.title === input.title &&
+      existing.repo_owner === input.repoOwner &&
+      existing.repo_name === input.repoName &&
+      existing.project_id === effectiveProject &&
+      existing.pinned_project_id === effectivePin
+    if (unchanged) return toSession(existing)
+  }
+
+  db.prepare(`
+    INSERT INTO copilot_app_sessions
+      (id, project_id, cwd, title, status, repo_owner, repo_name, origin)
+    VALUES
+      (?, ?, ?, ?, 'unknown', ?, ?, 'observed')
+    ON CONFLICT(id) DO UPDATE SET
+      pinned_project_id = CASE
+        WHEN copilot_app_sessions.pinned_project_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM projects p
+           WHERE p.id = copilot_app_sessions.pinned_project_id AND p.deleted_at IS NULL
+         )
+        THEN copilot_app_sessions.pinned_project_id
+        ELSE NULL
+      END,
+      project_id = CASE
+        WHEN copilot_app_sessions.pinned_project_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM projects p
+           WHERE p.id = copilot_app_sessions.pinned_project_id AND p.deleted_at IS NULL
+         )
+        THEN copilot_app_sessions.pinned_project_id
+        ELSE excluded.project_id
+      END,
+      cwd        = excluded.cwd,
+      title      = excluded.title,
+      repo_owner = excluded.repo_owner,
+      repo_name  = excluded.repo_name,
+      updated_at = datetime('now')
+  `).run(input.id, input.projectId, input.cwd, input.title, input.repoOwner, input.repoName)
+
+  const row = db.prepare('SELECT * FROM copilot_app_sessions WHERE id = ?').get(input.id) as AppSessionRow
+  return toSession(row)
+}
+
+/**
+ * Pin an app session to a live project (sticky across reconciles), mirroring
+ * `assignSession` for cloud tasks. Throws when the project is missing/soft-deleted
+ * or the session doesn't exist. Used by the per-project assignment UI (#117/#118).
+ */
+export function assignAppSession(sessionId: string, projectId: number): void {
+  const db = getDb()
+  const project = db.prepare('SELECT 1 FROM projects WHERE id = ? AND deleted_at IS NULL').get(projectId)
+  if (project === undefined || project === null) throw new Error('PROJECT_NOT_FOUND')
+  const result = db
+    .prepare('UPDATE copilot_app_sessions SET project_id = ?, pinned_project_id = ? WHERE id = ?')
+    .run(projectId, projectId, sessionId)
+  if (result.changes === 0) throw new Error('SESSION_NOT_FOUND')
+}
+
 /** Returns a single app session by id, or null. */
 export function getAppSession(id: string): CopilotAppSession | null {
-  const row = getDb().prepare('SELECT * FROM copilot_app_sessions WHERE id = ?').get(id) as AppSessionRow | undefined
-  return row === undefined ? null : toSession(row)
+  // better-sqlite3 returns `undefined` for no row; bun:sqlite (tests) returns
+  // `null`. Guard against both so a lookup for an as-yet-unseen id can't crash.
+  const row = getDb().prepare('SELECT * FROM copilot_app_sessions WHERE id = ?').get(id) as AppSessionRow | undefined | null
+  return row === undefined || row === null ? null : toSession(row)
 }
 
 /** Updates the status of an app session (used by the status reader in PR3). */

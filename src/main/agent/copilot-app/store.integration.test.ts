@@ -10,14 +10,14 @@ vi.mock('../../db', () => ({ getDb: vi.fn() }))
 
 import { getDb } from '../../db'
 import { runMigrations } from '../../db/migrate'
-import { insertAppSession, getAppSession, getAppSessionsForProject, updateAppSessionStatus, linkTodoSession, getTodoAppSessionsForProject } from './store'
+import { insertAppSession, getAppSession, getAppSessionsForProject, updateAppSessionStatus, linkTodoSession, getTodoAppSessionsForProject, upsertObservedSession, assignAppSession } from './store'
 import {
   getSessionsForProject,
   getUnassignedSessions,
   getUnassignedActiveCount,
   getAllStatuses,
 } from '../../copilot/db'
-import { listProjects, getProject } from '../../db/projects'
+import { listProjects, getProject, deleteProject } from '../../db/projects'
 
 let db: BunDb
 
@@ -66,6 +66,99 @@ describe('copilot_app_sessions store', () => {
     db.prepare("UPDATE projects SET deleted_at = datetime('now') WHERE id = ?").run(pid)
     const s = insertAppSession({ id: 'app-1', projectId: pid, cwd: '/x', title: 't', repoOwner: null, repoName: null })
     expect(s.projectId).toBeNull()
+  })
+
+  it('tags launched sessions origin=launched', () => {
+    const pid = makeProject('P')
+    const s = insertAppSession({ id: 'app-1', projectId: pid, cwd: '/x', title: 't', repoOwner: null, repoName: null })
+    expect(s.origin).toBe('launched')
+    expect(s.pinnedProjectId).toBeNull()
+  })
+})
+
+describe('observed app sessions (#119)', () => {
+  it('upserts an observed session tagged origin=observed', () => {
+    const pid = makeProject('P')
+    const s = upsertObservedSession({ id: 'obs-1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(s.origin).toBe('observed')
+    expect(s.projectId).toBe(pid)
+    expect(getAppSessionsForProject(pid).map((r) => r.id)).toEqual(['obs-1'])
+  })
+
+  it('never downgrades a launched row to observed', () => {
+    const pid = makeProject('P')
+    insertAppSession({ id: 's1', projectId: pid, cwd: '/x', title: 'launched', repoOwner: 'me', repoName: 'foo' })
+    const s = upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 'observed', repoOwner: 'me', repoName: 'foo' })
+    expect(s.origin).toBe('launched')
+  })
+
+  it('UPGRADES an observed row to launched when Projects later delegates it', () => {
+    const pid = makeProject('P')
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    const s = insertAppSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(s.origin).toBe('launched')
+  })
+
+  it('skips the write (no updated_at churn) on an unchanged re-reconcile', () => {
+    const pid = makeProject('P')
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    db.prepare("UPDATE copilot_app_sessions SET updated_at = '2000-01-01 00:00:00' WHERE id = 's1'").run()
+    // Identical input → no write, so updated_at stays the sentinel.
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(getAppSession('s1')?.updatedAt).toBe('2000-01-01 00:00:00')
+    // A real change DOES write (updated_at moves off the sentinel).
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/y', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(getAppSession('s1')?.updatedAt).not.toBe('2000-01-01 00:00:00')
+  })
+
+  it('keeps a sticky pin over the freshly-resolved project on re-upsert', () => {
+    const a = makeProject('A')
+    const b = makeProject('B')
+    upsertObservedSession({ id: 's1', projectId: a, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    assignAppSession('s1', b) // sticky pin to B
+    // A later reconcile still resolves to A, but the pin to B wins.
+    const s = upsertObservedSession({ id: 's1', projectId: a, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(s.projectId).toBe(b)
+    expect(s.pinnedProjectId).toBe(b)
+  })
+
+  it('clears a sticky pin whose project was soft-deleted, falling back to resolution', () => {
+    const a = makeProject('A')
+    const b = makeProject('B')
+    upsertObservedSession({ id: 's1', projectId: a, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    assignAppSession('s1', b)
+    db.prepare("UPDATE projects SET deleted_at = datetime('now') WHERE id = ?").run(b)
+    const s = upsertObservedSession({ id: 's1', projectId: a, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(s.pinnedProjectId).toBeNull()
+    expect(s.projectId).toBe(a)
+  })
+
+  it('getAppSessionsForProject returns both launched and observed, newest first', () => {
+    const pid = makeProject('P')
+    insertAppSession({ id: 'launched-1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    upsertObservedSession({ id: 'observed-1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    const ids = getAppSessionsForProject(pid).map((r) => r.id)
+    expect(ids.sort()).toEqual(['launched-1', 'observed-1'])
+  })
+
+  it('assignAppSession rejects a missing project or session', () => {
+    const pid = makeProject('P')
+    upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    expect(() => assignAppSession('s1', 9999)).toThrow('PROJECT_NOT_FOUND')
+    expect(() => assignAppSession('nope', pid)).toThrow('SESSION_NOT_FOUND')
+  })
+
+  it('deleteProject detaches app sessions (project + pin cleared)', () => {
+    const pid = makeProject('P')
+    insertAppSession({ id: 'launched-1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    const obs = upsertObservedSession({ id: 'observed-1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    assignAppSession(obs.id, pid) // pin it too
+    deleteProject(pid)
+    for (const id of ['launched-1', 'observed-1']) {
+      const s = getAppSession(id)
+      expect(s?.projectId).toBeNull()
+      expect(s?.pinnedProjectId).toBeNull()
+    }
   })
 })
 
