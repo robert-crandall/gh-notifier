@@ -85,6 +85,15 @@ bun run typecheck
 
 ---
 
+## Copilot MCP integration
+
+GH Projects runs an inbound MCP server so the GitHub Copilot CLI can read project context and file human-gated todos (it never writes back to GitHub). The app registers itself in `~/.mcp.json` automatically, and a version-controlled skill teaches Copilot when and how to use the tools.
+
+- Skill: [`.github/skills/gh-projects/SKILL.md`](.github/skills/gh-projects/SKILL.md)
+- Wiring, enable/disable, and how to confirm it's up: [`docs/mcp-server.md`](docs/mcp-server.md)
+
+---
+
 ## Resetting the notification sync cursor
 
 If notifications go missing (e.g., after debugging or a sync race), clear the stored `since` timestamp so the next sync does a full re-fetch:
@@ -122,5 +131,8 @@ src/
   shared/        # Types and constants shared between main and renderer
 db/
   migrations/    # SQL migration files, applied in filename order on startup
+docs/            # Operator/developer docs (e.g. the Copilot MCP integration)
 requirements/    # PRD and milestone docs (not shipped)
+.github/
+  skills/        # Version-controlled Copilot skills (e.g. gh-projects)
 ```
