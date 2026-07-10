@@ -46,6 +46,8 @@ const LINK_LIMIT = 30
 /** Intentional per-field caps on the genuinely-long markdown leaves. */
 const TODO_BODY_MAX = 600
 const RESOURCE_DESCRIPTION_MAX = 300
+/** Cap on a suggested action's free-text instruction (comment / prompt). */
+const SUGGESTED_ACTION_TEXT_MAX = 600
 
 // ── Result helpers ────────────────────────────────────────────────────────────
 
@@ -130,6 +132,8 @@ interface OpenTodoView {
   text: string
   sourceUrl: string | null
   suggestedAction: SuggestedAction | null
+  /** True when a `suggestedAction` free-text field (comment/prompt) was capped. */
+  suggestedActionTruncated: boolean
   origin: TodoOrigin
   /** Instructions, capped to keep the payload lean; `bodyTruncated` flags when shortened. */
   body: string | null
@@ -190,14 +194,39 @@ interface ProjectDigestView {
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Cap the free-text instruction of a suggested action (a `pr_comment` comment or a `delegate`
+ * prompt) so a long action instruction can't be silently truncated by the output sanitizer — a
+ * truncated action instruction could mislead. `open_url` carries only a short URL.
+ */
+function capSuggestedAction(
+  action: SuggestedAction | null
+): { action: SuggestedAction | null; truncated: boolean } {
+  if (action === null) return { action: null, truncated: false }
+  switch (action.kind) {
+    case 'pr_comment': {
+      const comment = capText(action.comment, SUGGESTED_ACTION_TEXT_MAX)
+      return { action: { kind: 'pr_comment', url: action.url, comment: comment.text }, truncated: comment.truncated }
+    }
+    case 'delegate': {
+      const prompt = capText(action.prompt, SUGGESTED_ACTION_TEXT_MAX)
+      return { action: { kind: 'delegate', prompt: prompt.text }, truncated: prompt.truncated }
+    }
+    case 'open_url':
+      return { action, truncated: false }
+  }
+}
+
 function toOpenTodoView(todo: ProjectTodo): OpenTodoView {
   const body = todo.body === null ? null : capText(todo.body, TODO_BODY_MAX)
+  const suggested = capSuggestedAction(todo.suggestedAction)
   return {
     id: todo.id,
     title: todo.title,
     text: todo.text,
     sourceUrl: todo.sourceUrl,
-    suggestedAction: todo.suggestedAction,
+    suggestedAction: suggested.action,
+    suggestedActionTruncated: suggested.truncated,
     origin: todo.origin,
     body: body === null ? null : body.text,
     bodyTruncated: body?.truncated ?? false,

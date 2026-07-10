@@ -68,6 +68,7 @@ interface ProjectContextPayload {
     text: string
     sourceUrl: string | null
     suggestedAction: unknown
+    suggestedActionTruncated: boolean
     origin: string
     body: string | null
     bodyTruncated: boolean
@@ -230,7 +231,7 @@ describe('runGetProjectContext — shape', () => {
     createTodo(p.id, 'a todo')
     const ctx = payload<ProjectContextPayload>(runGetProjectContext({ project: p.id }))
     expect(Object.keys(ctx.openTodos[0]).sort()).toEqual(
-      ['body', 'bodyTruncated', 'id', 'origin', 'sourceUrl', 'suggestedAction', 'text', 'title'].sort()
+      ['body', 'bodyTruncated', 'id', 'origin', 'sourceUrl', 'suggestedAction', 'suggestedActionTruncated', 'text', 'title'].sort()
     )
   })
 
@@ -271,6 +272,25 @@ describe('runGetProjectContext — shape', () => {
     expect((todo.body ?? '').length).toBeLessThanOrEqual(600)
     expect(ctx.resources[0].descriptionTruncated).toBe(true)
     expect(ctx.resources[0].description.length).toBeLessThanOrEqual(300)
+  })
+
+  it('caps a long suggestedAction instruction and flags it', () => {
+    const p = createProject('Action')
+    addAgentTodo({
+      resolvedProjectId: p.id,
+      explicitPlacement: true,
+      title: 'Delegate',
+      body: null,
+      sourceUrl: null,
+      suggestedAction: { kind: 'delegate', prompt: 'z'.repeat(700) },
+      idempotencyKey: null,
+    })
+
+    const ctx = payload<ProjectContextPayload>(runGetProjectContext({ project: p.id }))
+    const action = ctx.openTodos[0].suggestedAction as { kind: string; prompt: string }
+    expect(action.kind).toBe('delegate')
+    expect(action.prompt.length).toBeLessThanOrEqual(600)
+    expect(ctx.openTodos[0].suggestedActionTruncated).toBe(true)
   })
 
   it('does not write — including never creating a project_cards row', () => {
