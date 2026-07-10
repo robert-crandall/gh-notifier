@@ -17,7 +17,7 @@ import {
   getUnassignedActiveCount,
   getAllStatuses,
 } from '../../copilot/db'
-import { listProjects, getProject } from '../../db/projects'
+import { listProjects, getProject, deleteProject } from '../../db/projects'
 
 let db: BunDb
 
@@ -127,6 +127,19 @@ describe('observed app sessions (#119)', () => {
     upsertObservedSession({ id: 's1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
     expect(() => assignAppSession('s1', 9999)).toThrow('PROJECT_NOT_FOUND')
     expect(() => assignAppSession('nope', pid)).toThrow('SESSION_NOT_FOUND')
+  })
+
+  it('deleteProject detaches app sessions (project + pin cleared)', () => {
+    const pid = makeProject('P')
+    insertAppSession({ id: 'launched-1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    const obs = upsertObservedSession({ id: 'observed-1', projectId: pid, cwd: '/x', title: 't', repoOwner: 'me', repoName: 'foo' })
+    assignAppSession(obs.id, pid) // pin it too
+    deleteProject(pid)
+    for (const id of ['launched-1', 'observed-1']) {
+      const s = getAppSession(id)
+      expect(s?.projectId).toBeNull()
+      expect(s?.pinnedProjectId).toBeNull()
+    }
   })
 })
 

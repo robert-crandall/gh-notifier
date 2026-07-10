@@ -256,10 +256,17 @@ export class SessionObserver {
     if (gen !== this.generation || !this.running) return
     let changed = false
 
-    if (this.fullPending) {
-      // A full reconcile subsumes every queued per-id request.
-      this.fullPending = false
-      this.pendingIds.clear()
+    // Snapshot both queues up front. A pending full reconcile does NOT discard
+    // queued per-id requests: reconcileRecent is recency/cap-bounded, but a
+    // session_event can name an OLD-but-active session that the bounded scan
+    // won't cover, and reconcileOne is the only path that ingests it. Running
+    // both is safe — reconcileOne is idempotent, so any overlap is a cheap no-op.
+    const doFull = this.fullPending
+    this.fullPending = false
+    const ids = [...this.pendingIds]
+    this.pendingIds.clear()
+
+    if (doFull) {
       try {
         const summary = reconcileRecent(this.reconcile)
         this.log(formatReconcileSummary(summary))
@@ -267,13 +274,9 @@ export class SessionObserver {
       } catch (err) {
         this.log(`full reconcile failed: ${err instanceof Error ? err.name : 'error'}`)
       }
-    } else {
-      const ids = [...this.pendingIds]
-      this.pendingIds.clear()
-      for (const id of ids) {
-        const outcome = this.runOne(gen, id)
-        if (outcome === 'changed') changed = true
-      }
+    }
+    for (const id of ids) {
+      if (this.runOne(gen, id) === 'changed') changed = true
     }
 
     if (changed) this.onChanged()

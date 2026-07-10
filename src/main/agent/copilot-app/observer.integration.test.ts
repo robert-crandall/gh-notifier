@@ -248,6 +248,31 @@ describe('SessionObserver — live WS drives the reconciler', () => {
     expect(reads).toBeGreaterThanOrEqual(3)
   })
 
+  it('a full reconcile does not drop a queued session_event for an old (unlisted) session', async () => {
+    server = await startServer()
+    const b = makeBackend()
+    b.knownRepos.add('me/old')
+    // NOT in listed → the recency-bounded full scan can't cover it; only the
+    // targeted reconcileOne can. A larger debounce lets the session_event land in
+    // the SAME drain window as the server_hello-triggered full reconcile.
+    b.files.set('sOld', () => yaml('sOld', 'me/old'))
+
+    observer = new SessionObserver({
+      discover: () => endpointFor(server as FakeServer),
+      connect: createWsConnector(),
+      reconcile: b.deps,
+      onChanged: vi.fn(),
+      timing: { ...FAST, debounceMs: 60 },
+    })
+    observer.start()
+    await waitFor(() => server?.connectionCount() === 1)
+    // server_hello has set fullPending; queue the old id in the same window.
+    server.broadcast({ type: 'session_event', session_id: 'sOld', event: { type: 'assistant.turn_start' } })
+
+    await waitFor(() => b.store.has('sOld'))
+    expect(b.store.get('sOld')?.repoName).toBe('old')
+  })
+
   it('stop() halts ingestion and reconnection', async () => {
     server = await startServer()
     const b = makeBackend()
