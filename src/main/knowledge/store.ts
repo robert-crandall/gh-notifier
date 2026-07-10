@@ -111,6 +111,22 @@ function isEnoent(err: unknown): boolean {
 }
 
 /**
+ * A path-free reason string for a thrown error, safe to return in MCP tool
+ * output. Node filesystem errors embed absolute paths in `message`, so prefer the
+ * errno `code` (e.g. "EACCES", "ENOSPC"); fall back to `message` only for our own
+ * thrown errors (which carry no `code` and no path).
+ */
+function safeErrorReason(err: unknown): string {
+  if (typeof err === 'object' && err !== null) {
+    const code = (err as { code?: unknown }).code
+    if (typeof code === 'string' && code.length > 0) return code
+    const message = (err as { message?: unknown }).message
+    if (typeof message === 'string' && message.length > 0) return message
+  }
+  return 'unknown error'
+}
+
+/**
  * Public helper for callers that just need the on-disk path for a service (e.g.
  * reveal-in-Finder). Returns null for an invalid/unsafe service name.
  */
@@ -362,7 +378,7 @@ export function writeServiceKnowledge(input: WriteInput, dir: string = knowledge
         backupBuffer(dir, key, existing)
         backedUp = true
       } catch (err) {
-        return { status: 'backup_failed', reason: err instanceof Error ? err.message : 'backup failed' }
+        return { status: 'backup_failed', reason: safeErrorReason(err) }
       }
     }
 
