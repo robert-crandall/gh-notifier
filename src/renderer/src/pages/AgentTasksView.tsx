@@ -123,10 +123,11 @@ export function AgentTasksView(): JSX.Element {
     if (!suggestion) return
     try {
       await window.electron.ipc.invoke('repo-rules:create', suggestion.repoOwner, suggestion.repoName, suggestion.projectId)
+      // Only dismiss on success so a transient IPC/DB error leaves the banner up to retry.
+      if (mountedRef.current) setSuggestion(null)
     } catch (err) {
       console.error('[AgentTasks] Repo rule creation failed:', err)
     }
-    if (mountedRef.current) setSuggestion(null)
   }, [suggestion])
 
   const active = sessions.filter((s) => s.status !== 'completed')

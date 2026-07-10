@@ -97,6 +97,29 @@ describe('AgentTasksView', () => {
     await waitFor(() => expect(screen.queryByText(/Always route o\/r to/)).toBeNull())
   })
 
+  it('keeps the banner up when remembering the repo fails', async () => {
+    invoke.mockImplementation((channel: string) => {
+      if (channel === 'copilot:unassigned') {
+        return Promise.resolve([session({ id: 'a', title: 'Active one', repoOwner: 'o', repoName: 'r' })])
+      }
+      if (channel === 'projects:list') return Promise.resolve([project])
+      if (channel === 'copilot:assign') return Promise.resolve(optInSuggestion)
+      if (channel === 'repo-rules:create') return Promise.reject(new Error('boom'))
+      return Promise.resolve(undefined)
+    })
+    render(<AgentTasksView />)
+    await screen.findByText('Active one')
+
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '1' } })
+    await screen.findByText(/Always route o\/r to/)
+
+    fireEvent.click(screen.getByText('Remember repo'))
+
+    // The create failed, so the banner stays so the user can retry.
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('repo-rules:create', 'o', 'r', 1))
+    expect(screen.getByText(/Always route o\/r to/)).toBeTruthy()
+  })
+
   it('dismisses the suggestion without creating a rule', async () => {
     mockInvoke([session({ id: 'a', title: 'Active one', repoOwner: 'o', repoName: 'r' })], optInSuggestion)
     render(<AgentTasksView />)
