@@ -52,6 +52,15 @@ describe('ServicesEditor', () => {
     expect(onAdd).not.toHaveBeenCalled()
   })
 
+  it('surfaces "must not be empty" for whitespace-only input and blocks the add', () => {
+    const { onAdd } = renderEditor([])
+    typeService('   ')
+    expect(screen.getByText(/must not be empty/i)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Add' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.keyDown(screen.getByLabelText('Add a service'), { key: 'Enter' })
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+
   it('removes a service by its normalized key', () => {
     const { onRemove } = renderEditor(['payments-api'])
     fireEvent.click(screen.getByLabelText('Remove payments-api'))

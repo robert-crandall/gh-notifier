@@ -51,8 +51,7 @@ export function ServicesEditor({ services, onAdd, onRemove, busy = false }: Serv
   const rows = useMemo(() => dedupeByKey(services), [services])
   const existingKeys = useMemo(() => new Set(rows.map((r) => r.key)), [rows])
 
-  const trimmed = text.trim()
-  const validation = trimmed.length > 0 ? validateServiceName(text) : null
+  const validation = text.length > 0 ? validateServiceName(text) : null
   const isDuplicate = validation?.ok === true && existingKeys.has(validation.key)
   const canAdd = !busy && validation?.ok === true && !isDuplicate
 

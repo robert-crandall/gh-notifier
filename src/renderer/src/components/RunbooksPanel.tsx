@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, FolderOpen, AlertTriangle } from 'lucide-react'
 import type { ProjectCard, ServiceRunbook } from '@shared/ipc-channels'
 import { normalizeServiceName } from '@shared/service-name'
@@ -67,6 +67,19 @@ export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
   const [cardError, setCardError] = useState(false)
   const [runbooksError, setRunbooksError] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Synchronous in-flight mutex: `saving` state drives the disabled UI but only updates on
+  // re-render, so it can't reliably reject a second call fired in the same tick. The ref does.
+  const savingRef = useRef(false)
+  // Guards against setState after the component unmounts (e.g. a fast project switch mid-load,
+  // since the parent remounts this component per project).
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   // Load the card and the runbook list independently: a transient runbook read failure must
   // not hide the services editor when the card loaded fine (and vice versa).
@@ -75,6 +88,7 @@ export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
       window.electron.ipc.invoke('resources:card-get', projectId),
       window.electron.ipc.invoke('knowledge:list-for-project', projectId),
     ])
+    if (!mountedRef.current) return
     if (cardResult.status === 'fulfilled') {
       setCard(cardResult.value ?? null)
       setCardError(false)
@@ -107,23 +121,26 @@ export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
     }
   }, [load])
 
-  // Persist a new services array, then reload so runbooks appear/disappear live. The `saving`
-  // guard drops overlapping mutations so a stale services array can't clobber a newer one.
+  // Persist a new services array, then reload so runbooks appear/disappear live. The synchronous
+  // `savingRef` mutex drops overlapping mutations so a stale services array can't clobber a newer
+  // one even if two calls fire before a re-render disables the controls.
   const persistServices = useCallback(
     async (services: string[]): Promise<void> => {
-      if (saving) return
+      if (savingRef.current) return
+      savingRef.current = true
       setSaving(true)
       try {
         const updated = await window.electron.ipc.invoke('resources:card-upsert', projectId, { services })
-        setCard(updated ?? null)
+        if (mountedRef.current) setCard(updated ?? null)
         await load()
       } catch (err) {
         console.error('[Runbooks] card-upsert failed:', err)
       } finally {
-        setSaving(false)
+        savingRef.current = false
+        if (mountedRef.current) setSaving(false)
       }
     },
-    [projectId, saving, load]
+    [projectId, load]
   )
 
   const addService = useCallback(
