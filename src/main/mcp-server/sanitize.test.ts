@@ -27,6 +27,17 @@ describe('sanitizeMcpText', () => {
   it('leaves clean text untouched', () => {
     expect(sanitizeMcpText('nothing to hide', [TOKEN])).toBe('nothing to hide')
   })
+
+  it('honors a larger maxLen for legitimately large output', () => {
+    const big = 'x'.repeat(5000)
+    // Default cap truncates; an explicit larger cap does not.
+    expect(sanitizeMcpText(big, []).length).toBeLessThanOrEqual(2000)
+    expect(sanitizeMcpText(big, [], 10000)).toBe(big)
+  })
+
+  it('still redacts secrets before applying a larger cap', () => {
+    expect(sanitizeMcpText(`x ${TOKEN} y`, [TOKEN], 10000)).toBe('x [redacted] y')
+  })
 })
 
 describe('sanitizeMcpJson', () => {

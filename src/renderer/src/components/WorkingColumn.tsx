@@ -4,6 +4,7 @@ import {
   CheckSquare,
   FileText,
   Database,
+  BookOpen,
   Bell,
   Plus,
   Check,
@@ -21,13 +22,14 @@ import type { NotificationThread, NotificationType, ProjectDetail, ProjectTodo, 
 import type { LucideIcon } from 'lucide-react'
 import { Icon } from './Icon'
 import { ResourcePanel } from './ResourcePanel'
+import { RunbooksPanel } from './RunbooksPanel'
 import { TodoSessionChip } from './TodoSessionChip'
 import { LinkifiedText } from './LinkifiedText'
 import { fire, openExternal } from '../ipc'
 import { isSafeExternalUrl } from '@shared/safe-url'
 import styles from './WorkingColumn.module.css'
 
-type TabId = 'todos' | 'notes' | 'resources' | 'notifications'
+type TabId = 'todos' | 'notes' | 'resources' | 'runbooks' | 'notifications'
 
 interface WorkingColumnProps {
   detail: ProjectDetail
@@ -289,6 +291,7 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'todos', label: 'Todos', icon: CheckSquare },
   { id: 'notes', label: 'Notes', icon: FileText },
   { id: 'resources', label: 'Resources', icon: Database },
+  { id: 'runbooks', label: 'Runbooks', icon: BookOpen },
   { id: 'notifications', label: 'Notifications', icon: Bell },
 ]
 
@@ -328,6 +331,7 @@ export function WorkingColumn(props: WorkingColumnProps): JSX.Element {
         )}
         {tab === 'notes' && <NotesPanel detail={props.detail} onSaveNotes={props.onSaveNotes} />}
         {tab === 'resources' && <ResourcePanel key={props.detail.id} projectId={props.detail.id} showUndo={props.showUndo} />}
+        {tab === 'runbooks' && <RunbooksPanel key={props.detail.id} projectId={props.detail.id} />}
         {tab === 'notifications' && <NotificationsPanel projectId={props.detail.id} onDelegate={props.onDelegate} />}
       </div>
     </div>

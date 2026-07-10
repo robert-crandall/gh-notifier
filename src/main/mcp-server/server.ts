@@ -41,6 +41,8 @@ export interface StartMcpServerOptions {
   generateTokenFn?: () => string
   /** Called after a tool successfully mutates todo state, so the app can push `todos:updated`. */
   onTodoChanged?: () => void
+  /** Called after a tool successfully writes service knowledge, so the app can push `knowledge:updated`. */
+  onKnowledgeChanged?: () => void
 }
 
 export interface McpServerHandle {
@@ -137,6 +139,7 @@ export function startMcpServer(options: StartMcpServerOptions = {}): Promise<Mcp
   const toolDeps: ToolDeps = {
     getSecrets: () => [token, ...(options.extraSecrets?.() ?? [])],
     onTodoChanged: options.onTodoChanged,
+    onKnowledgeChanged: options.onKnowledgeChanged,
   }
 
   const httpServer: HttpServer = createServer((req, res) => {

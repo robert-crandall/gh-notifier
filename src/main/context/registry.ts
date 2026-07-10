@@ -135,6 +135,34 @@ export function listResources(projectId: number): Resource[] {
   return rows.map(toResource)
 }
 
+/** A live resource plus the name of its owning project. */
+export interface ServiceResource extends Resource {
+  projectName: string
+}
+
+/**
+ * Read-only lookup of live resources whose `service` matches (case-insensitively)
+ * — used by the `read_service_knowledge` tool so prose that references a resource
+ * by alias can resolve to the link truth. Each row carries its owning project's
+ * name so results are never silently conflated across projects; pass `projectId`
+ * to scope to a single project. Newest first.
+ */
+export function listResourcesByService(service: string, projectId?: number): ServiceResource[] {
+  const norm = service.trim().toLowerCase()
+  const params: unknown[] = [norm]
+  let sql =
+    'SELECT r.*, p.name AS project_name FROM resources r ' +
+    'JOIN projects p ON p.id = r.project_id ' +
+    'WHERE r.deleted_at IS NULL AND lower(r.service) = ?'
+  if (projectId !== undefined) {
+    sql += ' AND r.project_id = ?'
+    params.push(projectId)
+  }
+  sql += ' ORDER BY r.updated_at DESC, r.id DESC'
+  const rows = getDb().prepare(sql).all(...params) as Array<ResourceRow & { project_name: string }>
+  return rows.map((row) => ({ ...toResource(row), projectName: row.project_name }))
+}
+
 /** Fetches one live resource by id, or null when missing/deleted. */
 export function getResource(id: number): Resource | null {
   const row = getDb()
