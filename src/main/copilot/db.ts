@@ -256,7 +256,7 @@ export function getRepoRuleSuggestionForSession(
 
   const session = db
     .prepare('SELECT repo_owner, repo_name FROM copilot_sessions WHERE id = ?')
-    .get(sessionId) as { repo_owner: string | null; repo_name: string | null } | undefined
+    .get(sessionId) as { repo_owner: string | null; repo_name: string | null } | undefined | null
   if (!session || !session.repo_owner || !session.repo_name) return null
 
   // A live repo rule already routes future sessions here — nothing to suggest.
@@ -272,7 +272,7 @@ export function getRepoRuleSuggestionForSession(
 
   const project = db
     .prepare('SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL')
-    .get(projectId) as { name: string } | undefined
+    .get(projectId) as { name: string } | undefined | null
   if (!project) return null
 
   return {
