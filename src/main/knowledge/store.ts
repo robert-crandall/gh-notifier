@@ -163,18 +163,28 @@ const writeChains = new Map<string, Promise<unknown>>()
 function serializeWrite<T>(key: string, op: () => Promise<T>): Promise<T> {
   const prev = writeChains.get(key) ?? Promise.resolve()
   const run = prev.then(op, op) // run regardless of the previous op's outcome
-  writeChains.set(
-    key,
-    run.then(
-      () => {},
-      () => {}
-    )
+  const tail = run.then(
+    () => {},
+    () => {}
   )
+  writeChains.set(key, tail)
+  // Drop the entry once this tail settles, UNLESS a newer write already chained
+  // onto it (in which case that newer tail is now stored and owns cleanup). This
+  // keeps the map bounded even if many distinct services are written over time,
+  // while preserving strict per-service serialization.
+  void tail.finally(() => {
+    if (writeChains.get(key) === tail) writeChains.delete(key)
+  })
   return run
 }
 
 /** Monotonic per-process counter to keep backup filenames unique within a ms. */
 let backupCounter = 0
+
+/** Test/inspection helper: number of services with a live (pending) write chain. */
+export function pendingWriteChainCount(): number {
+  return writeChains.size
+}
 
 /** Filesystem-safe timestamp for backup filenames (no `:` / `.`). */
 function backupStamp(): string {

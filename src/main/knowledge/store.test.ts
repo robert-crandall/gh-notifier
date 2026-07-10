@@ -7,6 +7,7 @@ import {
   writeServiceKnowledge,
   listServiceHistory,
   knowledgeFilePathForService,
+  pendingWriteChainCount,
   KNOWLEDGE_MAX_BYTES,
   MAX_HISTORY_VERSIONS,
 } from './store'
@@ -223,6 +224,16 @@ describe('concurrent writes', () => {
     const history = listServiceHistory('web', dir)
     expect(history.length).toBeGreaterThan(0)
     expect(new Set(history).size).toBe(history.length) // unique backup names
+  })
+
+  it('does not leak write-chain entries after writes settle (bounded map)', async () => {
+    const dir = freshDir()
+    await Promise.all(
+      Array.from({ length: 12 }, (_v, i) => writeServiceKnowledge({ service: `svc-${i}`, markdown: 'x' }, dir)),
+    )
+    // Allow the settle-cleanup microtasks to run.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(pendingWriteChainCount()).toBe(0)
   })
 })
 

@@ -61,6 +61,7 @@ function RunbookCard({ rb }: { rb: ServiceRunbook }): JSX.Element {
 export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
   const [runbooks, setRunbooks] = useState<ServiceRunbook[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -69,11 +70,15 @@ export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
         const list = await window.electron.ipc.invoke('knowledge:list-for-project', projectId)
         if (active) {
           setRunbooks(list)
+          setError(false)
           setLoaded(true)
         }
       } catch (err) {
         console.error('[Runbooks] load failed:', err)
-        if (active) setLoaded(true)
+        if (active) {
+          setError(true)
+          setLoaded(true)
+        }
       }
     }
     void load()
@@ -83,6 +88,10 @@ export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
       unsub()
     }
   }, [projectId])
+
+  if (loaded && error) {
+    return <div className={styles.empty}>Couldn’t load runbooks for this project. Try again in a moment.</div>
+  }
 
   if (loaded && runbooks.length === 0) {
     return (

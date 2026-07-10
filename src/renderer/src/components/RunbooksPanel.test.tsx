@@ -80,4 +80,14 @@ describe('RunbooksPanel', () => {
     render(<RunbooksPanel projectId={1} />)
     await waitFor(() => expect(onKnowledgeUpdated).toHaveBeenCalled())
   })
+
+  it('shows an error message (not the empty state) when the load fails', async () => {
+    invoke.mockImplementation((channel: string) => {
+      if (channel === 'knowledge:list-for-project') return Promise.reject(new Error('boom'))
+      return Promise.resolve(undefined)
+    })
+    render(<RunbooksPanel projectId={1} />)
+    expect(await screen.findByText(/Couldn’t load runbooks/i)).toBeTruthy()
+    expect(screen.queryByText(/lists no services yet/i)).toBeNull()
+  })
 })
