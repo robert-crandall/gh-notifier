@@ -162,21 +162,21 @@ export function RunbooksPanel({ projectId }: RunbooksPanelProps): JSX.Element {
     [card, persistServices]
   )
 
-  if (loaded && cardError) {
-    return <div className={styles.empty}>Couldn’t load this project’s card. Try again in a moment.</div>
-  }
-
   return (
     <div className={styles.panel}>
       {card !== null && (
         <ServicesEditor services={card.services} onAdd={addService} onRemove={removeService} busy={saving} />
       )}
 
+      {loaded && cardError && (
+        <div className={styles.empty}>Couldn’t load this project’s card. Try again in a moment.</div>
+      )}
+
       {loaded && runbooksError && (
         <div className={styles.empty}>Couldn’t load runbooks for this project. Try again in a moment.</div>
       )}
 
-      {loaded && !runbooksError && runbooks.length === 0 && (
+      {loaded && !cardError && !runbooksError && runbooks.length === 0 && (
         <div className={styles.empty}>
           No services on this project yet. Add one above and Copilot can keep a per-service runbook (how to check
           health, monitor links, oncall notes).

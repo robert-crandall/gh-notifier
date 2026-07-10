@@ -134,15 +134,19 @@ describe('RunbooksPanel', () => {
     expect(screen.queryByText(/No services on this project yet/i)).toBeNull()
   })
 
-  it('shows a card error when the card fails to load', async () => {
+  it('shows a card error inline but still renders runbooks when only the card fails', async () => {
     invoke.mockImplementation((channel: string) => {
       if (channel === 'resources:card-get') return Promise.reject(new Error('nope'))
-      if (channel === 'knowledge:list-for-project') return Promise.resolve([])
+      if (channel === 'knowledge:list-for-project') {
+        return Promise.resolve([rb({ service: 'web', status: 'ok', markdown: 'Hit /health.' })])
+      }
       return Promise.resolve(undefined)
     })
     render(<RunbooksPanel projectId={1} />)
     expect(await screen.findByText(/Couldn’t load this project’s card/i)).toBeTruthy()
+    // Editor is hidden (no card), but the runbooks that loaded fine still render.
     expect(screen.queryByLabelText('Add a service')).toBeNull()
+    expect(screen.getByText('Hit /health.', { exact: false })).toBeTruthy()
   })
 
   it('hides stale runbook cards when a later refresh fails', async () => {
